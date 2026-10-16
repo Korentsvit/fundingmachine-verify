@@ -138,7 +138,17 @@ def decide(checks: Iterable[Check]) -> Outcome:
 
 
 def now_utc() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return utc(_dt.datetime.now(_dt.timezone.utc).replace(microsecond=0))
+
+
+def utc(t: _dt.datetime) -> str:
+    """ISO 8601 in UTC with Z; fractional seconds only when there are any, in
+    milliseconds when that is exact (a token's .419 stays .419, not .419000)."""
+    t = t.astimezone(_dt.timezone.utc) if t.tzinfo else t
+    s = t.replace(tzinfo=None, microsecond=0).isoformat()
+    if t.microsecond:
+        s += f".{t.microsecond // 1000:03d}" if t.microsecond % 1000 == 0 else f".{t.microsecond:06d}"
+    return s + "Z"
 
 
 def make_verdict(

@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, padding, rsa
 
 from . import der, pki
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict, utc
 
 OID_SIGNED_DATA = "1.2.840.113549.1.7.2"
 OID_TSTINFO = "1.2.840.113549.1.9.16.1.4"
@@ -384,7 +384,7 @@ def _verify(
     tst = tok.tst
     imprint_hash = _hash_name(tst.hash_oid)
     subject = subject or f"{imprint_hash} digest {tst.hashed_message.hex()}"
-    when = tst.gen_time.isoformat().replace("+00:00", "Z")
+    when = utc(tst.gen_time)
     acc = f" (accuracy {tst.accuracy_us / 1e6:g} s)" if tst.accuracy_us is not None else " (no accuracy stated)"
     checks.append(Check("rfc3161.parse", Status.PASS, f"the token is well formed: {imprint_hash} imprint, time {when}{acc}",
                         data={"gen_time": when, "accuracy_seconds": None if tst.accuracy_us is None else tst.accuracy_us / 1e6,
@@ -512,14 +512,19 @@ def _verify(
 
 
 def _statements(tst: TstInfo, signer: x509.Certificate | None, anchor: x509.Certificate | None, when: str, acc: str) -> dict:
-    who = signer.subject.rfc4514_string() if signer is not None else "an unidentified authority"
+    who = signer.subject.rfc4514_string() if signer is not None else None
     root = f" (whose certificate chains to {anchor.subject.rfc4514_string()}, a root you trust)" if anchor is not None else ""
+    if who is None:
+        undecided = ("The token could not be shown valid: its signing certificate is neither in the token nor among those "
+                     "supplied, so its signature and authority were not checked; see the checks not run.")
+    else:
+        undecided = (f"The token could not be shown valid: the authority {who} could not be tied to a root you trust, "
+                     "or a required item was missing; see the checks not run.")
     return {
         Outcome.VALID: (f"The time-stamping authority {who}{root} signed that the {_hash_name(tst.hash_oid)} digest "
                         f"{tst.hashed_message.hex()} existed at {when}{acc}, under policy {tst.policy}."),
         Outcome.INVALID: "The RFC 3161 time-stamp token does not hold: see the failing checks.",
-        Outcome.INDETERMINATE: (f"The token's signature was checked as far as possible, but the authority {who} could not be "
-                                "tied to a root you trust, or a required item was missing."),
+        Outcome.INDETERMINATE: undecided,
     }
 
 

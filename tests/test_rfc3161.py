@@ -34,7 +34,7 @@ def test_fixture_case(case):
 
 def test_valid_statement_and_reliance():
     _, v = run_case(FIX / "valid-rsa")
-    assert "2026-10-16T06:00:00.125000Z" in v.statement and "accuracy 1 s" in v.statement
+    assert "2026-10-16T06:00:00.125Z" in v.statement and "accuracy 1 s" in v.statement
     assert any("compare the fingerprint" in r for r in v.relies_on)
     assert any("not revoked" in r for r in v.relies_on)
     rev = next(c for c in v.checks if c.id == "rfc3161.revocation")

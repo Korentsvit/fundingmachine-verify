@@ -171,6 +171,15 @@ not take this code's word:
   authority, test authorities) published in the rfc3161-client package give
   the verdicts OpenSSL gives (`tests/test_realworld_tokens.py`, when
   `FM_RFC3161_CLIENT_FIXTURES` points at them);
+* twelve real tokens from the Provenance Ledger's two authorities and one
+  other, taken from public NuGet package signatures: DigiCert's responders of
+  2022 to 2026 and Sectigo's R37 signer (chained through Sectigo's
+  time-stamping root to USERTrust RSA) are valid against those roots taken
+  from the system bundle, Microsoft's authority is invalid against them, and
+  OpenSSL agrees on every one; with the authorities' CRLs of 14 and 15
+  October 2026, every path was shown not revoked
+  (`tests/test_public_tokens.py`, when `FM_PUBLIC_TOKENS` holds the output of
+  `tools/fetch_public_tokens.py`, which pins each package by SHA-256);
 * pypdf (CI) and poppler's `pdfdetach` take the same `certificate.json` from
   every PDF fixture;
 * the Provenance Ledger session's own fixtures, made by its TypeScript code,

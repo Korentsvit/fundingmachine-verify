@@ -23,7 +23,7 @@ from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509.oid import ExtendedKeyUsageOID
 
-from .verdict import Check, Status
+from .verdict import Check, Status, utc
 
 MAX_PATH = 8
 
@@ -163,10 +163,10 @@ def check_path(path: list[x509.Certificate], at: _dt.datetime) -> list[Check]:
     """Validity at ``at`` for every certificate; CA constraints above the signer."""
     checks: list[Check] = []
     expired = [c for c in path if not _valid_at(c, at)]
-    when = at.isoformat().replace("+00:00", "Z")
+    when = utc(at)
     if expired:
         checks.append(Check("rfc3161.validity", Status.FAIL, f"a certificate on the path was not valid at {when}",
-                            reasons=[f"{describe(c)}: valid {c.not_valid_before_utc.isoformat()} to {c.not_valid_after_utc.isoformat()}" for c in expired]))
+                            reasons=[f"{describe(c)}: valid {utc(c.not_valid_before_utc)} to {utc(c.not_valid_after_utc)}" for c in expired]))
     else:
         checks.append(Check("rfc3161.validity", Status.PASS, f"every certificate on the path was within its validity period at {when}",
                             reasons=["a certificate that has expired since then does not undo a time-stamp made while it was valid"]))
@@ -205,7 +205,7 @@ def check_revocation(path: list[x509.Certificate], crls: Sequence[x509.Certifica
     from the CRLs supplied. RFC 3161 section 4: a certificate revoked for
     key compromise voids every token its key signed, whenever revoked; any
     other revocation voids tokens stated after it."""
-    when = at.isoformat().replace("+00:00", "Z")
+    when = utc(at)
     covered, open_items, failures, warnings = [], [], [], []
     for cert, issuer in zip(path[:-1], path[1:]):
         usable = []
@@ -229,12 +229,12 @@ def check_revocation(path: list[x509.Certificate], crls: Sequence[x509.Certifica
                 reason = None
             reason_text = reason.value if reason is not None else "no reason given"
             if reason == x509.ReasonFlags.key_compromise:
-                voiding.append(f"{describe(cert)} was revoked for key compromise on {revoked_at.isoformat()}: "
+                voiding.append(f"{describe(cert)} was revoked for key compromise on {utc(revoked_at)}: "
                                "RFC 3161 section 4 says no token its key signed can be trusted")
             elif revoked_at <= at:
-                voiding.append(f"{describe(cert)} was revoked ({reason_text}) on {revoked_at.isoformat()}, before {when}")
+                voiding.append(f"{describe(cert)} was revoked ({reason_text}) on {utc(revoked_at)}, before {when}")
             else:
-                later.append(f"{cert.subject.rfc4514_string()}: revoked later ({reason_text}, {revoked_at.isoformat()}), "
+                later.append(f"{cert.subject.rfc4514_string()}: revoked later ({reason_text}, {utc(revoked_at)}), "
                              "which leaves earlier tokens standing")
         if voiding:
             failures += voiding
@@ -245,7 +245,7 @@ def check_revocation(path: list[x509.Certificate], crls: Sequence[x509.Certifica
         # Not listed: only a CRL issued at or after the token's time shows the status then.
         fresh = [crl for crl in usable if crl.last_update_utc >= at]
         if fresh:
-            issued = max(c.last_update_utc for c in fresh).isoformat().replace("+00:00", "Z")
+            issued = utc(max(c.last_update_utc for c in fresh))
             covered.append(f"{cert.subject.rfc4514_string()}: not revoked as of {issued}")
         elif usable:
             open_items.append(f"{describe(cert)}: the CRLs supplied were all issued before {when}, so they cannot show the status at that time")
