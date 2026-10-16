@@ -38,7 +38,7 @@ from . import jcs, merkle, ots, rfc3161
 from .base58 import EncodingError, b64url_decode, did_key_ed25519, multibase_decode
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict, summarize
+from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict, summarize, whole_number
 
 CONTRACT = "ledger-certificate/v0"
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
@@ -298,8 +298,10 @@ def verify(
         # 5. Inclusion of the sign event.
         signed = subj.get("signed") or {}
         try:
-            computed = merkle.root_from_inclusion(merkle.leaf_hash(bytes.fromhex(signed["event_hash"])), int(lr["leaf_index"]),
-                                                  int(record["size"]), [bytes.fromhex(h) for h in lr["audit_path"]])
+            computed = merkle.root_from_inclusion(merkle.leaf_hash(bytes.fromhex(signed["event_hash"])),
+                                                  whole_number(lr["leaf_index"], "the sign event's leaf_index"),
+                                                  whole_number(record["size"], "the hourly record's size", 1),
+                                                  [bytes.fromhex(h) for h in lr["audit_path"]])
             ok = computed.hex() == record.get("root")
             reason = None if ok else f"the path gives {computed.hex()}"
         except (KeyError, ValueError, TypeError) as exc:
@@ -454,7 +456,8 @@ def _check_anchor(anchor: dict, record: dict, checks: list[Check], header_source
     try:
         anchor_root = bytes.fromhex(anchor["root"])
         leaf = sha256(jcs.dumps(record))
-        computed = merkle.root_from_inclusion(merkle.leaf_hash(leaf), int(anchor["leaf_index"]), int(anchor["size"]),
+        computed = merkle.root_from_inclusion(merkle.leaf_hash(leaf), whole_number(anchor["leaf_index"], "the anchor's leaf_index"),
+                                              whole_number(anchor["size"], "the anchor's size", 1),
                                               [bytes.fromhex(h) for h in anchor["audit_path"]])
         if computed != anchor_root:
             problems.append(f"the record's path gives {computed.hex()}, not the anchored root {anchor['root']}")

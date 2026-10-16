@@ -146,7 +146,8 @@ FundingMachine's private repositories is in them.
   omitting the tool (both caught only by step 7); another document's events;
   the wrong file; changed after signing; another key; an issuer signing
   falsehoods (scope statement, percentages, root record, inclusion, anchor
-  time, a token over another root, a Bitcoin block the proof does not hold);
+  time, a token over another root, a Bitcoin block the proof does not hold)
+  or a position as a string;
   two attachments under one name; an attachment replaced by an incremental
   update; an unknown contract version. Over the v0.1 chain: valid, anchored
   and with the chain, and a total crediting text changed while capture was
@@ -222,6 +223,9 @@ not take this code's word:
   4,000 ways each, and of the 20,000 copies none yields a `certificate.json`
   that pypdf and this reader both take and that differs (one may read a copy
   the other refuses);
+* the `rfc8785` reference package serialises random JSON values to the same
+  bytes as this verifier's RFC 8785, once integers of 2^53 or more are taken
+  as the doubles ECMAScript makes them (the package refuses them) (CI);
 * `tools/differential_ots.py` changes every OpenTimestamps proof in the
   fixtures 500 ways: of 6,500 changed proofs, the reference library and this
   verifier refuse the same ones and read the rest alike (digest, Bitcoin

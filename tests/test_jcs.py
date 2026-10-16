@@ -98,3 +98,49 @@ def test_string_fast_path_matches_the_escaping_loop():
         s = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 12)))
         assert jcs._string(s) == slow(s), repr(s)
     assert jcs._string("\x7f") == '"\x7f"'
+
+
+def test_same_bytes_as_the_rfc8785_reference_package():
+    """The `rfc8785` package (Apache-2.0, a test-time tool only) on random
+    values: the same bytes, once integers of 2^53 or more are taken as the
+    doubles they become, as ECMAScript takes them (the package refuses them)."""
+    import math
+    import random
+    import struct
+
+    reference = pytest.importorskip("rfc8785")
+    rng = random.Random("jcs-reference")
+    pools = ["abc", "\x00\x01\x1f\x7f  ", "\"" + BS + "/", "é漢", "\U0001F600\U00010000\U0010FFFF", "﻿�￿"]
+
+    def text():
+        return "".join(rng.choice(rng.choice(pools)) for _ in range(rng.randint(0, 6)))
+
+    def number():
+        k = rng.random()
+        if k < 0.5:
+            while True:
+                d = struct.unpack(">d", rng.getrandbits(64).to_bytes(8, "big"))[0]
+                if math.isfinite(d):
+                    return d
+        if k < 0.8:
+            return rng.randint(-2**53 + 1, 2**53 - 1)
+        return rng.choice([2**53, 2**53 + 1, 10**21, -2**60])
+
+    def value(depth=0):
+        k = rng.random()
+        if depth > 3 or k < 0.35:
+            return rng.choice([number, text, lambda: rng.choice([True, False, None])])()
+        if k < 0.7:
+            return {text(): value(depth + 1) for _ in range(rng.randint(0, 4))}
+        return [value(depth + 1) for _ in range(rng.randint(0, 4))]
+
+    def as_ecmascript(v):
+        if isinstance(v, bool) or not isinstance(v, (int, list, dict)):
+            return v
+        if isinstance(v, int):
+            return float(v) if abs(v) >= 2**53 else v
+        return [as_ecmascript(x) for x in v] if isinstance(v, list) else {k: as_ecmascript(x) for k, x in v.items()}
+
+    for _ in range(3000):
+        v = value()
+        assert jcs.dumps(v) == reference.dumps(as_ecmascript(v)), v

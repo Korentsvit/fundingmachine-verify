@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from . import jcs
 from .base58 import EncodingError, b64url_decode
 from .hashes import sha256
-from .verdict import Check, Outcome, Status, guarded, make_verdict
+from .verdict import Check, Outcome, Status, guarded, make_verdict, whole_number
 
 ZERO = "0" * 64
 FIELDS = {"contract", "tenant_id", "window", "size", "root", "prev_root", "key_id", "sig"}
@@ -51,6 +51,10 @@ def verify(records: list, public_key: bytes | None = None, subject: str | None =
         if not isinstance(rec, dict) or set(rec) != FIELDS or rec.get("contract") != "ledger-root/v0":
             problems.append(f"record {i} is not a ledger-root/v0 record")
             break
+        try:
+            whole_number(rec["size"], f"record {i}'s size", 1)
+        except ValueError as exc:
+            problems.append(str(exc))
         if rec["tenant_id"] != tenant:
             problems.append(f"record {i} is for tenant {rec['tenant_id']!r}, the chain for {tenant!r}")
         start, end = _time(rec["window"]["start"]), _time(rec["window"]["end"])

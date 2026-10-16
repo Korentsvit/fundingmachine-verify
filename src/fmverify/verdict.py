@@ -172,6 +172,19 @@ def make_verdict(
     )
 
 
+MAX_SAFE_INTEGER = 2**53 - 1
+
+
+def whole_number(value: Any, what: str, least: int = 0) -> int:
+    """A count or position as signed JSON gives it: a whole number from
+    ``least`` to 2^53 - 1, never a string, a boolean or a fraction. A larger
+    one is not what a JavaScript signer meant: JSON parsing there rounds it
+    to another value, which the signature then covers."""
+    if isinstance(value, bool) or not isinstance(value, int) or not least <= value <= MAX_SAFE_INTEGER:
+        raise ValueError(f"{what} is {value!r}, not a whole number from {least} to 2^53 - 1")
+    return value
+
+
 def summarize(sub: Verdict, cid: str, what: str, others_valid: int) -> Check:
     """One proof's verdict as a row of a larger one (a token in an anchor, a
     proof in a certificate). A proof that holds with warnings is a warning row

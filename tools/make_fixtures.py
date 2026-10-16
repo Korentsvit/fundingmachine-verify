@@ -751,6 +751,10 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
           "failing": ["certificate.root_record"]})
     case("inclusion-wrong", issue(variant(ledger_root__leaf_index=17)),
          {"description": "The issuer signed a wrong position for the sign event", "outcome": "invalid", "failing": ["certificate.inclusion"]})
+    case("leaf-index-not-a-number", issue(variant(ledger_root__leaf_index=str(signed_index))),
+         {"description": ("The issuer signed the sign event's position as a string: the right digits, but not a number, "
+                          "and a verifier does not read a signed field as something else"),
+          "outcome": "invalid", "failing": ["certificate.inclusion"]})
     case("anchor-time-earlier-than-token", issue(variant(ledger_root__anchor=anchor_block(tsr(anchor_root), gen_time_text="2026-10-16T07:00:00Z"))),
          {"description": "The certificate states an earlier time than the authority's token", "outcome": "invalid",
           "failing": ["certificate.rfc3161.0.gen_time"]})

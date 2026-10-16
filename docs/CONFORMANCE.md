@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 45 of the 126 cases.
+command answering `valid` to everything conforms on 45 of the 127 cases.
 
 ## Layout
 
@@ -83,7 +83,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-126 cases, on 16 October 2026:
+127 cases, on 16 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -108,12 +108,13 @@ Check ids are this verifier's; another implementation is asked to match
   contract; proofs over another root; sets with `index.jsonl` (valid, a
   broken link, an anchor not listed); and the anchors naming one content
   hash (`prove_sha256`: the earliest that holds, a later one only, none).
-* Certificates (26, `ledger-certificate/v0`), over `ledger-event/v0` and v0.1
+* Certificates (27, `ledger-certificate/v0`), over `ledger-event/v0` and v0.1
   chains: valid, anchored or not (and issued before its hour has a root),
   with and without the chain; in PDF form (classic, compressed, updated, no
   attachment, two attachments); changed after signing; another key; the
   wrong file; and an issuer signing falsehoods, from the scope statement to
-  the authorship totals and the anchor's times.
+  the authorship totals and the anchor's times, or signing a position as a
+  string.
 * Event chains (23, `ledger-event/v0` and v0.1): valid, tampered, back-dated
   (one event, and the whole chain consistently, which the chain alone cannot
   detect), re-ordered (plainly, and re-signed), dropped, after close, wrong

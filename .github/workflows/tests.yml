@@ -38,7 +38,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -e ".[dev,interop]"
-      - run: python -m pytest -q tests/test_interop.py tests/test_interop_pdf.py -rs
+      - run: python -m pytest -q tests/test_interop.py tests/test_interop_pdf.py tests/test_jcs.py -rs
 
   release-build:
     runs-on: ubuntu-latest
