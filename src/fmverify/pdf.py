@@ -1,12 +1,16 @@
 """Extract an embedded file (the certificate's ``certificate.json``) from a PDF.
 
 A small reader, enough for embedded files and no more: it finds every
-indirect object in the file (the last definition of an object number wins,
-as with incremental updates), opens object streams (PDF 1.5), finds the file
+indirect object in the file, opens object streams (PDF 1.5), finds the file
 specifications whose name is the one asked for, and decodes their embedded
 file streams (no filter, or FlateDecode). It renders nothing and runs
-nothing. More than one embedded file under the same name is refused: a
-verifier must not choose between them.
+nothing. A verifier must not choose between versions of what it verifies,
+so two things are refused: more than one embedded file under the same name,
+and an embedded file whose objects are defined more than once with different
+content, or more than once where one definition cannot be read (an
+incremental update replacing it, or a definition no cross-reference table
+lists), since readers differ on which definition holds, and a viewer could
+show one while this reader checks another.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ class Name:
 class Stream:
     dict: dict
     raw: bytes
+    measured: bool = True  # its end was found by a direct /Length; False when found by searching for endstream
 
 
 _WS = b"\x00\t\n\x0c\r "
@@ -172,14 +177,17 @@ def _read_object(data: bytes, pos: int) -> tuple[Any, int]:
         elif data.startswith(b"\n", start):
             start += 1
         length = value.get("Length")
-        if isinstance(length, int) and data[start + length:start + length + 20].lstrip().startswith(b"endstream"):
+        measured = isinstance(length, int) and data[start + length:start + length + 20].lstrip().startswith(b"endstream")
+        if measured:
             raw = data[start:start + length]
         else:
             end = data.find(b"endstream", start)
             if end < 0:
                 raise PdfError("unterminated stream")
-            raw = data[start:end].rstrip(b"\r\n")
-        return Stream(value, raw), start + len(raw)
+            # One end-of-line marker before endstream is not stream data (ISO 32000-1, 7.3.8.1); any other is.
+            raw = data[start:end]
+            raw = raw[:-2] if raw.endswith(b"\r\n") else raw[:-1] if raw.endswith((b"\n", b"\r")) else raw
+        return Stream(value, raw, measured), start + len(raw)
     return value, lex.pos
 
 
@@ -236,10 +244,15 @@ class Document:
         self.data = data
         self.budget = [MAX_DOCUMENT]
         self.objects: dict[int, Any] = {}
+        self.redefined: set[int] = set()  # object numbers defined more than once, differently
+        self.headers: dict[int, int] = {}  # per object number, its definitions in the file, readable or not
+        self.readable: dict[int, int] = {}  # and those this reader could read
         skip_until = 0
         for m in _OBJ.finditer(data):
             if m.start() < skip_until:
                 continue  # inside an object already read (a stream's bytes, a string's text): data, not objects
+            num = int(m.group(1))
+            self.headers[num] = self.headers.get(num, 0) + 1
             try:
                 value, end = _read_object(data, m.end())
             except (PdfError, IndexError, ValueError):
@@ -249,7 +262,10 @@ class Document:
                 skip_until = len(data) if close < 0 else close
                 continue
             skip_until = end
-            self.objects[int(m.group(1))] = value  # a later definition replaces an earlier one
+            self.readable[num] = self.readable.get(num, 0) + 1
+            if num in self.objects and self.objects[num] != value:
+                self.redefined.add(num)
+            self.objects[num] = value  # the later definition is the one read; embedded_files refuses either
         for num, obj in list(self.objects.items()):
             if isinstance(obj, Stream) and self.resolve(obj.dict.get("Type")) == Name("ObjStm"):
                 self._open_object_stream(obj)
@@ -274,28 +290,49 @@ class Document:
             pairs.append((num, off))
         for num, off in pairs:
             value, _ = _read_object(body, first + off)
+            if num in self.objects and self.objects[num] != value:
+                self.redefined.add(num)
             self.objects.setdefault(num, value)  # without the cross-reference table, a top-level definition wins
 
     def embedded_files(self, only: str | None = None) -> list[tuple[str, bytes]]:
         """Every file specification with an embedded file: (name, content);
         with ``only``, just those of that name are decoded."""
         out = []
-        for obj in self.objects.values():
+        for num, obj in list(self.objects.items()):
             if not isinstance(obj, dict):
                 continue
-            ef = self.resolve(obj.get("EF"))
+            touched = {num}
+            ef = self._follow(obj.get("EF"), touched)
             if not isinstance(ef, dict):
                 continue
-            name = self.resolve(obj.get("UF")) or self.resolve(obj.get("F"))
-            stream = self.resolve(ef.get("UF")) or self.resolve(ef.get("F"))
+            name = self._follow(obj.get("UF"), touched) or self._follow(obj.get("F"), touched)
+            stream = self._follow(ef.get("UF"), touched) or self._follow(ef.get("F"), touched)
             if not isinstance(stream, Stream):
                 continue
             if isinstance(name, bytes):
                 name = name[2:].decode("utf-16-be") if name.startswith(b"\xfe\xff") else name.decode("latin-1")
             if only is not None and str(name) != only:
                 continue
+            if not stream.measured and self.resolve(stream.dict.get("Length")) != len(stream.raw):
+                raise PdfError(f"the embedded file {name}'s stream does not end where its /Length says: the file is damaged, "
+                               "and readers differ on where such a stream ends")
+            if any(n in self.redefined or self.headers.get(n, 0) > max(1, self.readable.get(n, 0)) for n in touched):
+                raise PdfError(f"the embedded file {name} is defined more than once in the PDF, with different content (an "
+                               "incremental update replacing it, or a definition no cross-reference lists): readers differ "
+                               "on which holds, and a verifier must not choose")
             out.append((str(name), _decode(stream, self.resolve, self.budget)))
         return out
+
+    def _follow(self, value: Any, touched: set[int]) -> Any:
+        """``resolve``, recording the object numbers passed through."""
+        depth = 0
+        while isinstance(value, Ref):
+            if depth > 32:
+                raise PdfError("references loop")
+            touched.add(value.num)
+            value = self.objects.get(value.num)
+            depth += 1
+        return value
 
 
 def extract(data: bytes, name: str = "certificate.json") -> bytes:

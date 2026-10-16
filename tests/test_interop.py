@@ -45,3 +45,16 @@ def test_reference_accepts_the_mainnet_header():
     header = bitcoin_core.CBlockHeader.deserialize(bytes.fromhex(line.split()[1]))
     (msg, att), = list(ref.timestamp.all_attestations())
     assert att.verify_against_blockheader(msg, header) == header.nTime
+
+
+def test_differential_fuzz_against_reference():
+    """tools/differential_ots.py, briefly: changed proofs are refused by both
+    readers, or read alike (digest, Bitcoin attestations and commitments)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("differential_ots", FIX.parent / "tools" / "differential_ots.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    result = tool.run(60)
+    assert result["totals"].get("read alike", 0) > 50 and result["totals"].get("refused by both", 0) > 200
+    assert not result["other"], result["other"]

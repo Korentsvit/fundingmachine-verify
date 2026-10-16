@@ -11,9 +11,9 @@
  ],
  "certificate": "certificate.pdf",
  "file": "exported.txt",
- "description": "An incremental update replaces the embedded certificate with an altered one: the current one is checked, and fails",
+ "description": "An incremental update replaces the embedded certificate with an altered one: two versions, and readers differ on which holds once the file is damaged, so neither is chosen; refused",
  "outcome": "invalid",
  "failing": [
-  "certificate.proof"
+  "certificate.pdf"
  ]
 }

@@ -1,4 +1,5 @@
 import zlib
+from pathlib import Path
 
 import pytest
 
@@ -87,3 +88,46 @@ def test_many_unterminated_objects_parse_in_one_pass():
     with pytest.raises(pdf.PdfError):
         pdf.extract(data)
     assert time.perf_counter() - t < 2
+
+
+CLASSIC = Path(__file__).resolve().parent.parent / "fixtures" / "certificate" / "pdf-classic" / "certificate.pdf"
+UPDATED = Path(__file__).resolve().parent.parent / "fixtures" / "certificate" / "pdf-updated-attachment" / "certificate.pdf"
+
+
+def test_a_stream_found_by_searching_loses_only_the_end_of_line_before_endstream():
+    """Found by tools/differential_pdf.py: where a stream's end is found by
+    searching for endstream (an indirect /Length), the search took every CR
+    and LF before it, the JSON's own last newline too. One end-of-line
+    marker there is not stream data (ISO 32000-1, 7.3.8.1)."""
+    data = CLASSIC.read_bytes()
+    good = pdf.extract(data)
+    assert good.endswith(b"}\n") and b"/Length 10560 >>" in data
+    indirect = data.replace(b"/Length 10560 >>", b"/Length 99 0 R >>", 1).replace(b"\nxref", b"\n99 0 obj\n10560\nendobj\nxref", 1)
+    assert pdf.extract(indirect) == good
+
+
+def test_an_attachment_whose_length_does_not_fit_is_refused():
+    """Found by the same fuzz: a damaged endstream let the search run on to a
+    later one, taking two versions as one; and pypdf takes a different end.
+    The stream this verifier checks must end where its /Length says."""
+    data = CLASSIC.read_bytes()
+    with pytest.raises(pdf.PdfError, match="does not end where its /Length says"):
+        pdf.extract(data.replace(b"/Length 10560 >>", b"/Length 10599 >>", 1))
+    indirect = data.replace(b"/Length 10560 >>", b"/Length 99 0 R >>", 1).replace(b"\nxref", b"\n99 0 obj\n10561\nendobj\nxref", 1)
+    with pytest.raises(pdf.PdfError, match="does not end where its /Length says"):
+        pdf.extract(indirect)
+
+
+def test_an_attachment_defined_twice_is_refused_even_where_one_definition_is_unreadable():
+    """Found by the same fuzz: damage that left one of two definitions
+    unreadable here let this reader take the other, while pypdf, repairing,
+    took the first."""
+    data = UPDATED.read_bytes()
+    with pytest.raises(pdf.PdfError, match="defined more than once"):
+        pdf.extract(data)
+    first = data.index(b"11 0 obj")
+    broken = data[:first] + b"11 0 obj\n<< /Type /EmbeddedFile /Length (" + data[first + len(b"11 0 obj\n<< /Type /EmbeddedFile /Length "):]
+    doc = pdf.Document(broken)
+    assert doc.headers[11] == 2 and doc.readable.get(11) == 1
+    with pytest.raises(pdf.PdfError, match="defined more than once"):
+        pdf.extract(broken)

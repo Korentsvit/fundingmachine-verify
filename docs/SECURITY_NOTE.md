@@ -61,10 +61,16 @@ the event chain). It does not, and cannot:
 * **Fields the verifier does not understand** are listed as a warning: they
   are covered by the signature but not checked.
 * **The PDF form** is a rendering; the verifier checks the JSON the PDF
-  carries as `certificate.json`, not what the pages show. It takes the
-  current version after incremental updates, and refuses a PDF carrying two
-  different `certificate.json` files. Text on the pages that disagrees with
-  the JSON is not detected.
+  carries as `certificate.json`, not what the pages show. It refuses to
+  choose between versions: a PDF carrying two different `certificate.json`
+  files, one whose attachment was replaced by an incremental update (or
+  defined again where no cross-reference lists it), and one whose
+  attachment stream does not end where its `/Length` says, since readers
+  differ on which version or which end holds, and a viewer could show one
+  while the verifier checks another (`tools/differential_pdf.py`: on 20,000
+  damaged copies, no `certificate.json` that pypdf and this reader both
+  took differs). Text on the pages that disagrees with the JSON is not
+  detected.
 
 ## OpenTimestamps
 
@@ -109,6 +115,14 @@ the event chain). It does not, and cannot:
   pin: DigiCert Trusted Root G4 `552f7bdc...0ac89988`, USERTrust RSA
   `e793c9b0...c3d4cbd2`.
 * **Policy identifiers are reported, not interpreted.**
+* **Where this verifier and OpenSSL differ** (found by
+  `tools/differential_openssl.py`): a signature algorithm in SignerInfo
+  other than the one the token was signed with is refused here, where
+  OpenSSL 3.0 verifies by the key's own algorithm and ignores it; and a
+  `digestAlgorithms` list without the signer's hash, which no signature
+  covers, is a warning here, where OpenSSL refuses the token. Hash
+  parameters other than NULL are a warning in both places OpenSSL accepts
+  them.
 
 ## Provenance Ledger anchors
 
@@ -137,7 +151,7 @@ the event chain). It does not, and cannot:
 `tools/tamper_audit.py` changes every input of every valid fixture case
 (bytes overwritten, deleted or inserted; JSON values replaced, keys removed,
 elements swapped) and runs the case again: on 16 October 2026, 25,303
-changed inputs gave no crash, and of the 385 still judged valid, each either
+changed inputs gave no crash, and of the 386 still judged valid, each either
 shows in the verdict (a warning, a proof not checked, a different
 statement) or changes only something no proof covers and no verdict reads:
 
@@ -178,11 +192,12 @@ before the fix:
   own algorithm, an anchor whose OpenTimestamps proof is pending) is a
   warning row wherever it is summarised: in an anchor, a batch, a
   certificate, an anchor set and `--prove`.
-* **Two token fields are read strictly**: CMS ContentInfo's `[0]` wrapper,
-  and hash algorithm parameters (absent or NULL only). SignedData's
+* **Token fields are read strictly where OpenSSL reads them strictly**:
+  CMS ContentInfo must be a SEQUENCE holding its content as `[0]`. SignedData's
   `digestAlgorithms`, which no signature covers, is now read: a list without
   the signer's algorithm is a warning, as RFC 5652 allows it and OpenSSL
-  refuses it.
+  refuses it; hash parameters other than NULL are a warning wherever they
+  appear.
 
 ## The implementation
 

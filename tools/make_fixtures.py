@@ -780,8 +780,9 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
     tampered_json = good_json.replace(b'"ledger-certificate/v0"', b'"ledger-certificate/v0" ', 1).replace(
         subject["doc_id"].encode(), subject["doc_id"][:-1].encode() + b"0", 1)
     pdf_case("pdf-updated-attachment", pdf_fixtures.with_update(pdf_fixtures.classic(good_json), tampered_json),
-             {"description": "An incremental update replaces the embedded certificate with an altered one: the current one is checked, and fails",
-              "outcome": "invalid", "failing": ["certificate.proof"]})
+             {"description": ("An incremental update replaces the embedded certificate with an altered one: two versions, and "
+                              "readers differ on which holds once the file is damaged, so neither is chosen; refused"),
+              "outcome": "invalid", "failing": ["certificate.pdf"]})
     pdf_case("pdf-no-attachment", pdf_fixtures.classic(good_json, []),
              {"description": "A PDF carrying no certificate.json", "outcome": "invalid", "failing": ["certificate.pdf"]})
 

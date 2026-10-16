@@ -147,9 +147,28 @@ def test_digest_algorithms_without_the_signers_is_a_warning():
                                                                                 roots=_roots()).checks)
 
 
-def test_hash_parameters_other_than_null_are_malformed():
+def test_hash_parameters_other_than_null_are_a_warning():
+    """Found by a differential fuzz against OpenSSL: such parameters are not
+    what RFC 5754 allows, but the hash is the one the identifier names, and
+    OpenSSL ignores them; a warning says where they are."""
     v = rfc3161.verify(_edited(SHA256_ALG, SHA256_ALG[:-2] + b"\x04\x00"), roots=_roots())
-    assert v.outcome is Outcome.INVALID and "absent or NULL" in v.checks[0].reasons[0]
+    row = next(c for c in v.checks if c.id == "rfc3161.hash_parameters")
+    assert v.outcome is Outcome.VALID and row.status is Status.WARN and "SignedData's digestAlgorithms" in row.reasons[0]
+    data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
+    signer = data.rindex(SHA256_ALG)  # the last: the signer's digest algorithm
+    edited = data[:signer] + SHA256_ALG[:-2] + b"\x04\x00" + data[signer + len(SHA256_ALG):]
+    row = next(c for c in rfc3161.verify(edited, roots=_roots()).checks if c.id == "rfc3161.hash_parameters")
+    assert "the signer's digest algorithm" in row.reasons[0]
+
+
+def test_content_info_must_be_a_sequence():
+    """Found by the same differential fuzz: another tag where ContentInfo's
+    SEQUENCE belongs was read as if it were one; OpenSSL refuses it."""
+    data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
+    at = data.index(bytes.fromhex("06092a864886f70d010702")) - 4  # ContentInfo's header: 30 82 LL LL
+    assert data[at] == 0x30
+    v = rfc3161.verify(data[:at] + b"\x31" + data[at + 1:], roots=_roots())
+    assert v.outcome is Outcome.INVALID and "ContentInfo" in v.checks[0].reasons[0]
 
 
 def test_content_info_content_must_be_explicit_zero():

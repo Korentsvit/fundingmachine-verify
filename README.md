@@ -45,7 +45,8 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
 * **Reliance stated.** Every verdict lists what it took on trust.
 * **The verifier is checkable too.** `python tools/build_release.py` builds
   the wheel and source archive so that the same commit gives the same bytes
-  (CI builds twice, with different file times and umask, and compares). To
+  (CI builds twice, with different file times and umask, and compares; a
+  build on GitHub's runner and one elsewhere matched byte for byte). To
   check a published release, rebuild from its tag and compare SHA-256
   values; on a machine whose zlib compresses differently,
   `python tools/build_release.py --compare A B` compares what two archives
@@ -197,6 +198,12 @@ not take this code's word:
   through `openssl cms` and Ed25519 through RFC 8032's reference algorithm,
   since OpenSSL 3.0 cannot check those through `ts`; a token made by
   OpenSSL's own authority code verifies here;
+* `tools/differential_openssl.py` changes the bytes of the RSA and ECDSA
+  tokens 2,000 ways each and asks both: on 16 October 2026, 3,987 of 4,000
+  were judged alike, and the 13 others differ by design (a hash list no
+  signature covers, warned about here and refused by OpenSSL; a signature
+  algorithm other than the one signed with, refused here and ignored by
+  OpenSSL); a short run is in CI;
 * eleven real-world tokens (IdenTrust's public authority, Sigstore's staging
   authority, test authorities) published in the rfc3161-client package give
   the verdicts OpenSSL gives (`tests/test_realworld_tokens.py`, when
@@ -211,7 +218,14 @@ not take this code's word:
   (`tests/test_public_tokens.py`, when `FM_PUBLIC_TOKENS` holds the output of
   `tools/fetch_public_tokens.py`, which pins each package by SHA-256);
 * pypdf (CI) and poppler's `pdfdetach` take the same `certificate.json` from
-  every PDF fixture;
+  every PDF fixture; `tools/differential_pdf.py` damages the PDF fixtures
+  4,000 ways each, and of the 20,000 copies none yields a `certificate.json`
+  that pypdf and this reader both take and that differs (one may read a copy
+  the other refuses);
+* `tools/differential_ots.py` changes every OpenTimestamps proof in the
+  fixtures 500 ways: of 6,500 changed proofs, the reference library and this
+  verifier refuse the same ones and read the rest alike (digest, Bitcoin
+  attestations, commitments);
 * the Provenance Ledger session's own fixtures, made by its TypeScript code,
   verify here: its 19 chains with their codes and positions, its authorship
   map byte for byte, its journal replayed, its certificate through all seven

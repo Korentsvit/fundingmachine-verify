@@ -95,6 +95,7 @@ class TstInfo:
     ordering: bool
     nonce: int | None
     tsa: der.Node | None
+    hash_params_ok: bool = True
 
 
 @dataclass
@@ -109,6 +110,7 @@ class SignerInfo:
     sig_oid: str
     sig_params: der.Node | None
     signature: bytes
+    digest_params_ok: bool = True
 
 
 @dataclass
@@ -121,15 +123,18 @@ class Token:
     status: int | None = None
     status_text: list[str] = field(default_factory=list)
     digest_algs: list[str] = field(default_factory=list)  # SignedData's digestAlgorithms, which no signature covers
+    digest_alg_params: bool = False  # one of them has parameters other than NULL
 
 
-def _digest_alg(node: der.Node) -> str:
-    """A hash algorithm identifier: its parameters absent or NULL (RFC 5754
-    section 2), never anything else."""
+def _digest_alg(node: der.Node) -> tuple[str, bool]:
+    """A hash algorithm identifier, and whether its parameters are absent or
+    NULL, the only forms RFC 5754 (section 2) allows. Other parameters are a
+    warning, not a malformed token: the hash is the one the OID names, and
+    OpenSSL ignores them."""
     parts = der.expect(node, der.SEQUENCE, "algorithm identifier").children()
-    if not parts or len(parts) > 2 or (len(parts) == 2 and parts[1].raw != b"\x05\x00"):
-        raise TokenError("malformed hash algorithm identifier: its parameters must be absent or NULL")
-    return der.oid(parts[0])
+    if not parts or len(parts) > 2:
+        raise TokenError("malformed hash algorithm identifier")
+    return der.oid(parts[0]), len(parts) == 1 or parts[1].raw == b"\x05\x00"
 
 
 def _alg(node: der.Node) -> tuple[str, der.Node | None]:
@@ -149,7 +154,7 @@ def _parse_tstinfo(raw: bytes) -> TstInfo:
     mi = der.expect(items[2], der.SEQUENCE, "message imprint").children()
     if len(mi) != 2:
         raise TokenError("malformed message imprint")
-    hash_oid = _digest_alg(mi[0])
+    hash_oid, hash_params_ok = _digest_alg(mi[0])
     hashed = der.octet_string(mi[1])
     serial = der.integer(items[3])
     gen_time = der.generalized_time(items[4])
@@ -174,7 +179,7 @@ def _parse_tstinfo(raw: bytes) -> TstInfo:
             pass  # extensions: reported by presence only
         else:
             raise TokenError(f"unexpected field {item.describe()} in TSTInfo")
-    return TstInfo(raw, version, policy, hash_oid, hashed, serial, gen_time, accuracy_us, ordering, nonce, tsa)
+    return TstInfo(raw, version, policy, hash_oid, hashed, serial, gen_time, accuracy_us, ordering, nonce, tsa, hash_params_ok)
 
 
 def _parse_signer(node: der.Node) -> SignerInfo:
@@ -190,7 +195,7 @@ def _parse_signer(node: der.Node) -> SignerInfo:
         ski = sid.content
     else:
         raise TokenError("SignerInfo identifies its signer in neither form CMS allows")
-    digest_oid = _digest_alg(parts[i]); i += 1
+    digest_oid, digest_params_ok = _digest_alg(parts[i]); i += 1
     if i >= len(parts) or not parts[i].is_context(0):
         raise TokenError("SignerInfo has no signed attributes; RFC 3161 tokens require them")
     sa = parts[i]; i += 1
@@ -205,7 +210,7 @@ def _parse_signer(node: der.Node) -> SignerInfo:
     signature = der.octet_string(parts[i]); i += 1
     # The signature covers the attributes encoded as a SET OF: the same bytes with the tag 0x31.
     signed_raw = b"\x31" + sa.raw[1:]
-    return SignerInfo(version, issuer, serial, ski, digest_oid, signed_raw, attrs, sig_oid, sig_params, signature)
+    return SignerInfo(version, issuer, serial, ski, digest_oid, signed_raw, attrs, sig_oid, sig_params, signature, digest_params_ok)
 
 
 def parse_token(data: bytes) -> Token:
@@ -222,9 +227,10 @@ def parse_token(data: bytes) -> Token:
             if status not in (0, 1):
                 raise TokenError(f"the authority answered '{PKI_STATUS.get(status, status)}'"
                                  + (f": {'; '.join(status_text)}" if status_text else "") + "; there is no token")
-            if len(kids) < 2:
-                raise TokenError("the response is granted but carries no token")
-            top = kids[1]
+            if len(kids) != 2:
+                raise TokenError("the response is granted but carries no token" if len(kids) < 2 else
+                                 "TimeStampResp holds more than its status and its token")
+            top = der.expect(kids[1], der.SEQUENCE, "the token's ContentInfo")
             kids = top.children()
         if der.oid(kids[0]) != OID_SIGNED_DATA:
             raise TokenError("the token is not CMS SignedData")
@@ -232,7 +238,13 @@ def parse_token(data: bytes) -> Token:
             raise TokenError("ContentInfo does not hold its content as [0] EXPLICIT, as CMS requires")
         sd = kids[1].children()[0].children()
         der.integer(sd[0])  # SignedData version: read to check it is an integer; any value is accepted
-        digest_algs = [_digest_alg(a) for a in der.expect(sd[1], der.SET, "digest algorithms").children()]
+        # digestAlgorithms is covered by no signature and only lists hashes: read
+        # loosely here, and what it says is compared, as a warning, in verify().
+        digest_algs, digest_alg_params = [], False
+        for a in der.expect(sd[1], der.SET, "digest algorithms").children():
+            oid, ok = _digest_alg(a)
+            digest_algs.append(oid)
+            digest_alg_params |= not ok
         encap = der.expect(sd[2], der.SEQUENCE, "encapsulated content").children()
         econtent_type = der.oid(encap[0])
         if len(encap) != 2 or not encap[1].is_context(0):
@@ -250,7 +262,7 @@ def parse_token(data: bytes) -> Token:
             raise TokenError("SignedData does not end with its signer infos")
         signers = [_parse_signer(s) for s in der.expect(rest[0], der.SET, "signer infos").children()]
         tst = _parse_tstinfo(econtent)
-        return Token(tst, econtent_type, econtent, certs, signers, status, status_text, digest_algs)
+        return Token(tst, econtent_type, econtent, certs, signers, status, status_text, digest_algs, digest_alg_params)
     except (der.DerError, IndexError, ValueError) as exc:
         if isinstance(exc, TokenError):
             raise
@@ -465,6 +477,12 @@ def _verify(
                             reasons=["no signature covers that list, and RFC 5652 (section 5.1) allows this; OpenSSL refuses such a token",
                                      f"listed: {', '.join(_hash_name(x) for x in tok.digest_algs) or 'none'}; "
                                      f"the signer's: {_hash_name(si.digest_oid)}"], required=False))
+    odd = [where for where, ok in (("the message imprint", tst.hash_params_ok), ("the signer's digest algorithm", si.digest_params_ok),
+                                   ("SignedData's digestAlgorithms", not tok.digest_alg_params)) if not ok]
+    if odd:
+        checks.append(Check("rfc3161.hash_parameters", Status.WARN, "a hash algorithm is given with parameters other than NULL",
+                            reasons=[f"in {', '.join(odd)}; RFC 5754 (section 2) allows only absent or NULL parameters for SHA-2",
+                                     "the hash computed is the one the algorithm's identifier names, as OpenSSL does"], required=False))
     if attr_problems:
         checks.append(Check("rfc3161.signed_attrs", Status.FAIL, "the signed attributes do not cover this TSTInfo", reasons=attr_problems))
     else:

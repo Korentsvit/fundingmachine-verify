@@ -176,3 +176,16 @@ ess_cert_id_alg = sha256
     assert "accuracy 1.5 s" in v.statement
     doc.write_bytes(b"a different document\n")
     assert rfc3161.verify_file(tmp_path / "resp.tsr", doc, roots=roots).outcome is Outcome.INVALID
+
+
+def test_differential_fuzz_against_openssl():
+    """tools/differential_openssl.py, briefly: changed tokens are judged as
+    OpenSSL judges them, but for the two differences made by design."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("differential_openssl", ROOT / "tools" / "differential_openssl.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    result = tool.run(150, OPENSSL)
+    assert result["totals"]["agree"] > 250
+    assert not result["other"], result["other"]
