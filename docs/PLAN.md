@@ -20,7 +20,8 @@ ledger, capture, capital, or the website.
 | V-3 | Anchor batches: one command over a batch directory (leaves, Merkle root, `.ots`, `.tsr`), leaf encodings, combined verdict, checkout comparison, inclusion proofs per file; `docs/INPUTS.md` proposal reconciled with the Ledger session's format once published | this pull request |
 | V-4 | Read the first real `anchors/` proofs in fundingmachine-core and fundingmachine-web as soon as they land; record any format gap as a named finding | queued, waits on the Ledger session |
 | V-5 | Revocation evidence for authority chains: CRLs supplied by the caller, checked at the time-stamp; stated as not checked when absent | queued |
-| V-6 | Library entry point: one JSON-in, JSON-out function for the hosted page; pure Python apart from `cryptography`, so it can also run in the browser under Pyodide | queued |
+| V-6 | Library entry point: one JSON-in, JSON-out function for the hosted page; pure Python apart from `cryptography`, so it can also run in the browser under Pyodide (`docs/API.md`) | this pull request |
+| V-6b | Run the API under Pyodide in CI, so the browser claim is tested rather than stated | queued |
 | V-7 | Certificate v0: ed25519 signatures, event chain order and linkage, Merkle roots, anchors, against `docs/CERTIFICATE.md` | queued, waits on the Ledger session's document |
 | V-8 | Static HTML report: authorship map and evidence coverage, no script from any third party | queued |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use | queued |

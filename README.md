@@ -16,7 +16,9 @@ convenience on top of it.
 | Certificate v0: ed25519 signatures, event chain, Merkle roots, anchors | `fm-verify certificate` | queued, for 31 October |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
-are in [docs/INPUTS.md](docs/INPUTS.md).
+are in [docs/INPUTS.md](docs/INPUTS.md). Programs and pages call one function,
+`fmverify.api.verify`, JSON in and verdict out, with no disk or network
+access: see [docs/API.md](docs/API.md).
 
 ## Independence
 

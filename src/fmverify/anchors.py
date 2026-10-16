@@ -50,13 +50,13 @@ class Entry:
 
 @dataclass
 class Batch:
-    directory: Path
+    name: str
     tree: str
     leaf_encoding: str
     entries: list[Entry]
     root: bytes
-    ots_files: list[Path]
-    tsr_files: list[Path]
+    ots_files: list[tuple[str, bytes]]
+    tsr_files: list[tuple[str, bytes]]
 
     def leaf(self, entry: Entry) -> bytes:
         return LEAF_ENCODINGS[self.leaf_encoding](entry.digest, entry.path)
@@ -72,14 +72,10 @@ def _safe_relative(path: str) -> str:
     return path
 
 
-def load_batch(directory: str | Path) -> Batch:
-    d = Path(directory)
-    try:
-        doc = json.loads((d / "batch.json").read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise BatchError(f"{d} holds no batch.json") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise BatchError(f"batch.json is not JSON: {exc}") from exc
+def batch_from_doc(doc: dict, anchor_files: dict[str, bytes], name: str = "batch") -> Batch:
+    """A batch from its parsed ``batch.json`` and the anchor files beside it, by file name."""
+    if not isinstance(doc, dict):
+        raise BatchError("batch.json does not hold an object")
     if doc.get("format") != FORMAT:
         raise BatchError(f"format {doc.get('format')!r}; this verifier reads {FORMAT}")
     if doc.get("tree") != "rfc9162-sha256":
@@ -104,12 +100,32 @@ def load_batch(directory: str | Path) -> Batch:
         raise BatchError("the batch lists a path twice")
     if len(root) != 32:
         raise BatchError("the root is not 32 bytes")
-    for name in [*doc.get("ots", []), *doc.get("rfc3161", [])]:
-        if not isinstance(name, str) or "/" in name or "\\" in name or name.startswith("."):
-            raise BatchError(f"anchor file {name!r} is not a plain file name inside the batch directory")
-    ots_files = [d / name for name in doc.get("ots", [])] or sorted(d.glob("*.ots"))
-    tsr_files = [d / name for name in doc.get("rfc3161", [])] or sorted(d.glob("*.tsr"))
-    return Batch(d, doc["tree"], doc["leaf_encoding"], entries, root, ots_files, tsr_files)
+    for fname in [*doc.get("ots", []), *doc.get("rfc3161", [])]:
+        if not isinstance(fname, str) or "/" in fname or "\\" in fname or fname.startswith("."):
+            raise BatchError(f"anchor file {fname!r} is not a plain file name inside the batch directory")
+
+    def pick(names: list[str], suffix: str) -> list[tuple[str, bytes]]:
+        if not names:
+            names = sorted(n for n in anchor_files if n.endswith(suffix))
+        missing = [n for n in names if n not in anchor_files]
+        if missing:
+            raise BatchError(f"batch.json names anchor files that are not there: {', '.join(missing)}")
+        return [(n, anchor_files[n]) for n in names]
+
+    return Batch(name, doc["tree"], doc["leaf_encoding"], entries, root,
+                 pick(list(doc.get("ots", [])), ".ots"), pick(list(doc.get("rfc3161", [])), ".tsr"))
+
+
+def load_batch(directory: str | Path) -> Batch:
+    d = Path(directory)
+    try:
+        doc = json.loads((d / "batch.json").read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise BatchError(f"{d} holds no batch.json") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BatchError(f"batch.json is not JSON: {exc}") from exc
+    files = {p.name: p.read_bytes() for p in d.iterdir() if p.is_file() and p.suffix in (".ots", ".tsr")}
+    return batch_from_doc(doc, files, name=str(d))
 
 
 def inclusion_proof(batch: Batch, path: str) -> dict:
@@ -135,7 +151,7 @@ def _summarize(sub: Verdict, cid: str, name: str, anchors_valid: int) -> Check:
 
 
 def verify_batch(
-    directory: str | Path,
+    directory: "str | Path | Batch",
     repo_root: str | Path | None = None,
     files: Sequence[str | Path] = (),
     header_sources: Sequence[HeaderSource] = (),
@@ -144,15 +160,18 @@ def verify_batch(
     extra_certs=(),
     strict_files: bool = False,
     checked_at: str | None = None,
+    held: dict[str, bytes] | None = None,
 ) -> Verdict:
-    """Check a batch. ``files`` are local files the caller holds, each named
-    by the path it is listed under (relative to ``repo_root`` when given,
-    else to the current directory); ``repo_root`` alone compares every
-    listed file with the checkout."""
+    """Check a batch (a directory, or a Batch already loaded).
+
+    ``files`` are local files the caller holds, each named by the path it is
+    listed under (relative to ``repo_root`` when given, else to the current
+    directory); ``held`` gives the same in memory, listed path to content;
+    ``repo_root`` alone compares every listed file with the checkout."""
     checks: list[Check] = []
-    subject = f"anchor batch {directory}"
+    subject = f"anchor batch {directory.name if isinstance(directory, Batch) else directory}"
     try:
-        batch = load_batch(directory)
+        batch = directory if isinstance(directory, Batch) else load_batch(directory)
     except BatchError as exc:
         checks.append(Check("anchors.batch", Status.FAIL, "the batch could not be read", reasons=[str(exc)]))
         return make_verdict("anchor-batch", subject, checks, {o: "The anchor batch could not be read." for o in Outcome},
@@ -171,19 +190,19 @@ def verify_batch(
                             reasons=[f"computed {computed.hex()}", f"stated {batch.root.hex()}",
                                      "a file was added, removed, changed or re-ordered after the root was made"]))
 
-    # Local files.
+    # Files the reader holds.
     base = Path(repo_root) if repo_root is not None else Path(".")
     listed = {e.path: e for e in batch.entries}
-    named = []
+    named: dict[str, bytes] = dict(held or {})
     for f in files:
         rel = Path(f).as_posix() if repo_root is None else Path(f).resolve().relative_to(base.resolve()).as_posix()
-        named.append(rel)
-    for rel in named:
+        named[rel] = (base / rel).read_bytes() if repo_root is not None else Path(f).read_bytes()
+    for rel, content in named.items():
         entry = listed.get(rel)
         if entry is None:
             checks.append(Check("anchors.file", Status.FAIL, f"{rel} is not listed in this batch"))
             continue
-        actual = sha256((base / rel).read_bytes())
+        actual = sha256(content)
         if actual == entry.digest:
             index = batch.entries.index(entry)
             checks.append(Check("anchors.file", Status.PASS, f"{rel} matches its listed digest (leaf {index} of {n})",
@@ -214,13 +233,13 @@ def verify_batch(
 
     # Anchors over the root.
     subs: list[tuple[str, str, Verdict]] = []
-    for p in batch.ots_files:
-        subs.append((f"anchors.ots.{p.name}", f"the OpenTimestamps proof {p.name}",
-                     ots.verify(p.read_bytes(), header_sources, digest=batch.root, network=network,
+    for fname, data in batch.ots_files:
+        subs.append((f"anchors.ots.{fname}", f"the OpenTimestamps proof {fname}",
+                     ots.verify(data, header_sources, digest=batch.root, network=network,
                                 subject=f"root {batch.root.hex()}", checked_at=checked_at)))
-    for p in batch.tsr_files:
-        subs.append((f"anchors.rfc3161.{p.name}", f"the RFC 3161 token {p.name}",
-                     rfc3161.verify(p.read_bytes(), digest=batch.root, roots=roots, extra_certs=extra_certs,
+    for fname, data in batch.tsr_files:
+        subs.append((f"anchors.rfc3161.{fname}", f"the RFC 3161 token {fname}",
+                     rfc3161.verify(data, digest=batch.root, roots=roots, extra_certs=extra_certs,
                                     subject=f"root {batch.root.hex()}", checked_at=checked_at)))
     valid = sum(1 for _, _, v in subs if v.outcome is Outcome.VALID)
     for cid, name, v in subs:
