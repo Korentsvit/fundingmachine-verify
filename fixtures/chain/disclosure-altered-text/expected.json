@@ -1,0 +1,8 @@
+{
+ "description": "One disclosed text differs by a word from what the chain recorded",
+ "outcome": "invalid",
+ "failing": [
+  "disclosure.replay"
+ ],
+ "disclosure": "disclosure.json"
+}

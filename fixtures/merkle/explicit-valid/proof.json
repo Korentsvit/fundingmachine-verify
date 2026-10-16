@@ -1,0 +1,12 @@
+{
+ "scheme": "explicit-sha256",
+ "leaf_prefix": "00",
+ "node_prefix": "01",
+ "steps": [
+  {
+   "side": "right",
+   "hash": "7d10de8554ed5ca40f9d0f0e0f4375b5b338af3fb96d33c9b2f53b5289b8f4fe"
+  }
+ ],
+ "root": "dc2e63640ebe89fc375fa90c7c780da60c28443672de5a22b15b7b687d9385c8"
+}

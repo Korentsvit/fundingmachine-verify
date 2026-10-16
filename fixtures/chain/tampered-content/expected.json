@@ -1,0 +1,9 @@
+{
+ "description": "A tool event's content hash changed after signing",
+ "outcome": "invalid",
+ "index": 4,
+ "code": "bad_signature",
+ "failing": [
+  "chain.rules"
+ ]
+}

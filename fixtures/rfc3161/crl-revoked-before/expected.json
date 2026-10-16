@@ -1,0 +1,15 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-revoked-before.pem"
+ ],
+ "description": "The authority's certificate was revoked before the token's time",
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.revocation"
+ ]
+}

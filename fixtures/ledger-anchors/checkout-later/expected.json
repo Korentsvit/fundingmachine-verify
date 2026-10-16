@@ -1,0 +1,21 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
+ ],
+ "description": "The same anchor against a checkout where the rulings file grew since: a warning",
+ "repos": {
+  "example/repository": "../repo-later"
+ },
+ "outcome": "valid",
+ "warning": [
+  "ledger_anchor.checkout.example/repository"
+ ]
+}

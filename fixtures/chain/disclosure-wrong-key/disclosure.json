@@ -1,0 +1,37 @@
+{
+ "doc_key_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+ "steps": [
+  {
+   "seq": 2,
+   "content_text": "We will measure the effect on twelve sites."
+  },
+  {
+   "seq": 4,
+   "content_text": " Prior work found a small effect."
+  },
+  {
+   "seq": 5,
+   "content_text": " The design follows a stepped wedge."
+  },
+  {
+   "seq": 6,
+   "content_text": "Its"
+  },
+  {
+   "seq": 7,
+   "content_text": "fifteen"
+  },
+  {
+   "seq": 9,
+   "content_text": "Our team"
+  },
+  {
+   "seq": 17,
+   "content_text": "The lead has run two such trials."
+  },
+  {
+   "seq": 19,
+   "content_text": "In short: "
+  }
+ ]
+}

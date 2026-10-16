@@ -1,0 +1,9 @@
+{
+ "description": "Tool-generated text relabelled as typed by a person",
+ "outcome": "invalid",
+ "index": 4,
+ "code": "schema",
+ "failing": [
+  "chain.rules"
+ ]
+}

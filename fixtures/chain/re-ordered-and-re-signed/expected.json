@@ -1,0 +1,9 @@
+{
+ "description": "Two events swapped, renumbered, relinked and re-signed: the paste now lands in a statement not yet split off",
+ "outcome": "invalid",
+ "index": 2,
+ "code": "statement_unknown",
+ "failing": [
+  "chain.rules"
+ ]
+}

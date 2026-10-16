@@ -1,0 +1,9 @@
+{
+ "description": "An event carrying the text itself: text never leaves the tenant",
+ "outcome": "invalid",
+ "index": 1,
+ "code": "schema",
+ "failing": [
+  "chain.rules"
+ ]
+}

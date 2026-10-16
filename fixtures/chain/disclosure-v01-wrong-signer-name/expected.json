@@ -1,0 +1,8 @@
+{
+ "description": "The journal names the signer differently from the name the sign event's hash covers",
+ "outcome": "invalid",
+ "failing": [
+  "disclosure.replay"
+ ],
+ "disclosure": "disclosure.json"
+}

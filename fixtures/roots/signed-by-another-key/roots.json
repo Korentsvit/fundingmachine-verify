@@ -1,0 +1,69 @@
+{
+ "records": [
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T08:00:00.000Z",
+    "end": "2026-10-16T09:00:00.000Z"
+   },
+   "size": 3,
+   "root": "b1a71aa65f991aae9b40f52abacc0d8233b8d483cfa8e996bd9e943961f4f2ee",
+   "prev_root": "0000000000000000000000000000000000000000000000000000000000000000",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "VJP520RbckWBUcGRsN_puKqq-6t_xJVYaRHZ7o3h2-q2y2cMP1lnQpoQ9wq__RrnrULwBEcgrqXvS8k0YIZBCA"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T09:00:00.000Z",
+    "end": "2026-10-16T10:00:00.000Z"
+   },
+   "size": 4,
+   "root": "4e2e52947a9dc63a67ef6daa9a118a4660df304134e8aa8187f82abf1ed1909f",
+   "prev_root": "a5749077f8a2155cd33559a93c9e53944831e2b2ccfec40dd29917f1e7bc3f8a",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "fUwF3WVPk6d6fC86bCDOec4FIurGOCSwuxvy0gHBDkqFxo4gvW5Y5NVZDZQi9m77ESzk5OaXlcOBBPYjaFUeAw"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T11:00:00.000Z",
+    "end": "2026-10-16T12:00:00.000Z"
+   },
+   "size": 5,
+   "root": "177f2ae5a9b437163a85c4b2ff94a8a21863046a5e65d72ba7e2329126b59475",
+   "prev_root": "7aa95ad3a1611ae9cbe1e85f851c595da2eaae7d8611b563499faaed40df3ba1",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "MoIRE0TKWVYMKuWuzyNcC5aMHRsrT3e-Xw4mxkFu0n_HIqw27-UHELd1J9Hxno67eZ1YIJLIeNYlASwek5yQBw"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T12:00:00.000Z",
+    "end": "2026-10-16T13:00:00.000Z"
+   },
+   "size": 6,
+   "root": "42bfb27f3409a39e3392ded671dcbcb7761736b3bcebfa4ac1bbc5f5e6c136c0",
+   "prev_root": "1895256a0f8e161a60920886b71b626ff64b6aa77878711cc42ef8677e0cba33",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "nsJFvLEMszmPDXqlR7-9YlwmpzvbffCnNruT5M91SSk-YYPrrqZh6aeZD7tVnmafojSQbWsWFX2bTl_SvRa9DQ"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T15:00:00.000Z",
+    "end": "2026-10-16T16:00:00.000Z"
+   },
+   "size": 7,
+   "root": "758916bfd45365c6cc2f2c96c28c7a9ec472a6af9b07617bf1de1bd484037752",
+   "prev_root": "48269f621b92d44b7b8c1ca8e982adaccba9b8a31c76df1a28c21b179c28b87a",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "WNolkJWlrcpA06esJyRuhvD95yX4qWk4Nbh4PxjOsdkuwopBPax4CBu7n24Y58ZYrbm7NMwmyT7d27NGRvGUBg"
+  }
+ ]
+}

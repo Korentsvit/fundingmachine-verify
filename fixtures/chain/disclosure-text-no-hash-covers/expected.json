@@ -1,0 +1,8 @@
+{
+ "description": "Every recorded text reproduces its hash, but the disclosure also carries text for a split and for an event the chain lacks: a warning naming both, since no hash covers them",
+ "outcome": "valid",
+ "warning": [
+  "disclosure.unused"
+ ],
+ "disclosure": "disclosure.json"
+}

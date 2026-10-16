@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "The signer's certificate has no extended key usage",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.tsa_eku"
+ ]
+}

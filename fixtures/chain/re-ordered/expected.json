@@ -1,0 +1,9 @@
+{
+ "description": "Two events swapped",
+ "outcome": "invalid",
+ "index": 2,
+ "code": "seq_gap",
+ "failing": [
+  "chain.rules"
+ ]
+}

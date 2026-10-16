@@ -1,0 +1,6 @@
+{
+ "description": "The journal of the v0.1 chain: the resync's texts, the declaration and the signer's name reproduce every keyed hash",
+ "outcome": "valid",
+ "disclosure": "disclosure.json",
+ "failing": []
+}

@@ -1,0 +1,6 @@
+{
+ "file": "document.txt",
+ "description": "No trusted root supplied",
+ "roots": [],
+ "outcome": "indeterminate"
+}

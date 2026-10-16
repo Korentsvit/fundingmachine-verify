@@ -1,0 +1,1 @@
+FundingMachine verifier fixture: a time-stamped Decision fragment

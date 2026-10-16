@@ -1,0 +1,8 @@
+{
+ "key": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+ "description": "The record of 11:00 removed",
+ "outcome": "invalid",
+ "failing": [
+  "roots.links"
+ ]
+}

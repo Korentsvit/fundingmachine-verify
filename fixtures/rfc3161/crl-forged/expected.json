@@ -1,0 +1,15 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-forged.pem"
+ ],
+ "description": "A CRL carrying the issuing CA's name but signed by another key",
+ "outcome": "valid",
+ "warning": [
+  "rfc3161.crl"
+ ]
+}

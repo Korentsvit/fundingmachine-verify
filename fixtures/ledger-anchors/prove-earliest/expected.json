@@ -1,0 +1,17 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
+ ],
+ "anchors": "../set-valid",
+ "prove_sha256": "1199f8a6e12fc811a087d17a1037589b637da1bb0edc31b02b15680402f077fe",
+ "description": "A fragment named in both anchors of set-valid: the earliest, 080411Z, holds",
+ "outcome": "valid"
+}

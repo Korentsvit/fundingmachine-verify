@@ -1,0 +1,6 @@
+{
+ "description": "The last event names ledger-event/v0.2, a version this verifier does not read: indeterminate, not invalid",
+ "outcome": "indeterminate",
+ "index": 10,
+ "code": "schema"
+}

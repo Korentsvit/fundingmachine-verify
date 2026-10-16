@@ -1,0 +1,8 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "The right path under the wrong index",
+ "outcome": "invalid",
+ "failing": [
+  "merkle.root"
+ ]
+}

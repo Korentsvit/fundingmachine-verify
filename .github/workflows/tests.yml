@@ -1,0 +1,79 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+      - name: Conformance suite
+        run: fm-verify conformance fixtures
+      - name: Fixtures rebuild byte for byte
+        run: |
+          python tools/make_fixtures.py
+          git diff --exit-code -- fixtures
+
+  interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev,interop]"
+      - run: python -m pytest -q tests/test_interop.py tests/test_interop_pdf.py tests/test_jcs.py -rs
+
+  release-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build==1.6.1
+      - name: The verifier's wheel and source archive rebuild byte for byte
+        run: |
+          python tools/build_release.py "$RUNNER_TEMP/first"
+          find src tests docs tools -type f -exec touch -d '2001-02-03 04:05:06' {} +
+          (umask 077 && python tools/build_release.py "$RUNNER_TEMP/second")
+          cmp "$RUNNER_TEMP"/first/*.whl "$RUNNER_TEMP"/second/*.whl
+          cmp "$RUNNER_TEMP"/first/*.tar.gz "$RUNNER_TEMP"/second/*.tar.gz
+      - name: The built wheel conforms
+        run: |
+          python -m pip install "$RUNNER_TEMP"/first/*.whl
+          cd "$RUNNER_TEMP" && fm-verify conformance "$GITHUB_WORKSPACE/fixtures"
+
+  pyodide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run the API under Pyodide, as a browser would
+        run: |
+          mkdir -p "$RUNNER_TEMP/pyodide"
+          cd "$RUNNER_TEMP/pyodide"
+          npm init -y > /dev/null
+          npm install --silent pyodide@0.27.7
+          cp "$GITHUB_WORKSPACE/tools/pyodide/check.mjs" .
+          node check.mjs "$GITHUB_WORKSPACE"

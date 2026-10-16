@@ -1,0 +1,18 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/anchors-headers-0-6.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "The same batch against a checkout where one file was edited and one removed: the anchors still hold for what was listed",
+ "repo_root": "../repo-changed",
+ "outcome": "valid",
+ "warning": [
+  "anchors.checkout"
+ ]
+}

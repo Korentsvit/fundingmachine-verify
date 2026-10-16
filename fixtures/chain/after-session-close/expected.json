@@ -1,0 +1,9 @@
+{
+ "description": "An event in the first session after it was closed",
+ "outcome": "invalid",
+ "index": 16,
+ "code": "session_closed",
+ "failing": [
+  "chain.rules"
+ ]
+}

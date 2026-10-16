@@ -1,0 +1,12 @@
+{
+ "description": "The file presented is not the one the proof covers",
+ "network": "mainnet",
+ "file": "subject.bin",
+ "headers": [
+  "../../bitcoin/mainnet/headers-sparse.txt"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "ots.subject"
+ ]
+}

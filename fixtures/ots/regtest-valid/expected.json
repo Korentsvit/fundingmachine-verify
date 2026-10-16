@@ -1,0 +1,12 @@
+{
+ "description": "Calendar-shaped proof with a pending branch and a branch anchored in regtest block 5",
+ "network": "regtest",
+ "file": "document.txt",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/headers-0-11.bin",
+   "start": 0
+  }
+ ],
+ "outcome": "valid"
+}

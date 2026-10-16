@@ -1,0 +1,9 @@
+{
+ "description": "An event signed with the second session's key",
+ "outcome": "invalid",
+ "index": 1,
+ "code": "key_mismatch",
+ "failing": [
+  "chain.rules"
+ ]
+}

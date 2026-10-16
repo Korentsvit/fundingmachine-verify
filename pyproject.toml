@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fundingmachine-verify"
+version = "0.1.0"
+description = "Independent verifier for FundingMachine certificates and their anchors"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+dependencies = ["cryptography>=42"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "cryptography>=44", "jsonschema>=4"]
+interop = ["opentimestamps>=0.4.5", "pypdf>=4", "rfc8785>=0.1.4"]
+
+[project.scripts]
+fm-verify = "fmverify.cli:main"
+
+[project.urls]
+Source = "https://github.com/Korentsvit/fundingmachine-verify"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

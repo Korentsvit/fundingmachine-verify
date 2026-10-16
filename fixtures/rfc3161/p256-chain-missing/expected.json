@@ -1,0 +1,8 @@
+{
+ "file": "document.txt",
+ "description": "The same token without its certificates: the signer cannot be found",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "indeterminate"
+}

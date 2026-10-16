@@ -1,0 +1,12 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-clean.pem"
+ ],
+ "description": "Fresh CRLs from the root and the issuing CA list nothing",
+ "outcome": "valid"
+}

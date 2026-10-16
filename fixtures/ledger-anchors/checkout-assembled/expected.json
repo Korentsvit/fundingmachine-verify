@@ -1,0 +1,21 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
+ ],
+ "description": "The same anchor against a checkout where the fragment was since assembled into the log: the log changed (a warning) and the fragment is found as the log's new row",
+ "repos": {
+  "example/repository": "../repo-assembled"
+ },
+ "outcome": "valid",
+ "warning": [
+  "ledger_anchor.checkout.example/repository"
+ ]
+}

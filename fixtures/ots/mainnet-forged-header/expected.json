@@ -1,0 +1,9 @@
+{
+ "description": "A header at height 840000 altered to match the proof; it no longer meets its proof of work",
+ "network": "mainnet",
+ "file": "subject.bin",
+ "headers": [
+  "headers.txt"
+ ],
+ "outcome": "indeterminate"
+}

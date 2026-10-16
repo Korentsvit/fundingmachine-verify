@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "Only an unrelated root is trusted",
+ "roots": [
+  "../pki/other-root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.chain"
+ ]
+}

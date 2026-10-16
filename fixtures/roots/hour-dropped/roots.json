@@ -1,0 +1,56 @@
+{
+ "records": [
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T08:00:00.000Z",
+    "end": "2026-10-16T09:00:00.000Z"
+   },
+   "size": 3,
+   "root": "b1a71aa65f991aae9b40f52abacc0d8233b8d483cfa8e996bd9e943961f4f2ee",
+   "prev_root": "0000000000000000000000000000000000000000000000000000000000000000",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "G9mPBcNlg9wAVHcEUt7rF03E1E4XXyrlPlWLprMR-1eXkfRqz3VLm3Zj_GHDfUWhR4O-rb0csDRYfhNyfk6pCA"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T09:00:00.000Z",
+    "end": "2026-10-16T10:00:00.000Z"
+   },
+   "size": 4,
+   "root": "4e2e52947a9dc63a67ef6daa9a118a4660df304134e8aa8187f82abf1ed1909f",
+   "prev_root": "19cd1a0c56c3feb6c11b859d6c20d43d74b59f3f6bff6f810bb78e813a5b363d",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "TEtCMfKOkyZH9vlYNue-7lLsZdF3-aau_vEJeSF4-vlLEkoUvd4h7QYm39RmPItWZfAewyRzPO2eXGo2rvRJCQ"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T12:00:00.000Z",
+    "end": "2026-10-16T13:00:00.000Z"
+   },
+   "size": 6,
+   "root": "42bfb27f3409a39e3392ded671dcbcb7761736b3bcebfa4ac1bbc5f5e6c136c0",
+   "prev_root": "d7417027ee5f22ed00e218f05ce73ff487d7b786cc70249352e3de1f07beedec",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "vGeYILLqtD4rZCekCVDfgqFCcPAnKRazMx28mWCllFHJPy1u7_ijI-ng2vDmfVs9_T7tsQqOLonW0plIKbohBw"
+  },
+  {
+   "contract": "ledger-root/v0",
+   "tenant_id": "fixture",
+   "window": {
+    "start": "2026-10-16T15:00:00.000Z",
+    "end": "2026-10-16T16:00:00.000Z"
+   },
+   "size": 7,
+   "root": "758916bfd45365c6cc2f2c96c28c7a9ec472a6af9b07617bf1de1bd484037752",
+   "prev_root": "eab9dacd8ba24672b4c523608b0b8ad412d340827eefb5afa62798d9aee82025",
+   "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+   "sig": "HjgVlCMSce5F70Jcpshx_WXuaDK59NOc3kyoLlqVPF5f1nfNtwhOIbaxJegR4ihu8et034Ey0Taorj0VRUmmDg"
+  }
+ ]
+}

@@ -1,0 +1,30 @@
+{
+ "format": "fm-anchor-batch/0",
+ "tree": "rfc9162-sha256",
+ "leaf_encoding": "sha256-path-v0",
+ "leaves": [
+  {
+   "path": "data/example.csv",
+   "sha256": "159f8bae5fa563fb61b540de391850552f9fe1d188273b1ca9ce182e4cbf4a26"
+  },
+  {
+   "path": "docs/RULINGS-example.md",
+   "sha256": "1f5a7cb96c9b112441beae8f461273f73d4190b15e51709f723b4b58d0dce55f"
+  },
+  {
+   "path": "docs/decisions.d/2026-10-16-example.md",
+   "sha256": "782474f514b3600cb5437a327ccc2498aa0788458928b42fa4974f199d015ede"
+  },
+  {
+   "path": "manifests/example-release.json",
+   "sha256": "a98dd1b474d1d48bcfb04fbf1f4b04919bdfc9dba02ca816c10e326cbf22568c"
+  }
+ ],
+ "root": "2686f62175e70fb3642b5158655403fa327153783235c814f80410ff51b0efcc",
+ "ots": [
+  "root.ots"
+ ],
+ "rfc3161": [
+  "root.test-tsa.tsr"
+ ]
+}

@@ -1,0 +1,6 @@
+{
+ "description": "No header source given: the anchor cannot be checked",
+ "network": "mainnet",
+ "file": "subject.bin",
+ "outcome": "indeterminate"
+}

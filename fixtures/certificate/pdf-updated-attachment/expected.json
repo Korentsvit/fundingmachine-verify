@@ -1,0 +1,19 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "certificate": "certificate.pdf",
+ "file": "exported.txt",
+ "description": "An incremental update replaces the embedded certificate with an altered one: two versions, and readers differ on which holds once the file is damaged, so neither is chosen; refused",
+ "outcome": "invalid",
+ "failing": [
+  "certificate.pdf"
+ ]
+}

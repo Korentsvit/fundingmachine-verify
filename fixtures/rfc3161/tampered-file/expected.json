@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "The document changed after time-stamping",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.subject"
+ ]
+}

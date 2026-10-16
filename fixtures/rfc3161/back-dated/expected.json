@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "genTime moved a month earlier after signing",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.signed_attrs"
+ ]
+}

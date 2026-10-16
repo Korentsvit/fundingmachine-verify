@@ -1,0 +1,17 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
+ ],
+ "anchors": "../set-valid",
+ "prove_sha256": "fb20a79f854cfede981133cf4eacb9e3462e7c1fad9b04e85109df27a81b2923",
+ "description": "Content no anchor names: indeterminate",
+ "outcome": "indeterminate"
+}

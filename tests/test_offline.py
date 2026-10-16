@@ -1,0 +1,131 @@
+"""Independence: without --explorer the verifier opens no network connection."""
+
+import socket
+from pathlib import Path
+
+import pytest
+
+from fmverify.cli import main
+
+FIX = Path(__file__).resolve().parent.parent / "fixtures"
+
+
+@pytest.fixture
+def no_network(monkeypatch):
+    attempts = []
+
+    def refuse(*args, **kwargs):
+        attempts.append(args)
+        raise AssertionError("the verifier tried to open a network connection")
+
+    monkeypatch.setattr(socket, "socket", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    return attempts
+
+
+def test_every_fixture_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "ots").iterdir() if p.is_dir()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["ots", str(case / "proof.ots"), "--file", str(case / exp["file"]), "--network", exp["network"]]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for path in exp.get("headers", []):
+            argv += ["--headers", str(case / path)]
+        main(argv)
+    assert no_network == []
+
+
+def test_every_rfc3161_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "rfc3161").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["rfc3161", str(case / "token.tsr"), "--file", str(case / exp["file"])]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        for c in exp.get("chain", []):
+            argv += ["--chain", str(case / c)]
+        for c in exp.get("crls", []):
+            argv += ["--crl", str(case / c)]
+        main(argv)
+    assert no_network == []
+
+
+def test_every_anchor_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "anchors").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["anchors", str(case), "--network", exp["network"]]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        if "repo_root" in exp:
+            argv += ["--repo-root", str(case / exp["repo_root"])]
+        main(argv)
+    assert no_network == []
+
+
+def test_every_certificate_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "certificate").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["certificate", str(case / "certificate.json"), "--network", exp["network"]]
+        if "file" in exp:
+            argv += ["--file", str(case / exp["file"])]
+        if "events" in exp:
+            argv += ["--events", str(case / exp["events"])]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        main(argv)
+    assert no_network == []
+
+
+def test_every_chain_case_runs_offline(no_network, capsys):
+    for case in sorted(p for p in (FIX / "chain").iterdir() if (p / "expected.json").is_file()):
+        main(["chain", str(case / "events.json")])
+    assert no_network == []
+
+
+def test_every_ledger_anchor_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "ledger-anchors").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["anchors", str(case), "--network", exp["network"]]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        for name, path in exp.get("repos", {}).items():
+            argv += ["--repo", f"{name}={case / path}"]
+        main(argv)
+    assert no_network == []
+
+
+def test_every_roots_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "roots").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        main(["roots", str(case / "roots.json"), "--key", exp["key"]])
+    assert no_network == []
+
+
+def test_every_merkle_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "merkle").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["merkle", str(case / "proof.json"), "--leaf-file", str(case / exp["leaf_file"])]
+        if "root" in exp:
+            argv += ["--root", exp["root"]]
+        main(argv)
+    assert no_network == []

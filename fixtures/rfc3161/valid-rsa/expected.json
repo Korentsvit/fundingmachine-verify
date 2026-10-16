@@ -1,0 +1,8 @@
+{
+ "file": "document.txt",
+ "description": "RSA authority under an issuing CA, ESS v2, certificates in the token",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "valid"
+}

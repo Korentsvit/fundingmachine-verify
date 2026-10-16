@@ -1,0 +1,21 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/anchors-headers-0-6.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "A reader holds the edited file and asks whether it is the anchored one",
+ "repo_root": "../repo-changed",
+ "files": [
+  "docs/RULINGS-example.md"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "anchors.file"
+ ]
+}
