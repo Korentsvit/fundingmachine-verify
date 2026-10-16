@@ -152,3 +152,17 @@ def test_sha1_file_hash_warns():
     raw = ots.DetachedTimestamp(ots.Op(0x02), ts).serialize()
     v = ots.verify(raw)
     assert any(c.id == "ots.weak_hash" and c.status is Status.WARN for c in v.checks)
+
+
+def test_one_confirmed_attestation_is_enough():
+    """A proof with a second Bitcoin attestation at a height no header covers
+    is valid on the first; the second is reported as not checked, optionally."""
+    case = FIX / "ots" / "regtest-valid"
+    dt = ots.parse((case / "proof.ots").read_bytes())
+    # Fork the timestamp's first message into an extra attestation at height 99.
+    dt.timestamp.entries.insert(0, ots.Attestation(ots.TAG_BITCOIN, ots._varuint(99)))
+    sources = [HeaderChain.from_file(FIX / "bitcoin" / "regtest" / "headers-0-11.bin", 0, NETWORKS["regtest"])]
+    v = ots.verify(dt.serialize(), sources, file_bytes=(case / "document.txt").read_bytes(), network=NETWORKS["regtest"])
+    assert v.outcome is Outcome.VALID, v.to_text()
+    extra = [c for c in v.checks if c.id == "ots.bitcoin.99"]
+    assert extra and extra[0].status is Status.NOT_CHECKED and not extra[0].required

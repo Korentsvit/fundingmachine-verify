@@ -393,6 +393,11 @@ def verify(
         else:
             checks.append(Check(f"ots.{att.kind}", Status.INFO, f"{att.describe()}: not checked by this verifier, and not relied on", required=False))
 
+    if confirmed:
+        # One confirmed attestation is enough; others that could not be checked are reported, not required.
+        for c in checks:
+            if c.status is Status.NOT_CHECKED and (c.id.startswith("ots.bitcoin.") or c.id == "bitcoin.header_source"):
+                c.required = False
     if not confirmed and not any(c.status in (Status.FAIL, Status.NOT_CHECKED) for c in checks):
         checks.append(Check("ots.anchor", Status.NOT_CHECKED, "the proof holds no Bitcoin attestation yet",
                             reasons=["only pending or unsupported attestations were found"]))
