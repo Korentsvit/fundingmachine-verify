@@ -10,8 +10,9 @@ from __future__ import annotations
 import dataclasses
 import datetime as _dt
 import enum
+import functools
 import json
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from . import __version__
 
@@ -36,6 +37,7 @@ class Outcome(str, enum.Enum):
 
 EXIT_CODES = {Outcome.VALID: 0, Outcome.INVALID: 1, Outcome.INDETERMINATE: 2}
 EXIT_USAGE = 64
+EXIT_INTERNAL = 70  # a fault in the verifier itself: never a verdict
 
 
 @dataclasses.dataclass
@@ -168,3 +170,26 @@ ANCHOR_LIMITS = [
     "that the content is true, original, or free of AI assistance",
     "that the content did not exist earlier than the anchor (an anchor bounds existence from above only)",
 ]
+
+
+MALFORMED = (ValueError, TypeError, KeyError, IndexError, AttributeError, OverflowError, RecursionError)
+
+
+def guarded(kind: str, check_id: str, what: str, limits: list[str] | None = None) -> Callable:
+    """Wrap a verification so that input malformed in a way its structured
+    checks do not anticipate gives an invalid verdict naming the error, not an
+    exception. (Parsing errors of every format here are ValueErrors.)"""
+
+    def wrap(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def inner(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except MALFORMED as exc:
+                check = Check(check_id, Status.FAIL, f"the {what} is malformed", reasons=[f"{type(exc).__name__}: {exc}"])
+                return make_verdict(kind, kwargs.get("subject") or what, [check],
+                                    {o: f"The {what} is malformed." for o in Outcome},
+                                    ANCHOR_LIMITS if limits is None else limits, kwargs.get("checked_at"))
+        return inner
+
+    return wrap

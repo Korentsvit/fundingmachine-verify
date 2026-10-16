@@ -20,7 +20,7 @@ from typing import Iterator, Sequence
 
 from . import hashes
 from .bitcoin import HeaderSource, Network, MAINNET, lookup_header
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
 
 HEADER_MAGIC = b"\x00OpenTimestamps\x00\x00Proof\x00\xbf\x89\xe2\xe8\x84\xe8\x92\x94"
 MAJOR_VERSION = 1
@@ -296,6 +296,7 @@ def leaves(ts: Timestamp, path: Sequence[Op] = ()) -> Iterator[Leaf]:
             yield from leaves(child, [*path, op])
 
 
+@guarded("opentimestamps", "ots.parse", "OpenTimestamps proof")
 def verify(
     proof_bytes: bytes,
     sources: Sequence[HeaderSource] = (),

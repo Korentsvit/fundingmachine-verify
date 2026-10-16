@@ -62,6 +62,7 @@ A verdict is never a bare pass. Each one gives:
 | `invalid` | something supplied contradicts something else: the file and the proof, the proof and the block header, two header sources, a signature and its key, a chain and the roots you trust | 1 |
 | `indeterminate` | nothing contradicts, but something needed could not be checked: no header for the block, a proof still pending, a header too weak to rely on, no trusted root given | 2 |
 | usage error | a file could not be read, an argument is malformed | 64 |
+| internal error | a fault in the verifier itself; never an outcome, always reported | 70 |
 
 `--json` prints the same verdict as JSON. `--html PATH` also writes it as a
 self-contained page (no script, no external resource); for a certificate the

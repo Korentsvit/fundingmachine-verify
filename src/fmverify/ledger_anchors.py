@@ -28,7 +28,7 @@ from typing import Any, Sequence
 from . import jcs, merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
 
 DESCRIPTOR_KEYS = {"kind", "path", "ref", "repo", "sha256"}
 KINDS = {"release_manifest", "standing_rulings", "decisions_log", "decisions_entry", "decisions_fragment"}
@@ -87,6 +87,7 @@ def _summarize(sub: Verdict, cid: str, what: str, valid_count: int) -> Check:
                  required=valid_count == 0, data={"verdict": sub.to_dict()})
 
 
+@guarded("ledger-anchor", "ledger_anchor.preimage", "anchor directory")
 def verify_dir(
     directory: str | Path,
     repos: dict[str, str | Path] | None = None,

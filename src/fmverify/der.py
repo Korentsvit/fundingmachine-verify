@@ -190,10 +190,13 @@ def generalized_time(node: Node) -> _dt.datetime:
 def string(node: Node) -> str:
     if node.cls != UNIVERSAL:
         raise DerError(f"expected a string, found {node.describe()}")
-    if node.tag == BMP_STRING:
-        return node.content.decode("utf-16-be")
-    if node.tag in (UTF8_STRING, PRINTABLE_STRING, IA5_STRING, T61_STRING):
-        return node.content.decode("utf-8" if node.tag == UTF8_STRING else "latin-1")
+    try:
+        if node.tag == BMP_STRING:
+            return node.content.decode("utf-16-be")
+        if node.tag in (UTF8_STRING, PRINTABLE_STRING, IA5_STRING, T61_STRING):
+            return node.content.decode("utf-8" if node.tag == UTF8_STRING else "latin-1")
+    except UnicodeDecodeError as exc:
+        raise DerError(f"a string is not valid text: {exc}") from exc
     raise DerError(f"tag {node.tag} is not a string type this reader knows")
 
 

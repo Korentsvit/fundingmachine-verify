@@ -542,6 +542,12 @@ def authorship_map(st: State, seq: int, ehash: str) -> dict:
 
 def verify(events: list, subject: str | None = None, checked_at: str | None = None):
     """A verdict for a whole chain: valid when every rule holds."""
+    from .verdict import guarded
+
+    return guarded("event-chain", "chain.rules", "event chain")(_verify_chain)(events, subject=subject, checked_at=checked_at)
+
+
+def _verify_chain(events: list, subject: str | None = None, checked_at: str | None = None):
     from .verdict import Check, Outcome, Status, make_verdict
 
     result = validate_chain(events)

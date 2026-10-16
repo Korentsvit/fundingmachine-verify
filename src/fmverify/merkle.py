@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from .hashes import sha256
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
 
 LEAF_PREFIX = b"\x00"
 NODE_PREFIX = b"\x01"
@@ -124,6 +124,7 @@ def _hex(b: bytes) -> str:
     return b.hex()
 
 
+@guarded("merkle-inclusion", "merkle.proof", "inclusion proof")
 def verify_inclusion(
     leaf: bytes,
     proof: dict,

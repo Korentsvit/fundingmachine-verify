@@ -27,7 +27,7 @@ from typing import Sequence
 from . import merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
 
 FORMAT = "fm-anchor-batch/0"
 LEAF_ENCODINGS = {
@@ -150,6 +150,7 @@ def _summarize(sub: Verdict, cid: str, name: str, anchors_valid: int) -> Check:
                  required=anchors_valid == 0, data={"verdict": sub.to_dict()})
 
 
+@guarded("anchor-batch", "anchors.batch", "anchor batch")
 def verify_batch(
     directory: "str | Path | Batch",
     repo_root: str | Path | None = None,

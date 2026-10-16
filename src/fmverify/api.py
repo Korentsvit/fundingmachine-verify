@@ -176,6 +176,9 @@ def verify(request: dict) -> dict:
     except (RequestError, KeyError, TypeError, AttributeError) as exc:
         return {"api": API, "error": str(exc) if isinstance(exc, RequestError) else f"malformed request: {exc!r}",
                 "tool": {"name": "fm-verify", "version": __version__}}
+    except Exception as exc:  # a fault in the verifier: an error, never an outcome
+        return {"api": API, "error": f"internal error ({type(exc).__name__}): a fault in the verifier, not a verdict",
+                "internal": True, "tool": {"name": "fm-verify", "version": __version__}}
 
 
 def verify_json(text: str) -> str:

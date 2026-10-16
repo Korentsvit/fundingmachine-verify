@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, padding, rsa
 
 from . import der, pki
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
 
 OID_SIGNED_DATA = "1.2.840.113549.1.7.2"
 OID_TSTINFO = "1.2.840.113549.1.9.16.1.4"
@@ -231,7 +231,7 @@ def parse_token(data: bytes) -> Token:
             if rest[0].tag == 0:
                 for c in rest[0].children():
                     if c.is_universal(der.SEQUENCE):
-                        certs.append(x509.load_der_x509_certificate(c.raw))
+                        certs.append(pki.load_der(c.raw))
             rest = rest[1:]
         if len(rest) != 1:
             raise TokenError("SignedData does not end with its signer infos")
@@ -354,7 +354,13 @@ def _general_name_matches(node: der.Node, cert: x509.Certificate) -> tuple[bool 
     return None, f"a general name of type [{node.tag}]"
 
 
-def verify(
+@guarded("rfc3161", "rfc3161.parse", "RFC 3161 token")
+def verify(token_bytes: bytes, *args, **kwargs) -> Verdict:
+    """Check an RFC 3161 token (see ``_verify``)."""
+    return _verify(token_bytes, *args, **kwargs)
+
+
+def _verify(
     token_bytes: bytes,
     file_bytes: bytes | None = None,
     digest: bytes | None = None,

@@ -38,7 +38,7 @@ from . import jcs, merkle, ots, rfc3161
 from .base58 import EncodingError, b64url_decode, did_key_ed25519, multibase_decode
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import Check, Outcome, Status, Verdict, make_verdict
+from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict
 
 CONTRACT = "ledger-certificate/v0"
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
@@ -197,6 +197,7 @@ def _summarize(sub: Verdict, cid: str, what: str, others_valid: int) -> Check:
                  required=others_valid == 0, data={"verdict": sub.to_dict()})
 
 
+@guarded("certificate", "certificate.parse", "certificate", LIMITS)
 def verify(
     cert_bytes: bytes,
     exported_file: bytes | None = None,

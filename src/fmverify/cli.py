@@ -1,6 +1,7 @@
 """Command line: ``fm-verify <kind> ...``.
 
-Exit status: 0 valid, 1 invalid, 2 indeterminate, 64 usage error. Output is
+Exit status: 0 valid, 1 invalid, 2 indeterminate, 64 usage error, 70 a fault
+in the verifier itself (never a verdict). Output is
 the verdict as text, or as JSON with ``--json``. Nothing is fetched from the
 network unless ``--explorer`` is given.
 """
@@ -15,7 +16,7 @@ from typing import Sequence
 
 from . import __version__, merkle, ots
 from .bitcoin import NETWORKS, EsploraSource, HeaderChain, HeaderError, HeaderSet, HeaderSource
-from .verdict import EXIT_USAGE, Verdict
+from .verdict import EXIT_INTERNAL, EXIT_USAGE, Verdict
 
 
 class UsageError(Exception):
@@ -325,6 +326,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except UsageError as exc:
         print(f"fm-verify: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    except Exception as exc:  # a fault in the verifier: reported as such, never as an outcome
+        import traceback
+
+        traceback.print_exc(file=sys.stderr)
+        print(f"fm-verify: internal error ({type(exc).__name__}): this is a fault in the verifier, not a verdict; "
+              "please report it with the inputs", file=sys.stderr)
+        return EXIT_INTERNAL
     if isinstance(verdict, int):
         return verdict
     if getattr(args, "html", None):

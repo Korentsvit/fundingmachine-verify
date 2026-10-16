@@ -19,6 +19,7 @@ import re
 from typing import Sequence
 
 from cryptography import x509
+from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.x509.oid import ExtendedKeyUsageOID
 
@@ -27,11 +28,46 @@ from .verdict import Check, Status
 MAX_PATH = 8
 
 
+def parsed(cert: x509.Certificate) -> x509.Certificate:
+    """The certificate, with every field the verifier reads parsed now.
+
+    The cryptography library parses some fields only when they are read; a
+    malformed certificate must fail here, as malformed input, not later in
+    the middle of a check. Raises ValueError."""
+    try:
+        cert.subject, cert.issuer, cert.serial_number, cert.public_key()
+        cert.not_valid_before_utc, cert.not_valid_after_utc
+        for ext in cert.extensions:
+            ext.value
+    except ValueError:
+        raise
+    except (UnsupportedAlgorithm, x509.DuplicateExtension, x509.UnsupportedGeneralNameType, TypeError) as exc:
+        raise ValueError(f"the certificate cannot be read: {type(exc).__name__}: {exc}") from exc
+    return cert
+
+
+def load_der(raw: bytes) -> x509.Certificate:
+    """One DER certificate, fully parsed; any parsing failure is a ValueError."""
+    try:
+        cert = x509.load_der_x509_certificate(raw)
+    except ValueError:
+        raise
+    except Exception as exc:  # the library raises its own types (InvalidVersion and others)
+        raise ValueError(f"the certificate cannot be read: {type(exc).__name__}: {exc}") from exc
+    return parsed(cert)
+
+
 def load_certificates(data: bytes) -> list[x509.Certificate]:
     """PEM (one or many) or a single DER certificate."""
     if b"-----BEGIN" in data:
-        return x509.load_pem_x509_certificates(data)
-    return [x509.load_der_x509_certificate(data)]
+        try:
+            certs = x509.load_pem_x509_certificates(data)
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError(f"the certificates cannot be read: {type(exc).__name__}: {exc}") from exc
+        return [parsed(c) for c in certs]
+    return [load_der(data)]
 
 
 def fingerprint(cert: x509.Certificate) -> str:
