@@ -60,6 +60,11 @@ the event chain). It does not, and cannot:
 * **An unanchored certificate has no time bound** beyond the issuer's claim.
 * **Fields the verifier does not understand** are listed as a warning: they
   are covered by the signature but not checked.
+* **Signed counts are read as written.** A position or size the verifier
+  computes with must be a whole number from 0 to 2^53 - 1: a string, a
+  boolean or a fraction is refused (fixture
+  `certificate/leaf-index-not-a-number`), and a larger number is not what a
+  JavaScript signer meant, since its JSON parsing rounds it.
 * **The PDF form** is a rendering; the verifier checks the JSON the PDF
   carries as `certificate.json`, not what the pages show. It refuses to
   choose between versions: a PDF carrying two different `certificate.json`
@@ -121,8 +126,8 @@ the event chain). It does not, and cannot:
   OpenSSL 3.0 verifies by the key's own algorithm and ignores it; and a
   `digestAlgorithms` list without the signer's hash, which no signature
   covers, is a warning here, where OpenSSL refuses the token. Hash
-  parameters other than NULL are a warning in both places OpenSSL accepts
-  them.
+  parameters other than NULL, which OpenSSL ignores, are a warning wherever
+  they appear.
 
 ## Provenance Ledger anchors
 
