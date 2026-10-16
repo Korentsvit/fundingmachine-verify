@@ -9,7 +9,7 @@ description = "Independent verifier for FundingMachine certificates and their an
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["cryptography>=42"]
 classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
@@ -17,7 +17,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "cryptography>=44"]
 interop = ["opentimestamps>=0.4.5"]
 
 [project.scripts]

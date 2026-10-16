@@ -75,6 +75,40 @@ def cmd_ots(args: argparse.Namespace) -> Verdict:
     )
 
 
+def _certs(paths: list[str] | None, what: str) -> list:
+    from . import pki
+
+    out = []
+    for path in paths or []:
+        try:
+            out += pki.load_certificates(_read(path))
+        except ValueError as exc:
+            raise UsageError(f"{what} {path}: not a PEM or DER certificate ({exc})") from exc
+    return out
+
+
+def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
+    from . import rfc3161
+
+    if args.digest and args.digest_alg not in rfc3161.HASH_BY_NAME:
+        raise UsageError(f"--digest-alg must be one of {', '.join(sorted(rfc3161.HASH_BY_NAME))}")
+    digest = None
+    if args.digest:
+        try:
+            digest = bytes.fromhex(args.digest)
+        except ValueError as exc:
+            raise UsageError("--digest is not hex") from exc
+    return rfc3161.verify(
+        _read(args.token),
+        file_bytes=_read(args.file) if args.file else None,
+        digest=digest,
+        digest_alg=args.digest_alg,
+        roots=_certs(args.roots, "--roots"),
+        extra_certs=_certs(args.chain, "--chain"),
+        subject=args.file,
+    )
+
+
 def cmd_merkle(args: argparse.Namespace) -> Verdict:
     try:
         proof = json.loads(_read(args.proof).decode("utf-8"))
@@ -116,6 +150,18 @@ def build_parser() -> argparse.ArgumentParser:
                    help="least proof of work (log2 of expected hashes) a header checked alone must carry; default 70 on mainnet")
     o.add_argument("--json", action="store_true")
     o.set_defaults(func=cmd_ots)
+
+    r = sub.add_parser("rfc3161", help="an RFC 3161 time-stamp token against the authority's certificate chain")
+    r.add_argument("token", help="the .tsr response or bare token (DER)")
+    who = r.add_mutually_exclusive_group()
+    who.add_argument("--file", help="the file the token should cover")
+    who.add_argument("--digest", help="the digest (hex) the token should cover, if the file is not at hand")
+    r.add_argument("--digest-alg", default="sha256", help="the hash --digest was made with (default sha256)")
+    r.add_argument("--roots", action="append", metavar="PEM",
+                   help="certificates you trust as the authority's root (repeatable); none are built in")
+    r.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the token (repeatable)")
+    r.add_argument("--json", action="store_true")
+    r.set_defaults(func=cmd_rfc3161)
 
     m = sub.add_parser("merkle", help="a Merkle inclusion proof (RFC 9162 or explicit path)")
     m.add_argument("proof", help="the proof, as JSON")

@@ -1,10 +1,11 @@
-"""Build the OpenTimestamps and header fixtures from committed inputs, offline.
+"""Build the fixtures from committed inputs, offline.
 
     python tools/make_fixtures.py
 
 Inputs: fixtures/bitcoin/mainnet/headers-sparse.txt and coinbase-840000.json
 (captured by tools/fetch_mainnet.py). Outputs: contiguous header files, a
-regtest header chain, and one directory per case under fixtures/ots/, each
+regtest header chain, a test PKI (tools/tsa_fixtures.py), and one directory
+per case under fixtures/ots/ and fixtures/rfc3161/, each
 with an ``expected.json`` naming the outcome the verifier must reach. The
 build is deterministic: running it twice gives the same bytes.
 """
@@ -21,6 +22,9 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from fmverify import ots  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "tools"))
+import tsa_fixtures  # noqa: E402
 from fmverify.bitcoin import parse_header  # noqa: E402
 
 FIX = ROOT / "fixtures"
@@ -231,6 +235,8 @@ def main() -> None:
                {"description": "A byte appended after the proof ends", "network": "regtest", "file": "document.txt",
                 "headers_chain": reg_chain, "outcome": "invalid", "failing": ["ots.parse"]},
                {"document.txt": text})
+
+    tsa_fixtures.build(FIX)
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

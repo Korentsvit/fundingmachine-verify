@@ -11,7 +11,7 @@ convenience on top of it.
 | --- | --- | --- |
 | Merkle inclusion proof (RFC 9162, or an explicit path) | `fm-verify merkle` | done |
 | OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` | done |
-| RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | next |
+| RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
 | An anchor batch: Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | queued, for 18 October |
 | Certificate v0: ed25519 signatures, event chain, Merkle roots, anchors | `fm-verify certificate` | queued, for 31 October |
 
@@ -20,9 +20,14 @@ are in [docs/INPUTS.md](docs/INPUTS.md).
 
 ## Independence
 
-* **No private dependency.** Today the verifier uses the Python standard
-  library only. Signature checks (RFC 3161, ed25519) will add one public
-  library, `cryptography`, and nothing from FundingMachine.
+* **No private dependency.** The verifier needs the Python standard library
+  and one public library, [`cryptography`](https://cryptography.io/)
+  (Apache-2.0 or BSD), for signatures and certificates. Merkle and
+  OpenTimestamps checks use the standard library alone.
+* **No trust chosen for you.** No certificate authority is built in. You
+  pass the roots you trust; the verdict names the root a chain reached and
+  its SHA-256 fingerprint, for you to compare with the authority's own
+  publication.
 * **No phoning home.** The verifier opens no network connection unless you
   pass `--explorer`. A test replaces the socket layer with one that refuses,
   then runs every fixture through the command line.
@@ -30,7 +35,8 @@ are in [docs/INPUTS.md](docs/INPUTS.md).
   OpenTimestamps proof is checked with no network at all.
 * **Reliance stated.** Every verdict lists what it had to take on trust: a
   headers file being Bitcoin's most-work chain, an explorer telling the
-  truth, a certificate authority you chose to trust.
+  truth, a certificate authority you chose to trust, a revocation the
+  verifier could not see offline.
 
 ## Verdicts
 
@@ -49,8 +55,8 @@ A verdict is never a bare pass. Each one gives:
 | Outcome | Meaning | Exit status |
 | --- | --- | --- |
 | `valid` | every required check passed; the statement holds, given the reliance listed | 0 |
-| `invalid` | something supplied contradicts something else: the file and the proof, the proof and the block header, two header sources, a signature and its key | 1 |
-| `indeterminate` | nothing contradicts, but something needed could not be checked: no header for the block, a proof still pending, a header too weak to rely on | 2 |
+| `invalid` | something supplied contradicts something else: the file and the proof, the proof and the block header, two header sources, a signature and its key, a chain and the roots you trust | 1 |
+| `indeterminate` | nothing contradicts, but something needed could not be checked: no header for the block, a proof still pending, a header too weak to rely on, no trusted root given | 2 |
 | usage error | a file could not be read, an argument is malformed | 64 |
 
 `--json` prints the same verdict as JSON.
@@ -68,6 +74,9 @@ fm-verify ots document.pdf.ots --file document.pdf --headers-chain blockchain_he
 
 # against a public explorer, when you accept trusting it (the verdict says so)
 fm-verify ots document.pdf.ots --file document.pdf --explorer https://mempool.space/api
+
+# An RFC 3161 time-stamp token, against a root you trust
+fm-verify rfc3161 document.pdf.tsr --file document.pdf --roots authority-root.pem [--chain intermediates.pem]
 
 # A Merkle inclusion proof, with the root you hold from the anchored record
 fm-verify merkle proof.json --leaf-file document.pdf --root 6f1c...
@@ -100,11 +109,26 @@ byte for byte, by `python tools/make_fixtures.py`.
 * `ots/regtest-*`: valid, tampered file, tampered proof, back-dated, pending
   only, truncated and trailing-byte proofs on a regtest chain mined by the
   fixture builder.
+* `rfc3161/*`: tokens from a test PKI (a root, an issuing CA, RSA, P-256 and
+  Ed25519 authorities): valid with PKCS#1 v1.5, PSS, ECDSA and Ed25519; no
+  root, wrong root, chain missing, tampered file, back-dated, tampered
+  signature, wrong ESS certificate, missing or shared EKU, expired at the
+  stated time, and a refused request. Every key is derived from a seed
+  published in `tools/tsa_fixtures.py`: they protect nothing, and no key
+  file is committed.
 
-The OpenTimestamps fixtures are also read by the reference OpenTimestamps
-library in CI (`tests/test_interop.py`), which must reach the same
-commitments and reject the same malformed proofs. That library is a
-test-time tool only; the verifier never imports it.
+Independent implementations check the same fixtures in CI:
+
+* the reference OpenTimestamps library (`tests/test_interop.py`) must reach
+  the same commitments and reject the same malformed proofs;
+* OpenSSL's `ts -verify` (`tests/test_interop_openssl.py`) must agree on
+  every RFC 3161 case it supports. OpenSSL 3.0 cannot check RSASSA-PSS
+  through `ts` nor Ed25519 in CMS at all, so those two tokens are checked
+  with `openssl cms -verify` and with the reference Ed25519 algorithm of
+  RFC 8032, written out in the test. A token made by OpenSSL's own
+  time-stamping code must verify here.
+
+Those tools are test-time only; the verifier never imports them.
 
 ## What the verifier cannot detect
 

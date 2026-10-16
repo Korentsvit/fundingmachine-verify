@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "The authority refused the request",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.parse"
+ ]
+}

@@ -1,0 +1,8 @@
+{
+ "file": "document.txt",
+ "description": "Ed25519 authority (RFC 8419), SHA-512 message digest",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "valid"
+}

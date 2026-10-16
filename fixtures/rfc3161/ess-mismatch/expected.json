@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "The ESS attribute names the issuing CA instead of the signer",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.ess"
+ ]
+}

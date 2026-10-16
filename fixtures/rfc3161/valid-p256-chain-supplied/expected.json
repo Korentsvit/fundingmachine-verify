@@ -1,0 +1,11 @@
+{
+ "file": "document.txt",
+ "description": "P-256 authority, ESS v1, no certificates in the token: the chain is supplied separately",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "chain": [
+  "../pki/chain-p256.pem"
+ ],
+ "outcome": "valid"
+}

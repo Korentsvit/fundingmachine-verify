@@ -1,0 +1,8 @@
+{
+ "file": "document.txt",
+ "description": "RSASSA-PSS signature",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "outcome": "valid"
+}

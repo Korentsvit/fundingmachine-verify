@@ -36,3 +36,17 @@ def test_every_fixture_case_runs_offline(no_network, capsys):
             argv += ["--headers", str(case / path)]
         main(argv)
     assert no_network == []
+
+
+def test_every_rfc3161_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "rfc3161").iterdir() if p.is_dir() and p.name != "pki"):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["rfc3161", str(case / "token.tsr"), "--file", str(case / exp["file"])]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        for c in exp.get("chain", []):
+            argv += ["--chain", str(case / c)]
+        main(argv)
+    assert no_network == []

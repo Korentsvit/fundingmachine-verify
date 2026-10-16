@@ -15,8 +15,8 @@ ledger, capture, capital, or the website.
 
 | Item | What | State |
 | --- | --- | --- |
-| V-1 | Skeleton, verdict model, RFC 9162 Merkle proofs, OpenTimestamps parser and Bitcoin header sources (contiguous, sparse, explorer), fixtures from public chain data and regtest, offline test, reference cross-check, CI | this pull request |
-| V-2 | RFC 3161 tokens: DER reader, CMS SignedData and TSTInfo, ESS signing certificate, signature (RSA PKCS#1 v1.5 and PSS, ECDSA, Ed25519), chain to roots the caller supplies, validity at the time-stamp, EKU; fixtures from a test authority; cross-check with `openssl ts -verify` | next |
+| V-1 | Skeleton, verdict model, RFC 9162 Merkle proofs, OpenTimestamps parser and Bitcoin header sources (contiguous, sparse, explorer), fixtures from public chain data and regtest, offline test, reference cross-check, CI | #1 |
+| V-2 | RFC 3161 tokens: DER reader, CMS SignedData and TSTInfo, ESS signing certificate, signature (RSA PKCS#1 v1.5 and PSS, ECDSA, Ed25519), chain to roots the caller supplies, validity at the time-stamp, EKU; fixtures from a test authority; cross-check with `openssl ts -verify` | this pull request |
 | V-3 | Anchor batches: one command over a batch directory (leaves, Merkle root, `.ots`, `.tsr`), leaf encodings, combined verdict; `docs/INPUTS.md` proposal reconciled with the Ledger session's format once published | queued |
 | V-4 | Read the first real `anchors/` proofs in fundingmachine-core and fundingmachine-web as soon as they land; record any format gap as a named finding | queued, waits on the Ledger session |
 | V-5 | Revocation evidence for authority chains: CRLs supplied by the caller, checked at the time-stamp; stated as not checked when absent | queued |
