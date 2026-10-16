@@ -109,6 +109,40 @@ def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
     )
 
 
+def cmd_anchors(args: argparse.Namespace) -> Verdict:
+    from . import anchors
+
+    if args.emit_proof:
+        try:
+            proof = anchors.inclusion_proof(anchors.load_batch(args.batch), args.emit_proof)
+        except anchors.BatchError as exc:
+            raise UsageError(str(exc)) from exc
+        print(json.dumps(proof, indent=2))
+        raise SystemExit(0)
+    return anchors.verify_batch(
+        args.batch,
+        repo_root=args.repo_root,
+        files=args.file or [],
+        header_sources=header_sources(args),
+        network=NETWORKS[args.network],
+        roots=_certs(args.roots, "--roots"),
+        extra_certs=_certs(args.chain, "--chain"),
+        strict_files=args.strict_files,
+    )
+
+
+def _header_options(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--headers", action="append", metavar="FILE",
+                   help="sparse headers: lines 'HEIGHT HEX' or JSON; each header is checked alone (repeatable)")
+    p.add_argument("--headers-chain", action="append", metavar="FILE[@START]",
+                   help="contiguous 80-byte headers from height START (default 0), checked by Bitcoin's header rules (repeatable)")
+    p.add_argument("--explorer", action="append", metavar="URL",
+                   help="an Esplora API base URL, e.g. https://mempool.space/api; the verdict states that its answer was trusted (repeatable)")
+    p.add_argument("--network", choices=sorted(NETWORKS), default="mainnet")
+    p.add_argument("--min-work-bits", type=float, default=None,
+                   help="least proof of work (log2 of expected hashes) a header checked alone must carry; default 70 on mainnet")
+
+
 def cmd_merkle(args: argparse.Namespace) -> Verdict:
     try:
         proof = json.loads(_read(args.proof).decode("utf-8"))
@@ -139,15 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
     who = o.add_mutually_exclusive_group()
     who.add_argument("--file", help="the file the proof should cover")
     who.add_argument("--digest", help="the digest (hex) the proof should cover, if the file is not at hand")
-    o.add_argument("--headers", action="append", metavar="FILE",
-                   help="sparse headers: lines 'HEIGHT HEX' or JSON; each header is checked alone (repeatable)")
-    o.add_argument("--headers-chain", action="append", metavar="FILE[@START]",
-                   help="contiguous 80-byte headers from height START (default 0), checked by Bitcoin's header rules (repeatable)")
-    o.add_argument("--explorer", action="append", metavar="URL",
-                   help="an Esplora API base URL, e.g. https://mempool.space/api; the verdict states that its answer was trusted (repeatable)")
-    o.add_argument("--network", choices=sorted(NETWORKS), default="mainnet")
-    o.add_argument("--min-work-bits", type=float, default=None,
-                   help="least proof of work (log2 of expected hashes) a header checked alone must carry; default 70 on mainnet")
+    _header_options(o)
     o.add_argument("--json", action="store_true")
     o.set_defaults(func=cmd_ots)
 
@@ -162,6 +188,18 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the token (repeatable)")
     r.add_argument("--json", action="store_true")
     r.set_defaults(func=cmd_rfc3161)
+
+    a = sub.add_parser("anchors", help="an anchor batch: listed files, Merkle root, and the anchors over the root")
+    a.add_argument("batch", help="the batch directory (batch.json, .ots and .tsr files)")
+    a.add_argument("--repo-root", help="a checkout to compare every listed file with")
+    a.add_argument("--file", action="append", help="a file you hold, named by its listed path (repeatable); a mismatch is a failure")
+    a.add_argument("--strict-files", action="store_true", help="with --repo-root, treat any changed file as a failure")
+    a.add_argument("--emit-proof", metavar="PATH", help="print the RFC 9162 inclusion proof for one listed path, and stop")
+    _header_options(a)
+    a.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
+    a.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
+    a.add_argument("--json", action="store_true")
+    a.set_defaults(func=cmd_anchors)
 
     m = sub.add_parser("merkle", help="a Merkle inclusion proof (RFC 9162 or explicit path)")
     m.add_argument("proof", help="the proof, as JSON")

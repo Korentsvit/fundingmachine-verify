@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -111,6 +112,105 @@ def mine_regtest(prev: bytes, merkle_root: bytes, time: int) -> bytes:
         if int.from_bytes(sha256d(h), "little") <= target:
             return h
     raise RuntimeError("no nonce")
+
+
+SAMPLE_REPO = {
+    "docs/RULINGS-example.md": b"# Example rulings\n\nA synthetic document for the verifier's fixtures. It is not a FundingMachine ruling.\n",
+    "docs/decisions.d/2026-10-16-example.md": b"| 2026-10-16 | example | A synthetic decision row | Fixture only | none |\n",
+    "manifests/example-release.json": b'{"release": "example", "files": 3}\n',
+    "data/example.csv": b"id,value\n1,10\n2,20\n",
+}
+
+
+def build_anchors() -> None:
+    """Anchor batches over a synthetic repository: a regtest OpenTimestamps
+    proof and a test-authority RFC 3161 token over each batch root."""
+    out = FIX / "anchors"
+    if out.exists():
+        shutil.rmtree(out)
+    for rel, data in SAMPLE_REPO.items():
+        (out / "repo" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / "repo" / rel).write_bytes(data)
+    changed = dict(SAMPLE_REPO)
+    changed["docs/RULINGS-example.md"] = SAMPLE_REPO["docs/RULINGS-example.md"].replace(b"synthetic", b"edited")
+    del changed["data/example.csv"]
+    for rel, data in changed.items():
+        (out / "repo-changed" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / "repo-changed" / rel).write_bytes(data)
+
+    from fmverify import merkle
+
+    entries = [{"path": rel, "sha256": sha256(SAMPLE_REPO[rel]).hex()} for rel in sorted(SAMPLE_REPO)]
+
+    def leaves(items):
+        return [f"{e['sha256']} {e['path']}".encode() for e in items]
+
+    root = merkle.tree_hash(leaves(entries))
+    other_root = sha256(b"some other batch root")
+
+    # A regtest chain whose block 4 commits to the root through calendar- and transaction-shaped operations.
+    path_ops = [append(sha256(b"anchor nonce")[:16]), SHA256, prepend(sha256(b"anchor calendar sibling")), SHA256,
+                prepend(bytes.fromhex("0100000001") + bytes(36) + bytes.fromhex("00ffffffff01") + bytes(8) + bytes.fromhex("226a20")),
+                append(bytes(4)), SHA256, SHA256] + merkle_ops([sha256d(b"anchor block sibling")], 1)
+    commitment = run(root, path_ops)
+    prev, headers = bytes(32), []
+    for height in range(7):
+        h = mine_regtest(prev, commitment if height == 4 else sha256d(b"anchor regtest %d" % height), 1760100000 + 600 * height)
+        headers.append(h)
+        prev = sha256d(h)
+    (REG / "anchors-headers-0-6.bin").write_bytes(b"".join(headers))
+
+    def ots_over(digest: bytes, ops, end) -> bytes:
+        return ots.DetachedTimestamp(SHA256, chain(digest, ops, end)).serialize()
+
+    good_ots = ots_over(root, path_ops, bitcoin_attestation(4))
+    pending_ots = ots_over(root, path_ops[:2], pending_attestation("https://calendar.example.org"))
+    other_ots = ots_over(other_root, path_ops[:2], pending_attestation("https://calendar.example.org"))
+
+    tsa_k, tsa_cert, ica = tsa_fixtures.test_authority()
+
+    def tsr(value: bytes, **kw) -> bytes:
+        return tsa_fixtures.token(tsa_k, tsa_cert, [tsa_cert, ica], b"", serial=2001, sig="rsa", imprint_value=value, **kw)
+
+    good_tsr = tsr(root)
+    import datetime as _dt
+
+    backdated_tsr = tsr(root, tamper_gen_time=_dt.datetime(2026, 9, 1, tzinfo=_dt.timezone.utc))
+    common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/anchors-headers-0-6.bin", "start": 0}],
+              "roots": ["../../rfc3161/pki/root.pem"]}
+
+    def batch(name, items, batch_root, ots_bytes, tsr_bytes, expected):
+        d = out / name
+        d.mkdir(parents=True, exist_ok=True)
+        doc = {"format": "fm-anchor-batch/0", "tree": "rfc9162-sha256", "leaf_encoding": "sha256-path-v0",
+               "leaves": items, "root": batch_root.hex(), "ots": ["root.ots"], "rfc3161": ["root.test-tsa.tsr"]}
+        (d / "batch.json").write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+        (d / "root.ots").write_bytes(ots_bytes)
+        (d / "root.test-tsa.tsr").write_bytes(tsr_bytes)
+        (d / "expected.json").write_text(json.dumps({**common, **expected}, indent=1) + "\n", encoding="utf-8")
+
+    batch("batch-valid", entries, root, good_ots, good_tsr,
+          {"description": "Four files, an anchored root, a confirmed OpenTimestamps proof and a test-authority token",
+           "repo_root": "../repo", "outcome": "valid"})
+    batch("checkout-changed", entries, root, good_ots, good_tsr,
+          {"description": "The same batch against a checkout where one file was edited and one removed: the anchors still hold for what was listed",
+           "repo_root": "../repo-changed", "outcome": "valid", "warning": ["anchors.checkout"]})
+    batch("named-file-changed", entries, root, good_ots, good_tsr,
+          {"description": "A reader holds the edited file and asks whether it is the anchored one",
+           "repo_root": "../repo-changed", "files": ["docs/RULINGS-example.md"], "outcome": "invalid", "failing": ["anchors.file"]})
+    swapped = [entries[1], entries[0]] + entries[2:]
+    batch("batch-reordered", swapped, root, good_ots, good_tsr,
+          {"description": "Two listed files swapped after the root was made", "outcome": "invalid", "failing": ["anchors.root"]})
+    batch("batch-file-removed", entries[:-1], root, good_ots, good_tsr,
+          {"description": "One listed file dropped after the root was made", "outcome": "invalid", "failing": ["anchors.root"]})
+    batch("ots-pending", entries, root, pending_ots, good_tsr,
+          {"description": "The OpenTimestamps proof is still pending; the token holds", "outcome": "valid", "warning": ["anchors.policy"]})
+    batch("tsa-back-dated", entries, root, good_ots, backdated_tsr,
+          {"description": "The token's time moved a month earlier after signing", "outcome": "invalid",
+           "failing": ["anchors.rfc3161.root.test-tsa.tsr"]})
+    batch("ots-other-root", entries, root, other_ots, good_tsr,
+          {"description": "The OpenTimestamps proof covers a different root", "outcome": "invalid",
+           "failing": ["anchors.ots.root.ots"]})
 
 
 def main() -> None:
@@ -237,6 +337,7 @@ def main() -> None:
                {"document.txt": text})
 
     tsa_fixtures.build(FIX)
+    build_anchors()
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

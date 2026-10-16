@@ -12,7 +12,7 @@ convenience on top of it.
 | Merkle inclusion proof (RFC 9162, or an explicit path) | `fm-verify merkle` | done |
 | OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` | done |
 | RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
-| An anchor batch: Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | queued, for 18 October |
+| An anchor batch: listed files, their Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | done, in the verifier's proposed format until the Ledger session publishes its own |
 | Certificate v0: ed25519 signatures, event chain, Merkle roots, anchors | `fm-verify certificate` | queued, for 31 October |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
@@ -78,6 +78,9 @@ fm-verify ots document.pdf.ots --file document.pdf --explorer https://mempool.sp
 # An RFC 3161 time-stamp token, against a root you trust
 fm-verify rfc3161 document.pdf.tsr --file document.pdf --roots authority-root.pem [--chain intermediates.pem]
 
+# An anchor batch, compared with a checkout, against headers and a trusted authority root
+fm-verify anchors anchors/2026-10-31 --repo-root . --headers-chain blockchain_headers --roots authority-root.pem
+
 # A Merkle inclusion proof, with the root you hold from the anchored record
 fm-verify merkle proof.json --leaf-file document.pdf --root 6f1c...
 ```
@@ -109,6 +112,11 @@ byte for byte, by `python tools/make_fixtures.py`.
 * `ots/regtest-*`: valid, tampered file, tampered proof, back-dated, pending
   only, truncated and trailing-byte proofs on a regtest chain mined by the
   fixture builder.
+* `anchors/*`: batches over a synthetic four-file repository (no
+  FundingMachine content): valid; checkout changed (a warning); a named file
+  changed, files re-ordered, a file dropped, a back-dated token, a proof over
+  another root (failures); a pending proof beside a valid token (valid, with
+  the anchor-everything warning).
 * `rfc3161/*`: tokens from a test PKI (a root, an issuing CA, RSA, P-256 and
   Ed25519 authorities): valid with PKCS#1 v1.5, PSS, ECDSA and Ed25519; no
   root, wrong root, chain missing, tampered file, back-dated, tampered

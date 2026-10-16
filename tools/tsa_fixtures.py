@@ -154,10 +154,14 @@ def name_der(c: x509.Certificate, which: str = "subject") -> bytes:
 def token(key, signer: x509.Certificate, certs: list[x509.Certificate], message: bytes, *, serial: int,
           sig: str, digest: str = "sha256", imprint: str = "sha256", ess: int = 2, ess_cert: x509.Certificate | None = None,
           gen_time: dt.datetime = GEN_TIME, tamper_gen_time: dt.datetime | None = None, flip_signature: bool = False,
-          status: int = 0) -> bytes:
+          status: int = 0, imprint_value: bytes | None = None) -> bytes:
+    """A TimeStampResp over ``message`` (its digest is the imprint), or over
+    ``imprint_value`` taken as the digest itself."""
+    value = imprint_value if imprint_value is not None else hashlib.new(imprint, message).digest()
+
     def tstinfo(t: dt.datetime) -> bytes:
         return seq(enc_int(1), enc_oid(POLICY),
-                   seq(alg(OID[imprint], der.NULL_DER), enc_octets(hashlib.new(imprint, message).digest())),
+                   seq(alg(OID[imprint], der.NULL_DER), enc_octets(value)),
                    enc_int(serial), enc_gentime(t), seq(enc_int(1)),
                    ctx(0, ctx(4, name_der(signer))))
 
@@ -234,6 +238,14 @@ def rejection() -> bytes:
 
 def pem(c: x509.Certificate) -> bytes:
     return c.public_bytes(serialization.Encoding.PEM)
+
+
+def test_authority() -> tuple:
+    """The RSA test authority's key, its certificate and the issuing CA, as build() makes them."""
+    root_k, ica_k, tsa_k = rsa_key("fm-verify test root CA"), rsa_key("fm-verify test issuing CA"), rsa_key("fm-verify test TSA rsa")
+    ica = cert("FM Verify Test Issuing CA", ica_k, "FM Verify Test Root CA", root_k, 2, ca=True, pathlen=0)
+    tsa = cert("FM Verify Test TSA RSA", tsa_k, "FM Verify Test Issuing CA", ica_k, 101, ca=False)
+    return tsa_k, tsa, ica
 
 
 def build(fix: Path) -> None:

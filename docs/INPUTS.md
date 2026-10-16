@@ -42,15 +42,16 @@ Explicit path, accepted with a warning:
  "steps": [{"side": "left", "hash": "<hex>"}], "root": "<hex>"}
 ```
 
-## Proposal: an anchor batch
+## Anchor batches (`fm-verify anchors`)
 
-Offered to the Provenance Ledger session; not a published contract.
+The verifier's proposal, read today by `fm-verify anchors`, and offered to
+the Provenance Ledger session; not a published contract.
 
 ```
 anchors/<batch>/
   batch.json        the leaves, the tree, the root
-  root.ots          an OpenTimestamps proof whose digest is the root
-  root.<tsa>.tsr    one RFC 3161 response per authority, message imprint SHA-256 of the root
+  root.ots          an OpenTimestamps proof whose digest is the root itself
+  root.<tsa>.tsr    one RFC 3161 response per authority, whose message imprint is the root itself (SHA-256)
 ```
 
 `batch.json`:
@@ -60,12 +61,28 @@ anchors/<batch>/
  "tree": "rfc9162-sha256",
  "leaf_encoding": "sha256-path-v0",
  "leaves": [{"path": "docs/STANDING_RULINGS.md", "sha256": "<hex>"}],
- "root": "<hex>"}
+ "root": "<hex>",
+ "ots": ["root.ots"],
+ "rfc3161": ["root.<tsa>.tsr"]}
 ```
 
-`sha256-path-v0` makes each leaf the UTF-8 bytes of
-`<sha256 hex of the file> <space> <repository-relative path>`, so a leaf binds
-both the content and the name, and the RFC 9162 tree binds the order. The
-verifier then shows, for any listed file: its digest is a leaf at a stated
-index of a tree of stated size; that tree's root existed no later than a
-Bitcoin block; and each authority signed a time for the same root.
+* `sha256-path-v0`: each leaf is the UTF-8 bytes of
+  `<sha256 hex of the file> <space> <repository-relative path>`, so a leaf
+  binds both the content and the name, and the RFC 9162 tree binds the
+  order. `sha256-v0` (the 32-byte digest alone) is accepted with a warning:
+  it binds content, not names.
+* Paths are plain repository-relative POSIX paths: no leading `/`, no `..`,
+  no backslash, none listed twice.
+* `ots` and `rfc3161` name the anchor files; when absent, every `*.ots` and
+  `*.tsr` in the directory is read.
+
+For any listed file the verifier then shows: its digest is a leaf at a
+stated index of a tree of stated size; that tree's root existed no later
+than a Bitcoin block; and each authority signed a time for the same root.
+`fm-verify anchors BATCH --emit-proof PATH` prints the inclusion proof for
+one file, which `fm-verify merkle` checks on its own.
+
+Comparing with a checkout (`--repo-root`): files that match pass; files that
+changed since anchoring are a warning (a decision fragment or a rulings file
+can change, or be removed, after its batch), or a failure with
+`--strict-files`. A file a reader holds and names (`--file`) must match.
