@@ -60,3 +60,9 @@ def test_merkle_cli(tmp_path, capsys):
     assert main(["merkle", str(tmp_path / "p.json"), "--leaf-file", str(tmp_path / "leaf")]) == 0
     assert main(["merkle", str(tmp_path / "p.json"), "--leaf-hex", b"two".hex()]) == 1
     assert main(["merkle", str(tmp_path / "p.json"), "--leaf-file", str(tmp_path / "leaf"), "--root", "00" * 32]) == 1
+
+
+def test_deeply_nested_json_file_is_a_usage_error(tmp_path):
+    deep = tmp_path / "events.json"
+    deep.write_text("[" * 100_000 + "]" * 100_000)
+    assert main(["chain", str(deep)]) == 64

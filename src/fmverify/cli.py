@@ -206,7 +206,7 @@ def cmd_certificate(args: argparse.Namespace) -> Verdict:
 def _events(path: str) -> list:
     try:
         doc = json.loads(_read(path).decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise UsageError(f"{path} is not JSON: {exc}") from exc
     events = doc.get("events") if isinstance(doc, dict) else doc
     if not isinstance(events, list):
@@ -221,7 +221,7 @@ def cmd_chain(args: argparse.Namespace) -> Verdict:
     if args.disclosure:
         try:
             disclosure = json.loads(_read(args.disclosure).decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
             raise UsageError(f"--disclosure {args.disclosure} is not JSON: {exc}") from exc
         if not isinstance(disclosure, dict) or "doc_key_hex" not in disclosure:
             raise UsageError("--disclosure must hold doc_key_hex and steps")
@@ -235,7 +235,7 @@ def cmd_roots(args: argparse.Namespace) -> Verdict:
 
     try:
         doc = json.loads(_read(args.records).decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise UsageError(f"{args.records} is not JSON: {exc}") from exc
     records = doc.get("records") if isinstance(doc, dict) else doc
     if not isinstance(records, list):
@@ -270,7 +270,7 @@ def _header_options(p: argparse.ArgumentParser) -> None:
 def cmd_merkle(args: argparse.Namespace) -> Verdict:
     try:
         proof = json.loads(_read(args.proof).decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise UsageError(f"{args.proof} is not JSON: {exc}") from exc
     if args.leaf_file:
         leaf = _read(args.leaf_file)
@@ -433,7 +433,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             try:
                 raw = _read(args.certificate)
                 cert = json.loads((pdf.extract(raw) if raw.startswith(b"%PDF-") else raw).decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError, pdf.PdfError):
+            except (UnicodeDecodeError, json.JSONDecodeError, RecursionError, pdf.PdfError):
                 cert = None
         title = "Provenance Ledger certificate: verification report" if args.kind == "certificate" else None
         try:

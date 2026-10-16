@@ -36,3 +36,42 @@ def test_flate_and_unknown_filters():
 def test_not_a_pdf():
     with pytest.raises(pdf.PdfError, match="header"):
         pdf.extract(b"{}")
+
+
+def _attachment(stream_dict: bytes, body: bytes) -> bytes:
+    return _doc(b"1 0 obj\n<< /F (certificate.json) /EF << /F 2 0 R >> >>\nendobj\n"
+                b"2 0 obj\n<< /Length %d " % len(body) + stream_dict + b" >>\nstream\n" + body + b"\nendstream\nendobj\n")
+
+
+def test_decompression_bomb_stops_at_the_limit():
+    """A small stream that inflates past the per-stream limit, alone or
+    behind a second FlateDecode, is refused quickly, never inflated whole."""
+    import time
+
+    big = zlib.compress(b"\0" * (pdf.MAX_STREAM + 1), 9)
+    assert len(big) < 40_000
+    t = time.perf_counter()
+    with pytest.raises(pdf.PdfError, match="more than"):
+        pdf.extract(_attachment(b"/Filter /FlateDecode", big))
+    double = zlib.compress(big, 9)
+    with pytest.raises(pdf.PdfError, match="more than"):
+        pdf.extract(_attachment(b"/Filter [/FlateDecode /FlateDecode]", double))
+    assert time.perf_counter() - t < 5
+
+
+def test_filter_chain_and_truncation_limits():
+    with pytest.raises(pdf.PdfError, match="at most"):
+        pdf.extract(_attachment(b"/Filter [/FlateDecode /FlateDecode /FlateDecode /FlateDecode /FlateDecode]", b"x"))
+    whole = zlib.compress(b'{"a": 1}')
+    with pytest.raises(pdf.PdfError, match="truncated"):
+        pdf.extract(_attachment(b"/Filter /FlateDecode", whole[:-4]))
+    assert pdf.extract(_attachment(b"/Filter /FlateDecode", whole)) == b'{"a": 1}'
+
+
+def test_document_budget_spans_streams():
+    """Many streams just under the per-stream limit stop at the document's."""
+    one = zlib.compress(b"\0" * (pdf.MAX_STREAM - 1), 9)
+    objs = b"".join(b"%d 0 obj\n<< /Length %d /Filter /FlateDecode /Type /ObjStm /N 0 /First 0 >>\nstream\n" % (n, len(one)) + one
+                    + b"\nendstream\nendobj\n" for n in range(3, 3 + pdf.MAX_DOCUMENT // pdf.MAX_STREAM + 2))
+    with pytest.raises(pdf.PdfError, match="more than"):
+        pdf.Document(_doc(objs))

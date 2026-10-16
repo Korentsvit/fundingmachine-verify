@@ -134,6 +134,13 @@ the event chain). It does not, and cannot:
   OpenTimestamps library, OpenSSL, RFC 8032's reference Ed25519, and the
   Provenance Ledger session's own TypeScript, in both directions).
 * The verifier holds no secret, so timing side channels do not apply.
+* **Untrusted input is bounded.** A PDF stream inflates to at most 16 MiB and
+  a document to 64 MiB in all, with at most four filters per stream, so a
+  small file cannot exhaust memory (a deflate stream can inflate a
+  thousandfold, and filters chain); only the attachment asked for is
+  decoded. JSON nested too deeply to read is a malformed input (exit 64, or
+  an error answer from the API), never a crash. OpenTimestamps proofs keep
+  the reference implementation's limits.
 * Verify the verifier: run `fm-verify conformance fixtures`, which first
   checks the fixtures against `fixtures/SHA256SUMS`, and rebuild the
   fixtures with `python tools/make_fixtures.py`, which must give the same

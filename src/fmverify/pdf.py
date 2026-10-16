@@ -183,21 +183,46 @@ def _read_object(data: bytes, pos: int) -> tuple[Any, int]:
     return value, lex.pos
 
 
-def _decode(stream: Stream, resolve) -> bytes:
+MAX_STREAM = 16 * 1024 * 1024  # decoded bytes in one stream
+MAX_DOCUMENT = 64 * 1024 * 1024  # decoded bytes across one document
+MAX_FILTERS = 4
+
+
+def _inflate(data: bytes, limit: int) -> bytes:
+    """zlib inflate that stops past ``limit`` bytes of output: a small
+    stream can inflate a thousandfold, and filters can be chained."""
+    d = zlib.decompressobj()
+    try:
+        out = d.decompress(data, limit + 1)
+        if len(out) <= limit and not d.unconsumed_tail:
+            out += d.flush()
+    except zlib.error as exc:
+        raise PdfError(f"a FlateDecode stream does not inflate: {exc}") from exc
+    if len(out) > limit or d.unconsumed_tail:
+        raise PdfError(f"a FlateDecode stream inflates to more than {limit} bytes; this reader stops there")
+    if not d.eof:
+        raise PdfError("a FlateDecode stream does not inflate: incomplete or truncated stream")
+    return out
+
+
+def _decode(stream: Stream, resolve, budget: list[int] | None = None) -> bytes:
+    """Decode a stream; ``budget`` is a one-item list of decoded bytes the
+    document may still produce."""
+    budget = budget if budget is not None else [MAX_DOCUMENT]
     filters = resolve(stream.dict.get("Filter"))
     if filters is None:
         return stream.raw
     if isinstance(filters, Name):
         filters = [filters]
+    if not isinstance(filters, list) or len(filters) > MAX_FILTERS:
+        raise PdfError(f"a stream's filters are not a list of at most {MAX_FILTERS}")
     data = stream.raw
     for f in filters:
         f = resolve(f)
         if not isinstance(f, Name) or f.value != "FlateDecode":
             raise PdfError(f"stream filter {getattr(f, 'value', f)!r} is not one this reader decodes")
-        try:
-            data = zlib.decompress(data)
-        except zlib.error as exc:
-            raise PdfError(f"a FlateDecode stream does not inflate: {exc}") from exc
+        data = _inflate(data, min(MAX_STREAM, budget[0]))
+        budget[0] -= len(data)
     params = resolve(stream.dict.get("DecodeParms"))
     if isinstance(params, dict) and resolve(params.get("Predictor", 1)) not in (1, None):
         raise PdfError("PNG and TIFF predictors are not decoded by this reader")
@@ -209,6 +234,7 @@ class Document:
         if not data.startswith(b"%PDF-"):
             raise PdfError("not a PDF: the %PDF- header is missing")
         self.data = data
+        self.budget = [MAX_DOCUMENT]
         self.objects: dict[int, Any] = {}
         skip_until = 0
         for m in _OBJ.finditer(data):
@@ -234,7 +260,7 @@ class Document:
         return value
 
     def _open_object_stream(self, obj: Stream) -> None:
-        body = _decode(obj, self.resolve)
+        body = _decode(obj, self.resolve, self.budget)
         n, first = self.resolve(obj.dict.get("N")), self.resolve(obj.dict.get("First"))
         if not isinstance(n, int) or not isinstance(first, int):
             raise PdfError("an object stream lacks N or First")
@@ -247,8 +273,9 @@ class Document:
             value, _ = _read_object(body, first + off)
             self.objects.setdefault(num, value)  # without the cross-reference table, a top-level definition wins
 
-    def embedded_files(self) -> list[tuple[str, bytes]]:
-        """Every file specification with an embedded file: (name, content)."""
+    def embedded_files(self, only: str | None = None) -> list[tuple[str, bytes]]:
+        """Every file specification with an embedded file: (name, content);
+        with ``only``, just those of that name are decoded."""
         out = []
         for obj in self.objects.values():
             if not isinstance(obj, dict):
@@ -262,12 +289,14 @@ class Document:
                 continue
             if isinstance(name, bytes):
                 name = name[2:].decode("utf-16-be") if name.startswith(b"\xfe\xff") else name.decode("latin-1")
-            out.append((str(name), _decode(stream, self.resolve)))
+            if only is not None and str(name) != only:
+                continue
+            out.append((str(name), _decode(stream, self.resolve, self.budget)))
         return out
 
 
 def extract(data: bytes, name: str = "certificate.json") -> bytes:
-    files = [content for fname, content in Document(data).embedded_files() if fname == name]
+    files = [content for fname, content in Document(data).embedded_files(only=name) if fname == name]
     if not files:
         raise PdfError(f"the PDF holds no embedded file named {name}")
     if len(set(files)) > 1:

@@ -207,4 +207,6 @@ def verify_json(text: str) -> str:
         request = json.loads(text)
     except json.JSONDecodeError as exc:
         return json.dumps({"api": API, "error": f"the request is not JSON: {exc}"})
+    except RecursionError:
+        return json.dumps({"api": API, "error": "the request is nested too deeply to read"})
     return json.dumps(verify(request), ensure_ascii=False)

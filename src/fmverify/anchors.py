@@ -122,7 +122,7 @@ def load_batch(directory: str | Path) -> Batch:
         doc = json.loads((d / "batch.json").read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise BatchError(f"{d} holds no batch.json") from exc
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise BatchError(f"batch.json is not JSON: {exc}") from exc
     files = {p.name: p.read_bytes() for p in d.iterdir() if p.is_file() and p.suffix in (".ots", ".tsr")}
     return batch_from_doc(doc, files, name=str(d))

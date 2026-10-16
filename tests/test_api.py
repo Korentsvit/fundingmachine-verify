@@ -135,3 +135,9 @@ def test_ledger_anchor_request_refuses_other_files():
     req = _ledger_anchor_request(FIX / "ledger-anchors" / "valid")
     req["files"]["../etc/passwd"] = "AA=="
     assert "manifest.json and root.preimage files only" in api.verify(req)["error"]
+
+
+def test_deeply_nested_json_is_an_error_answer_not_a_crash():
+    deep = "[" * 100_000 + "]" * 100_000
+    out = json.loads(api.verify_json('{"kind": "chain", "events": ' + deep + "}"))
+    assert "nested too deeply" in out["error"]
