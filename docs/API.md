@@ -14,8 +14,9 @@ A hosted page can call it server-side, or in the browser under Pyodide (the
 package is pure Python apart from `cryptography`, which Pyodide ships). CI
 runs `tools/pyodide/check.mjs`, which loads the package into Pyodide 0.27.7
 (Python 3.12, cryptography 42.0.5, the oldest version the package accepts)
-and checks six fixture requests, a certificate with its HTML page among
-them. The command line remains the proof.
+and checks ten fixture requests: among them a certificate with its HTML
+page, and two certificates passed as the PDF received. The command line
+remains the proof.
 
 ## Request
 
@@ -46,7 +47,7 @@ By kind:
 | `merkle` | `proof` (the JSON object of `docs/INPUTS.md`); `leaf` (base64) unless the proof carries `leaf` (hex); `root` (hex), optional; `tree_size`, optional: the size held with that root, without which the leaf's position is reported as the proof states it |
 | `anchors` | `batch` (the parsed `batch.json`); `anchor_files` (file name to base64); `files` (listed path to base64 of a file the reader holds), optional |
 | `ledger-anchor` | `files`: one Provenance Ledger anchor directory as file name to base64 (`manifest.json`, `root.preimage`, `root.preimage.ots`, `root.preimage.<authority>.tsr`); no checkout comparison, which needs a disk |
-| `certificate` | `certificate` (the certificate's JSON object); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 events), optional, for step 7 |
+| `certificate` | `certificate` (the certificate's JSON object), or `certificate_file` (base64 of the file as received, JSON or PDF, read by this verifier's own PDF reader, so a page reaches the verdict the command line reaches for the same file); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 or v0.1 events), optional, for step 7 |
 | `chain` | `events` (a list of ledger-event/v0 or v0.1 events); `disclosure` (`{"doc_key_hex", "steps": [{"seq", "content_text"}]}`), optional: replays the chain and checks every keyed hash; the text is never echoed |
 
 ## Answer

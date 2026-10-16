@@ -145,3 +145,23 @@ def test_deeply_nested_json_is_an_error_answer_not_a_crash():
     deep = "[" * 100_000 + "]" * 100_000
     out = json.loads(api.verify_json('{"kind": "chain", "events": ' + deep + "}"))
     assert "nested too deeply" in out["error"]
+
+
+def test_a_certificate_file_is_read_as_the_command_line_reads_it():
+    """A page passing the PDF it received reaches the verdict the command
+    line reaches for that file, with this verifier's PDF reader, rather than
+    extracting the JSON with a reader of its own."""
+    base = FIX / "certificate"
+    for name in ("pdf-compressed", "pdf-updated-attachment", "pdf-two-attachments"):
+        case = base / name
+        exp = json.loads((case / "expected.json").read_text())
+        request = {"kind": "certificate", "network": "regtest", "certificate_file": b64(case / "certificate.pdf"),
+                   "file": b64(case / exp["file"]), "render": "html",
+                   "headers": [{"kind": "chain", "data": b64(case / exp["headers_chain"][0]["path"])}],
+                   "roots": [(case / r).read_text() for r in exp.get("roots", [])]}
+        answer = api.verify(request)
+        assert answer["outcome"] == exp["outcome"], (name, answer.get("error"), answer.get("statement"))
+        assert [c["id"] for c in answer["checks"] if c["status"] == "fail"] == exp.get("failing", [])
+        assert "<html" in answer["html"]
+    both = {"kind": "certificate", "certificate": {}, "certificate_file": b64(base / "pdf-compressed" / "certificate.pdf")}
+    assert "one of the two" in api.verify(both)["error"]

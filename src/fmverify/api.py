@@ -159,13 +159,20 @@ def _run(req: dict):
                                            extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")))
     if kind == "certificate":
         cert = req.get("certificate")
-        if not isinstance(cert, dict):
+        if ("certificate_file" in req) == ("certificate" in req):
+            raise RequestError("give the certificate as certificate (its JSON object) or as certificate_file "
+                               "(base64 of the file received, JSON or PDF), one of the two")
+        if "certificate_file" in req:
+            raw = _b64(req["certificate_file"], "certificate_file")  # a PDF is read by this verifier's own reader
+        elif isinstance(cert, dict):
+            raw = json.dumps(cert).encode("utf-8")
+        else:
             raise RequestError("certificate must be the certificate's JSON object")
         file_bytes = _b64(req["file"], "file") if "file" in req else None
         events = req.get("events")
         if events is not None and not isinstance(events, list):
             raise RequestError("events must be a list of ledger-event/v0 events")
-        return certificate.verify(json.dumps(cert).encode("utf-8"), exported_file=file_bytes, header_sources=_sources(req),
+        return certificate.verify(raw, exported_file=file_bytes, header_sources=_sources(req),
                                   network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
                                   extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")), subject=label,
                                   events=events)
@@ -183,6 +190,19 @@ def _run(req: dict):
     raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, certificate, chain")
 
 
+def _certificate_json(value: Any) -> dict | None:
+    """The certificate's JSON object from a certificate_file, for the report
+    page; None where it cannot be read (the verdict says why)."""
+    from . import pdf
+
+    try:
+        raw = _b64(value, "certificate_file")
+        cert = json.loads((pdf.extract(raw) if raw.startswith(b"%PDF-") else raw).decode("utf-8"))
+    except (RequestError, pdf.PdfError, UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        return None
+    return cert if isinstance(cert, dict) else None
+
+
 def verify(request: dict) -> dict:
     """Answer one request. Never raises for a malformed request: the answer
     then carries ``error``."""
@@ -193,6 +213,8 @@ def verify(request: dict) -> dict:
             from . import report
 
             cert = request.get("certificate") if request.get("kind") == "certificate" else None
+            if request.get("kind") == "certificate" and "certificate_file" in request:
+                cert = _certificate_json(request["certificate_file"])
             answer["html"] = report.render(verdict, cert if isinstance(cert, dict) else None,
                                            "Provenance Ledger certificate: verification report" if cert else None)
         return answer

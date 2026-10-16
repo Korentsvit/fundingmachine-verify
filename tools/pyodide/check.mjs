@@ -42,6 +42,11 @@ const requests = [
      events: json("fixtures/certificate/valid-with-chain/events.json").events,
      headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/certificate-headers-0-5.bin") }],
      roots: [text("fixtures/rfc3161/pki/root.pem")], render: "html" }],
+  ...["pdf-compressed", "pdf-updated-attachment"].map((c) => [`certificate ${c} (the PDF as received)`,
+    c === "pdf-compressed" ? "valid" : "invalid", { kind: "certificate", network: "regtest",
+    certificate_file: b64(`fixtures/certificate/${c}/certificate.pdf`), file: b64(`fixtures/certificate/${c}/exported.txt`),
+    headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/certificate-headers-0-5.bin") }],
+    roots: [text("fixtures/rfc3161/pki/root.pem")] }]),
   ["chain re-ordered", "invalid", { kind: "chain", events: json("fixtures/chain/re-ordered/events.json").events }],
   ...["valid", "manifest-misstates-token"].map((c) => [`ledger-anchor ${c}`, c === "valid" ? "valid" : "invalid", {
     kind: "ledger-anchor", network: "regtest",
