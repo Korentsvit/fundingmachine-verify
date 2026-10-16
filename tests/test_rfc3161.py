@@ -8,7 +8,7 @@ from fmverify.cli import main
 from fmverify.verdict import Outcome, Status
 
 FIX = Path(__file__).resolve().parent.parent / "fixtures" / "rfc3161"
-CASES = sorted(p for p in FIX.iterdir() if p.is_dir() and p.name != "pki")
+CASES = sorted(p for p in FIX.iterdir() if (p / "expected.json").is_file())
 
 
 def _certs(case: Path, paths):
@@ -17,8 +17,9 @@ def _certs(case: Path, paths):
 
 def run_case(case: Path):
     exp = json.loads((case / "expected.json").read_text())
+    crls = [c for p in exp.get("crls", []) for c in pki.load_crls((case / p).read_bytes())]
     v = rfc3161.verify_file(case / "token.tsr", case / exp["file"], roots=_certs(case, exp.get("roots", [])),
-                            extra_certs=_certs(case, exp.get("chain", [])))
+                            extra_certs=_certs(case, exp.get("chain", [])), crls=crls)
     return exp, v
 
 
@@ -27,6 +28,7 @@ def test_fixture_case(case):
     exp, v = run_case(case)
     assert v.outcome.value == exp["outcome"], v.to_text()
     assert [c.id for c in v.checks if c.status is Status.FAIL] == exp.get("failing", []), v.to_text()
+    assert set(exp.get("warning", [])) <= {c.id for c in v.checks if c.status is Status.WARN}, v.to_text()
     assert v.statement and v.does_not_establish
 
 
@@ -92,3 +94,30 @@ def test_cli(capsys):
     assert json.loads(capsys.readouterr().out)["outcome"] == "valid"
     assert main(["rfc3161", str(case / "token.tsr"), "--roots", "/nonexistent.pem"]) == 64
     assert main(["rfc3161", str(case / "token.tsr"), "--digest", "00", "--digest-alg", "md5"]) == 64
+
+
+def test_revocation_statuses():
+    def rev(name):
+        return next(c for c in run_case(FIX / name)[1].checks if c.id == "rfc3161.revocation")
+
+    assert rev("crl-clean").status is Status.PASS
+    assert "revoked later (superseded" in " ".join(rev("crl-superseded-later").reasons)
+    assert rev("crl-stale").status is Status.NOT_CHECKED and "issued before" in " ".join(rev("crl-stale").reasons)
+    assert "key compromise" in rev("crl-key-compromise").reasons[0]
+
+
+def test_crl_for_the_issuing_ca_only_leaves_the_rest_open():
+    case = FIX / "valid-rsa"
+    crls = pki.load_crls((FIX / "crl" / "ica-clean.pem").read_bytes())
+    v = rfc3161.verify_file(case / "token.tsr", case / "document.txt", roots=_certs(case, ["../pki/root.pem"]), crls=crls)
+    r = next(c for c in v.checks if c.id == "rfc3161.revocation")
+    assert v.outcome is Outcome.VALID and r.status is Status.NOT_CHECKED
+    assert any("no CRL from its issuer" in x and "Issuing CA" in x for x in r.reasons)
+
+
+def test_crl_cli(capsys):
+    case = FIX / "valid-rsa"
+    base = ["rfc3161", str(case / "token.tsr"), "--file", str(case / "document.txt"), "--roots", str(FIX / "pki" / "root.pem")]
+    assert main(base + ["--crl", str(FIX / "crl" / "root-clean.pem"), "--crl", str(FIX / "crl" / "ica-clean.pem")]) == 0
+    assert main(base + ["--crl", str(FIX / "crl" / "ica-key-compromise.pem")]) == 1
+    assert main(base + ["--crl", str(FIX / "pki" / "root.pem")]) == 64

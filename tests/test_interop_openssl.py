@@ -24,7 +24,11 @@ from fmverify.verdict import Outcome
 
 ROOT = Path(__file__).resolve().parent.parent
 FIX = ROOT / "fixtures" / "rfc3161"
-CASES = sorted(p for p in FIX.iterdir() if p.is_dir() and p.name != "pki")
+# Revocation cases are left out of the OpenSSL comparison: OpenSSL treats any
+# listed serial as revoked whatever the date and reason, where RFC 3161
+# section 4 (followed here) voids earlier tokens only for key compromise.
+CASES = sorted(p for p in FIX.iterdir() if (p / "expected.json").is_file()
+               and "crls" not in json.loads((p / "expected.json").read_text()))
 OPENSSL = shutil.which("openssl")
 pytestmark = pytest.mark.skipif(OPENSSL is None, reason="openssl is not installed")
 GEN_TIME = int(dt.datetime(2026, 10, 16, 6, 0, 0, tzinfo=dt.timezone.utc).timestamp())

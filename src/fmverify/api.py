@@ -80,6 +80,18 @@ def _certs(values: Any, what: str) -> list:
     return out
 
 
+def _crls(values: Any) -> list:
+    out = []
+    for i, pem in enumerate(values or []):
+        if not isinstance(pem, str):
+            raise RequestError(f"crls[{i}] must be PEM text")
+        try:
+            out += pki.load_crls(pem.encode("ascii"))
+        except ValueError as exc:
+            raise RequestError(f"crls[{i}] is not a PEM CRL") from exc
+    return out
+
+
 def _subject(req: dict) -> tuple[bytes | None, bytes | None]:
     file_bytes = _b64(req["file"], "file") if "file" in req else None
     digest = _hex(req["digest"], "digest") if "digest" in req else None
@@ -107,7 +119,7 @@ def _run(req: dict):
         file_bytes, digest = _subject(req)
         return rfc3161.verify(_b64(req.get("token"), "token"), file_bytes=file_bytes, digest=digest,
                               digest_alg=req.get("digest_alg", "sha256"), roots=_certs(req.get("roots"), "roots"),
-                              extra_certs=_certs(req.get("chain"), "chain"), subject=label)
+                              extra_certs=_certs(req.get("chain"), "chain"), subject=label, crls=_crls(req.get("crls")))
     if kind == "merkle":
         proof = req.get("proof")
         if not isinstance(proof, dict):
@@ -127,7 +139,7 @@ def _run(req: dict):
                                 {o: "The anchor batch could not be read." for o in Outcome}, ANCHOR_LIMITS)
         return anchors.verify_batch(batch, header_sources=_sources(req), network=NETWORKS[req.get("network", "mainnet")],
                                     roots=_certs(req.get("roots"), "roots"), extra_certs=_certs(req.get("chain"), "chain"),
-                                    held=held)
+                                    held=held, crls=_crls(req.get("crls")))
     raise RequestError("kind must be one of ots, rfc3161, merkle, anchors")
 
 

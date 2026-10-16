@@ -1,0 +1,15 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-key-compromise.pem"
+ ],
+ "description": "The authority's certificate was revoked for key compromise after the token's time",
+ "outcome": "invalid",
+ "failing": [
+  "rfc3161.revocation"
+ ]
+}

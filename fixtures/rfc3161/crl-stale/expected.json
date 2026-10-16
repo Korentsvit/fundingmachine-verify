@@ -1,0 +1,12 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-stale.pem"
+ ],
+ "description": "The issuing CA's CRL predates the token: it cannot show the status then",
+ "outcome": "valid"
+}

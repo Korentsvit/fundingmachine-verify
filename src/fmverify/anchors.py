@@ -161,6 +161,7 @@ def verify_batch(
     strict_files: bool = False,
     checked_at: str | None = None,
     held: dict[str, bytes] | None = None,
+    crls=(),
 ) -> Verdict:
     """Check a batch (a directory, or a Batch already loaded).
 
@@ -240,7 +241,7 @@ def verify_batch(
     for fname, data in batch.tsr_files:
         subs.append((f"anchors.rfc3161.{fname}", f"the RFC 3161 token {fname}",
                      rfc3161.verify(data, digest=batch.root, roots=roots, extra_certs=extra_certs,
-                                    subject=f"root {batch.root.hex()}", checked_at=checked_at)))
+                                    subject=f"root {batch.root.hex()}", checked_at=checked_at, crls=crls)))
     valid = sum(1 for _, _, v in subs if v.outcome is Outcome.VALID)
     for cid, name, v in subs:
         checks.append(_summarize(v, cid, name, valid))

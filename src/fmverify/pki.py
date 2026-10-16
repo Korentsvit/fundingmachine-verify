@@ -8,13 +8,14 @@ authority's own published fingerprint.
 Checked for each certificate on the path, at the time the token states:
 validity period; for the CAs above the signer, basic constraints, key usage
 and path length; every signature, by the next certificate's key. Revocation
-is checked only from CRLs the caller supplies (not yet implemented: reported
-as not checked).
+is checked only from CRLs the caller supplies; without them it is reported as
+not checked and listed as relied on.
 """
 
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from typing import Sequence
 
 from cryptography import x509
@@ -150,4 +151,82 @@ def check_path(path: list[x509.Certificate], at: _dt.datetime) -> list[Check]:
         checks.append(Check("rfc3161.ca_constraints", Status.FAIL, "a certificate authority on the path breaks its constraints", reasons=problems))
     elif len(path) > 1:
         checks.append(Check("rfc3161.ca_constraints", Status.PASS, "every intermediate authority is a CA allowed to issue the certificate below it"))
+    return checks
+
+
+def load_crls(data: bytes) -> list[x509.CertificateRevocationList]:
+    """PEM (one or many) or a single DER certificate revocation list."""
+    if b"-----BEGIN" in data:
+        blocks = re.findall(rb"-----BEGIN X509 CRL-----.+?-----END X509 CRL-----", data, re.S)
+        if not blocks:
+            raise ValueError("no PEM CRL found")
+        return [x509.load_pem_x509_crl(b + b"\n") for b in blocks]
+    return [x509.load_der_x509_crl(data)]
+
+
+def check_revocation(path: list[x509.Certificate], crls: Sequence[x509.CertificateRevocationList], at: _dt.datetime) -> list[Check]:
+    """Revocation of every certificate on the path below the trust anchor,
+    from the CRLs supplied. RFC 3161 section 4: a certificate revoked for
+    key compromise voids every token its key signed, whenever revoked; any
+    other revocation voids tokens stated after it."""
+    when = at.isoformat().replace("+00:00", "Z")
+    covered, open_items, failures, warnings = [], [], [], []
+    for cert, issuer in zip(path[:-1], path[1:]):
+        usable = []
+        for crl in crls:
+            if crl.issuer != cert.issuer:
+                continue
+            if not crl.is_signature_valid(issuer.public_key()):
+                warnings.append(f"a CRL naming {crl.issuer.rfc4514_string()} as issuer does not verify with that issuer's key; ignored")
+                continue
+            usable.append(crl)
+        # A listing in any authentic CRL counts, whenever the CRL was issued.
+        listed = [(crl, crl.get_revoked_certificate_by_serial_number(cert.serial_number)) for crl in usable]
+        listed = [(crl, entry) for crl, entry in listed if entry is not None]
+        voiding = []
+        later = []
+        for crl, entry in listed:
+            revoked_at = entry.revocation_date_utc
+            try:
+                reason = entry.extensions.get_extension_for_class(x509.CRLReason).value.reason
+            except x509.ExtensionNotFound:
+                reason = None
+            reason_text = reason.value if reason is not None else "no reason given"
+            if reason == x509.ReasonFlags.key_compromise:
+                voiding.append(f"{describe(cert)} was revoked for key compromise on {revoked_at.isoformat()}: "
+                               "RFC 3161 section 4 says no token its key signed can be trusted")
+            elif revoked_at <= at:
+                voiding.append(f"{describe(cert)} was revoked ({reason_text}) on {revoked_at.isoformat()}, before {when}")
+            else:
+                later.append(f"{cert.subject.rfc4514_string()}: revoked later ({reason_text}, {revoked_at.isoformat()}), "
+                             "which leaves earlier tokens standing")
+        if voiding:
+            failures += voiding
+            continue
+        if later:
+            covered += later
+            continue
+        # Not listed: only a CRL issued at or after the token's time shows the status then.
+        fresh = [crl for crl in usable if crl.last_update_utc >= at]
+        if fresh:
+            issued = max(c.last_update_utc for c in fresh).isoformat().replace("+00:00", "Z")
+            covered.append(f"{cert.subject.rfc4514_string()}: not revoked as of {issued}")
+        elif usable:
+            open_items.append(f"{describe(cert)}: the CRLs supplied were all issued before {when}, so they cannot show the status at that time")
+        else:
+            open_items.append(f"{describe(cert)}: no CRL from its issuer was supplied")
+    checks: list[Check] = []
+    if warnings:
+        checks.append(Check("rfc3161.crl", Status.WARN, "a CRL supplied could not be used", reasons=warnings, required=False))
+    if failures:
+        checks.append(Check("rfc3161.revocation", Status.FAIL, "a certificate on the path is revoked in a way that voids this token",
+                            reasons=failures))
+    elif open_items:
+        checks.append(Check("rfc3161.revocation", Status.NOT_CHECKED, "revocation was not checked for every certificate on the path",
+                            reasons=covered + open_items,
+                            relies_on=["the authority's certificates not covered by a CRL were not revoked for key compromise"],
+                            required=False))
+    else:
+        checks.append(Check("rfc3161.revocation", Status.PASS, f"no certificate on the path is revoked in a way that voids a token from {when}",
+                            reasons=covered, relies_on=["the CRLs supplied are the issuers' latest"]))
     return checks

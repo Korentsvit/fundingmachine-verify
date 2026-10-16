@@ -1,0 +1,12 @@
+{
+ "file": "document.txt",
+ "roots": [
+  "../pki/root.pem"
+ ],
+ "crls": [
+  "../crl/root-clean.pem",
+  "../crl/ica-superseded-later.pem"
+ ],
+ "description": "The authority's certificate was superseded after the token's time",
+ "outcome": "valid"
+}

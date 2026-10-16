@@ -28,6 +28,7 @@ Common fields:
 | `headers` | block headers: `{"kind": "chain", "data": <base64 of 80-byte headers>, "start": 0, "name": ...}` or `{"kind": "sparse", "text": "HEIGHT HEX lines or JSON", "name": ...}` |
 | `min_work_bits` | floor for headers checked alone (default 70 on mainnet) |
 | `roots`, `chain` | PEM certificates: roots you trust, and intermediates not in a token |
+| `crls` | PEM certificate revocation lists you hold, checked along the trusted path |
 
 `explorer` is refused: this entry point makes no network call. A page that
 fetches headers from an explorer passes them as sparse headers and names

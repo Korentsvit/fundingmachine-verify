@@ -87,6 +87,18 @@ def _certs(paths: list[str] | None, what: str) -> list:
     return out
 
 
+def _crls(paths: list[str] | None) -> list:
+    from . import pki
+
+    out = []
+    for path in paths or []:
+        try:
+            out += pki.load_crls(_read(path))
+        except ValueError as exc:
+            raise UsageError(f"--crl {path}: not a PEM or DER CRL ({exc})") from exc
+    return out
+
+
 def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
     from . import rfc3161
 
@@ -106,6 +118,7 @@ def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
         roots=_certs(args.roots, "--roots"),
         extra_certs=_certs(args.chain, "--chain"),
         subject=args.file,
+        crls=_crls(args.crl),
     )
 
 
@@ -128,6 +141,7 @@ def cmd_anchors(args: argparse.Namespace) -> Verdict:
         roots=_certs(args.roots, "--roots"),
         extra_certs=_certs(args.chain, "--chain"),
         strict_files=args.strict_files,
+        crls=_crls(args.crl),
     )
 
 
@@ -186,6 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--roots", action="append", metavar="PEM",
                    help="certificates you trust as the authority's root (repeatable); none are built in")
     r.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the token (repeatable)")
+    r.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     r.add_argument("--json", action="store_true")
     r.set_defaults(func=cmd_rfc3161)
 
@@ -198,6 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     _header_options(a)
     a.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
     a.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
+    a.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_anchors)
 

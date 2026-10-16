@@ -324,5 +324,53 @@ def build(fix: Path) -> None:
     case("expired-at-time", token(tsa_rsa_k, tsa_expired, [tsa_expired, ica], DOCUMENT, serial=1010, sig="rsa"),
          {"description": "The signer's certificate expired before the time the token states", "roots": roots,
           "outcome": "invalid", "failing": ["rfc3161.validity"]})
+    # Revocation lists from the issuing CA (over the RSA authority, serial 101) and the root.
+    crl_dir = out / "crl"
+    crl_dir.mkdir(parents=True, exist_ok=True)
+
+    def crl(issuer_cn: str, key, this_update: dt.datetime, revoked: list[tuple[int, dt.datetime, x509.ReasonFlags]] = ()) -> bytes:
+        b = (x509.CertificateRevocationListBuilder().issuer_name(name(issuer_cn))
+             .last_update(this_update).next_update(this_update + dt.timedelta(days=30)))
+        for serial, when, reason in revoked:
+            b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(serial).revocation_date(when)
+                                          .add_extension(x509.CRLReason(reason), critical=False).build())
+        return b.sign(key, hashes.SHA256()).public_bytes(serialization.Encoding.PEM)
+
+    after = dt.datetime(2026, 10, 20, tzinfo=dt.timezone.utc)
+    december = dt.datetime(2026, 12, 1, tzinfo=dt.timezone.utc)
+    crls = {
+        "root-clean.pem": crl("FM Verify Test Root CA", root_k, after),
+        "ica-clean.pem": crl("FM Verify Test Issuing CA", ica_k, after),
+        "ica-key-compromise.pem": crl("FM Verify Test Issuing CA", ica_k, december + dt.timedelta(days=1),
+                                      [(101, december, x509.ReasonFlags.key_compromise)]),
+        "ica-superseded-later.pem": crl("FM Verify Test Issuing CA", ica_k, december + dt.timedelta(days=1),
+                                        [(101, december, x509.ReasonFlags.superseded)]),
+        "ica-revoked-before.pem": crl("FM Verify Test Issuing CA", ica_k, dt.datetime(2026, 9, 2, tzinfo=dt.timezone.utc),
+                                      [(101, dt.datetime(2026, 9, 1, tzinfo=dt.timezone.utc), x509.ReasonFlags.superseded)]),
+        "ica-stale.pem": crl("FM Verify Test Issuing CA", ica_k, dt.datetime(2026, 10, 1, tzinfo=dt.timezone.utc)),
+        "ica-forged.pem": crl("FM Verify Test Issuing CA", other_k, after),
+    }
+    for fname, data in crls.items():
+        (crl_dir / fname).write_bytes(data)
+
+    def crl_case(name: str, files: list[str], expected: dict) -> None:
+        case(name, rsa_tok, {"roots": roots, "crls": [f"../crl/{f}" for f in files], **expected})
+
+    crl_case("crl-clean", ["root-clean.pem", "ica-clean.pem"],
+             {"description": "Fresh CRLs from the root and the issuing CA list nothing", "outcome": "valid"})
+    crl_case("crl-key-compromise", ["root-clean.pem", "ica-key-compromise.pem"],
+             {"description": "The authority's certificate was revoked for key compromise after the token's time",
+              "outcome": "invalid", "failing": ["rfc3161.revocation"]})
+    crl_case("crl-superseded-later", ["root-clean.pem", "ica-superseded-later.pem"],
+             {"description": "The authority's certificate was superseded after the token's time", "outcome": "valid"})
+    crl_case("crl-revoked-before", ["root-clean.pem", "ica-revoked-before.pem"],
+             {"description": "The authority's certificate was revoked before the token's time", "outcome": "invalid",
+              "failing": ["rfc3161.revocation"]})
+    crl_case("crl-stale", ["root-clean.pem", "ica-stale.pem"],
+             {"description": "The issuing CA's CRL predates the token: it cannot show the status then", "outcome": "valid"})
+    crl_case("crl-forged", ["root-clean.pem", "ica-forged.pem"],
+             {"description": "A CRL carrying the issuing CA's name but signed by another key", "outcome": "valid",
+              "warning": ["rfc3161.crl"]})
+
     case("rejected", rejection(), {"description": "The authority refused the request", "roots": roots,
                                    "outcome": "invalid", "failing": ["rfc3161.parse"]})

@@ -12,7 +12,9 @@ Checks, each reported with reasons:
 * the signer's certificate: time-stamping only, valid at the stated time;
 * the chain to a root the caller supplies, valid at the stated time.
 
-Revocation is not checked yet, and every verdict says so.
+Revocation is checked from CRLs the caller supplies (RFC 3161 section 4: a
+key-compromise revocation voids every token from that key); without them the
+verdict says it was not checked and lists it as relied on.
 """
 
 from __future__ import annotations
@@ -361,9 +363,11 @@ def verify(
     extra_certs: Sequence[x509.Certificate] = (),
     subject: str | None = None,
     checked_at: str | None = None,
+    crls: Sequence[x509.CertificateRevocationList] = (),
 ) -> Verdict:
     """Check an RFC 3161 token. ``roots`` are the certificates the caller
-    trusts; without any, the verdict is at best indeterminate."""
+    trusts; without any, the verdict is at best indeterminate. ``crls`` are
+    revocation lists the caller holds, checked along the trusted path."""
     checks: list[Check] = []
     fail_statement = {o: "The RFC 3161 time-stamp token does not hold: see the failing checks." for o in Outcome}
     try:
@@ -490,10 +494,14 @@ def verify(
                             relies_on=[f"{pki.describe(anchor)} is the time-stamping authority's root: compare the fingerprint with the authority's own publication"],
                             data={"path": [pki.fingerprint(c) for c in path], "root_sha256": pki.fingerprint(anchor)}))
         checks.extend(pki.check_path(path, tst.gen_time))
-    checks.append(Check("rfc3161.revocation", Status.NOT_CHECKED, "revocation was not checked",
-                        reasons=["no certificate revocation list was supplied; an offline check cannot see a revocation"],
-                        relies_on=["the authority's certificates were not revoked for key compromise before the stated time"],
-                        required=False))
+    if crls and path is not None:
+        checks.extend(pki.check_revocation(path, crls, tst.gen_time))
+    else:
+        checks.append(Check("rfc3161.revocation", Status.NOT_CHECKED, "revocation was not checked",
+                            reasons=["no certificate revocation list was supplied" if not crls else "no trusted chain to check it along",
+                                     "an offline check sees a revocation only through a CRL it is given"],
+                            relies_on=["the authority's certificates were not revoked for key compromise"],
+                            required=False))
     return make_verdict("rfc3161", subject, checks, _statements(tst, signer, anchor, when, acc), ANCHOR_LIMITS, checked_at)
 
 

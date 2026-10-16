@@ -78,7 +78,7 @@ fm-verify ots document.pdf.ots --file document.pdf --headers-chain blockchain_he
 fm-verify ots document.pdf.ots --file document.pdf --explorer https://mempool.space/api
 
 # An RFC 3161 time-stamp token, against a root you trust
-fm-verify rfc3161 document.pdf.tsr --file document.pdf --roots authority-root.pem [--chain intermediates.pem]
+fm-verify rfc3161 document.pdf.tsr --file document.pdf --roots authority-root.pem [--chain intermediates.pem] [--crl issuer.crl]
 
 # An anchor batch, compared with a checkout, against headers and a trusted authority root
 fm-verify anchors anchors/2026-10-31 --repo-root . --headers-chain blockchain_headers --roots authority-root.pem
@@ -123,7 +123,10 @@ byte for byte, by `python tools/make_fixtures.py`.
   Ed25519 authorities): valid with PKCS#1 v1.5, PSS, ECDSA and Ed25519; no
   root, wrong root, chain missing, tampered file, back-dated, tampered
   signature, wrong ESS certificate, missing or shared EKU, expired at the
-  stated time, and a refused request. Every key is derived from a seed
+  stated time, and a refused request; and revocation cases from CRLs: clean,
+  key compromise (voids the token whenever revoked, RFC 3161 section 4),
+  superseded after the token's time (stands), revoked before it, a CRL too
+  old to tell, and a forged CRL. Every key is derived from a seed
   published in `tools/tsa_fixtures.py`: they protect nothing, and no key
   file is committed.
 
@@ -132,7 +135,9 @@ Independent implementations check the same fixtures in CI:
 * the reference OpenTimestamps library (`tests/test_interop.py`) must reach
   the same commitments and reject the same malformed proofs;
 * OpenSSL's `ts -verify` (`tests/test_interop_openssl.py`) must agree on
-  every RFC 3161 case it supports. OpenSSL 3.0 cannot check RSASSA-PSS
+  every RFC 3161 case it supports (revocation cases aside: OpenSSL treats
+  any listed serial as revoked, whatever its date and reason). OpenSSL 3.0
+  cannot check RSASSA-PSS
   through `ts` nor Ed25519 in CMS at all, so those two tokens are checked
   with `openssl cms -verify` and with the reference Ed25519 algorithm of
   RFC 8032, written out in the test. A token made by OpenSSL's own
