@@ -244,6 +244,13 @@ def build_ledger_anchors() -> None:
     for rel, data in changed.items():
         (out / "repo-later" / rel).parent.mkdir(parents=True, exist_ok=True)
         (out / "repo-later" / rel).write_bytes(data)
+    # The day after: the fragment assembled into the log, as fundingmachine-core's
+    # atlas/decisions.py does it (rows appended, the pull request number written in).
+    assembled = {k: v for k, v in LEDGER_REPO.items() if "decisions.d" not in k}
+    assembled["docs/DECISIONS_LOG.md"] += LEDGER_REPO["docs/decisions.d/2026-10-16-example.md"].replace(b"this pull request", b"#3")
+    for rel, data in assembled.items():
+        (out / "repo-assembled" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / "repo-assembled" / rel).write_bytes(data)
 
     def desc(kind: str, path: str, digest: bytes) -> dict:
         return {"kind": kind, "path": path, "ref": "main", "repo": repo, "sha256": digest.hex()}
@@ -302,6 +309,9 @@ def build_ledger_anchors() -> None:
                    "repos": {repo: "../repo"}, "outcome": "valid"})
     case("checkout-later", {"description": "The same anchor against a checkout where the rulings file grew since: a warning",
                             "repos": {repo: "../repo-later"}, "outcome": "valid", "warning": ["ledger_anchor.checkout.example/repository"]})
+    case("checkout-assembled", {"description": ("The same anchor against a checkout where the fragment was since assembled into the log: "
+                                                "the log changed (a warning) and the fragment is found as the log's new row"),
+                                "repos": {repo: "../repo-assembled"}, "outcome": "valid", "warning": ["ledger_anchor.checkout.example/repository"]})
     altered = [dict(x) for x in descriptors]
     altered[0]["sha256"] = sha256(b"something else").hex()
     case("descriptor-altered", {"description": "A descriptor's hash changed after anchoring", "outcome": "invalid",

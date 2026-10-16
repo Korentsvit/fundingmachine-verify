@@ -59,5 +59,55 @@ def test_all_anchors_under_a_directory(capsys):
     assert doc["kind"] == "anchor-set"
     by_case = {c["id"].split(".", 1)[1]: c["status"] for c in doc["checks"]}
     assert by_case["valid"] == "pass" and by_case["descriptor-altered"] == "fail"
-    assert "3 of 6 anchors" in doc["statement"] or "of 6 anchors" in doc["statement"]
+    n = len(ledger_anchors.find_anchor_dirs(FIX / "ledger-anchors"))
+    assert n == 7 and f"of {n} anchors" in doc["statement"]
     assert ledger_anchors.find_anchor_dirs(FIX / "anchors") == []
+
+
+def test_entry_of_several_lines_is_found():
+    """docs/ANCHORING.md: an entry's hash covers its line or lines (a dated list
+    item in Knowledge-goblin), without the trailing newline."""
+    lines = ["# Log", "", "- 2026-10-16: a ruling", "  that runs onto a second line", "- 2026-10-17: another"]
+    runs = ledger_anchors.entry_runs(lines)
+    assert runs[sha256("\n".join(lines[2:4]).encode()).hex()] == (3, 4)
+    assert runs[sha256(lines[4].encode()).hex()] == (5, 5)
+    assert sha256(("\n".join(lines[2:4]) + "\n").encode()).hex() not in runs
+
+
+def test_fragment_of_several_rows_found_assembled():
+    rows = ["| 2026-10-16 | layer | First | Why | this pull request |", "| 2026-10-16 | layer | Second | Why | this pull request |"]
+    fragment = ("\n".join(rows) + "\n").encode()
+    log = ["# Log", "", "| Date | Layer | Ruling | Why | Pull request |", "| --- | --- | --- | --- | --- |",
+           "| 2026-10-15 | other | Earlier | Why | #7 |"] + [r.replace("this pull request", "#12") for r in rows]
+    (at, number) = ledger_anchors.assembled_runs(log)[sha256(fragment).hex()]
+    assert at == (6, 7) and number == "#12"
+    # A fragment whose rows already named their pull request is found as written.
+    plain = ("\n".join(log[4:5]) + "\n").encode()
+    assert ledger_anchors.assembled_runs(log)[sha256(plain).hex()] == ((5, 5), None)
+    # Only an exact match counts: other spacing is not the same fragment.
+    spaced = fragment.replace(b"| First |", b"|  First |")
+    assert sha256(spaced).hex() not in ledger_anchors.assembled_runs(log)
+
+
+def test_assembled_fragment_named_in_the_verdict():
+    from fmverify.verdict import Status
+
+    v = ledger_anchors.verify_dir(FIX / "ledger-anchors" / "checkout-assembled",
+                                  repos={"example/repository": FIX / "ledger-anchors" / "repo-assembled"})
+    c = next(c for c in v.checks if c.id == "ledger_anchor.checkout.example/repository")
+    assert c.status is Status.WARN
+    assert c.data["changed"] == ["docs/DECISIONS_LOG.md"]
+    assert c.data["assembled"] == ["docs/decisions.d/2026-10-16-example.md (assembled: line 7 of docs/DECISIONS_LOG.md, "
+                                   "pull request #3 written for 'this pull request')"]
+    assert c.data["absent"] == []
+
+
+def test_long_log_is_quick():
+    import time
+
+    log = [f"| 2026-10-{1 + i % 28:02d} | layer | Ruling number {i} with some words | Why it was taken, at some length | #{i} |"
+           for i in range(5000)]
+    t = time.perf_counter()
+    ledger_anchors.entry_runs(log)
+    ledger_anchors.assembled_runs(log)
+    assert time.perf_counter() - t < 20

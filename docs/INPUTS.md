@@ -48,7 +48,7 @@ Published by the Provenance Ledger session on 16 October 2026 in
 fundingmachine-ledger, and read by this verifier from those documents:
 
 * `ledger-certificate/v0` (`docs/CERTIFICATE.md`): `fm-verify certificate`,
-  steps 1 to 6; step 7 next.
+  all seven steps (step 7 with `--events`), JSON or PDF form.
 * Artefact anchoring (`docs/ANCHORING.md`): `fm-verify anchors DIR` reads an
   anchor directory (`manifest.json`, `root.preimage`, `root.preimage.ots`,
   `root.preimage.<authority>.tsr`). Leaves are the RFC 8785 JSON of each
@@ -58,8 +58,12 @@ fundingmachine-ledger, and read by this verifier from those documents:
   17 October) is published, descriptors are found in the manifest by their
   documented shape, and the verdict says the schema was not checked.
   `--repo OWNER/NAME=PATH` compares a checkout: files by hash, and log
-  entries by the hash of a single line (an entry spanning several lines is
-  reported as not present).
+  entries by the hash of every run of up to 40 consecutive lines of the log
+  (an entry is "its line or lines"). A fragment no longer in the checkout is
+  looked for in `docs/DECISIONS_LOG.md` as fundingmachine-core's daily
+  assembly leaves it: its rows appended, with the pull request number written
+  over "this pull request". Only an exact SHA-256 match counts, and the
+  verdict names the lines.
 
 ## Anchor batches (`fm-verify anchors`)
 

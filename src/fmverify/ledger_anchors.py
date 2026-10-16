@@ -21,7 +21,9 @@ documented shape, and the verdict says so.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -32,6 +34,9 @@ from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, ma
 
 DESCRIPTOR_KEYS = {"kind", "path", "ref", "repo", "sha256"}
 KINDS = {"release_manifest", "standing_rulings", "decisions_log", "decisions_entry", "decisions_fragment"}
+ENTRY_LINES = 40  # the longest decisions entry, or fragment, looked for in a log, in lines
+LOG_ROW = re.compile(r"^\| \d{4}-\d{2}-\d{2} \|.*\|$")
+THIS_PR = "this pull request"
 
 
 def is_layout(directory: str | Path) -> bool:
@@ -178,34 +183,50 @@ def verify_dir(
     # Checkouts.
     for repo, path in (repos or {}).items():
         mine = [x for x in descriptors if x.get("repo") == repo and x.get("kind") != "release_manifest"]
-        same, changed, absent = [], [], []
+        same, changed, absent, assembled = [], [], [], []
         base = Path(path)
-        log_lines = None
+        logs: dict[str, list[str]] = {}
+
+        def log_lines(rel: str) -> list[str]:
+            if rel not in logs:
+                f = base / rel
+                logs[rel] = f.read_text(encoding="utf-8").splitlines() if f.is_file() else []
+            return logs[rel]
+
         for x in mine:
             if x["kind"] == "decisions_entry":
-                if log_lines is None:
-                    log = base / "docs" / "DECISIONS_LOG.md"
-                    log_lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
-                hashes = {sha256(line.encode("utf-8")).hex() for line in log_lines}
-                (same if x["sha256"] in hashes else absent).append(f"{x['path']} (an entry)")
+                at = entry_runs(log_lines(x["path"])).get(x["sha256"])
+                if at:
+                    same.append(f"{x['path']} (an entry, {_lines(at)})")
+                else:
+                    absent.append(f"{x['path']} (an entry)")
                 continue
             p = base / x["path"]
-            if not p.is_file():
-                absent.append(x["path"])
-            elif sha256(p.read_bytes()).hex() == x["sha256"]:
-                same.append(x["path"])
+            if p.is_file():
+                (same if sha256(p.read_bytes()).hex() == x["sha256"] else changed).append(x["path"])
+                continue
+            at = None
+            if x["kind"] == "decisions_fragment":
+                at = assembled_runs(log_lines("docs/DECISIONS_LOG.md")).get(x["sha256"])
+            if at:
+                (a, b), number = at
+                assembled.append(f"{x['path']} (assembled: {_lines((a, b))} of docs/DECISIONS_LOG.md"
+                                 + (f", pull request {number} written for '{THIS_PR}')" if number else ")"))
             else:
-                changed.append(x["path"])
-        data = {"matching": same, "changed": changed, "absent": absent}
+                absent.append(x["path"])
+        data = {"matching": same, "assembled": assembled, "changed": changed, "absent": absent}
         if changed:
             checks.append(Check(f"ledger_anchor.checkout.{repo}", Status.WARN,
                                 f"{len(changed)} of {len(mine)} anchored files in {base} differ from what was anchored",
-                                reasons=changed[:20] + ["an anchor covers the content as it was; a later edit is a new leaf in a later anchor"],
+                                reasons=changed[:20] + assembled[:20]
+                                + ["an anchor covers the content as it was; a later edit is a new leaf in a later anchor"],
                                 data=data))
         else:
             checks.append(Check(f"ledger_anchor.checkout.{repo}", Status.PASS,
-                                f"{len(same)} of {len(mine)} anchored items found unchanged in {base}" + (f"; {len(absent)} not present" if absent else ""),
-                                data=data))
+                                f"{len(same)} of {len(mine)} anchored items found unchanged in {base}"
+                                + (f"; {len(assembled)} fragments found assembled into the decisions log" if assembled else "")
+                                + (f"; {len(absent)} not present" if absent else ""),
+                                reasons=assembled[:20], data=data))
 
     anchored = " ".join(v.statement for _, _, v in subs if v.outcome is Outcome.VALID)
     n = len(descriptors)
@@ -216,6 +237,64 @@ def verify_dir(
         Outcome.INDETERMINATE: f"The anchor's root {root.hex()} could not be shown anchored: see the checks not run.",
     }
     return make_verdict("ledger-anchor", subject, checks, statements, ANCHOR_LIMITS, checked_at)
+
+
+def _lines(at: tuple[int, int]) -> str:
+    return f"line {at[0]}" if at[0] == at[1] else f"lines {at[0]} to {at[1]}"
+
+
+def _runs(texts: list[str], end: str = "") -> dict[str, tuple[int, int]]:
+    """SHA-256 (hex) of every run of up to ENTRY_LINES consecutive texts,
+    joined by newlines and followed by ``end``, mapped to its first and last
+    position (from 1); the first run with a given hash wins."""
+    found: dict[str, tuple[int, int]] = {}
+    for i in range(len(texts)):
+        h = hashlib.sha256()
+        for j in range(i, min(len(texts), i + ENTRY_LINES)):
+            h.update((("\n" if j > i else "") + texts[j]).encode("utf-8"))
+            d = h.copy()
+            d.update(end.encode("utf-8"))
+            found.setdefault(d.hexdigest(), (i + 1, j + 1))
+    return found
+
+
+def entry_runs(lines: list[str]) -> dict[str, tuple[int, int]]:
+    """docs/ANCHORING.md: a decisions entry's hash covers "its line or lines,
+    UTF-8, without the trailing newline" (a table row in fundingmachine-core,
+    a dated list item in Knowledge-goblin)."""
+    return _runs(lines)
+
+
+def assembled_runs(lines: list[str]) -> dict[str, tuple[tuple[int, int], str | None]]:
+    """For a decisions fragment removed from a checkout: fundingmachine-core's
+    daily assembly (atlas/decisions.py) appends a fragment's rows to the log
+    and writes the pull request number over a last cell reading "this pull
+    request". Each run of consecutive log rows is hashed as a fragment holding
+    those rows, as written and with the number put back to "this pull
+    request". Only an exact SHA-256 match counts, so a match means the
+    anchored fragment held exactly those rows."""
+    rows = [(n + 1, line) for n, line in enumerate(lines) if LOG_ROW.match(line)]
+    found: dict[str, tuple[tuple[int, int], str | None]] = {}
+    # Runs of rows consecutive in the log.
+    groups: list[list[tuple[int, str]]] = []
+    for n, line in rows:
+        if groups and groups[-1][-1][0] == n - 1:
+            groups[-1].append((n, line))
+        else:
+            groups.append([(n, line)])
+    for g in groups:
+        for i in range(len(g)):
+            for j in range(i, min(len(g), i + ENTRY_LINES)):
+                run = [line for _, line in g[i:j + 1]]
+                at = (g[i][0], g[j][0])
+                last = run[-1].rsplit(" | ", 1)[-1][:-2].strip() if " | " in run[-1] else ""
+                variants: list[tuple[list[str], str | None]] = [(run, None)]
+                if re.fullmatch(r"#\d+", last):
+                    back = [r[: r.rfind(" | ") + 3] + THIS_PR + " |" if r.endswith(f" | {last} |") else r for r in run]
+                    variants.append((back, last))
+                for texts, number in variants:
+                    found.setdefault(sha256(("\n".join(texts) + "\n").encode("utf-8")).hex(), (at, number))
+    return found
 
 
 def read_index(path: str | Path) -> list[dict]:
