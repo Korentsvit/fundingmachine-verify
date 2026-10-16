@@ -108,3 +108,12 @@ def test_every_ledger_anchor_case_runs_offline(no_network, capsys):
             argv += ["--repo", f"{name}={case / path}"]
         main(argv)
     assert no_network == []
+
+
+def test_every_roots_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "roots").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        main(["roots", str(case / "roots.json"), "--key", exp["key"]])
+    assert no_network == []

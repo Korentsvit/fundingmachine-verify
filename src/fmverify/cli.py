@@ -199,6 +199,28 @@ def cmd_chain(args: argparse.Namespace) -> Verdict:
     return ledger_events.verify(events)
 
 
+def cmd_roots(args: argparse.Namespace) -> Verdict:
+    from . import ledger_roots
+    from .base58 import EncodingError, did_key_ed25519
+
+    try:
+        doc = json.loads(_read(args.records).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise UsageError(f"{args.records} is not JSON: {exc}") from exc
+    records = doc.get("records") if isinstance(doc, dict) else doc
+    if not isinstance(records, list):
+        raise UsageError(f"{args.records} must hold a JSON array of records, or an object with 'records'")
+    key = None
+    if args.key:
+        try:
+            key = did_key_ed25519(args.key) if args.key.startswith("did:key:") else bytes.fromhex(args.key)
+        except (EncodingError, ValueError) as exc:
+            raise UsageError(f"--key: {exc}") from exc
+        if len(key) != 32:
+            raise UsageError("--key is not a 32-byte Ed25519 key")
+    return ledger_roots.verify(records, public_key=key)
+
+
 def _header_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--headers", action="append", metavar="FILE",
                    help="sparse headers: lines 'HEIGHT HEX' or JSON; each header is checked alone (repeatable)")
@@ -313,6 +335,13 @@ def build_parser() -> argparse.ArgumentParser:
     ch.add_argument("--json", action="store_true")
     ch.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ch.set_defaults(func=cmd_chain)
+
+    ro = sub.add_parser("roots", help="a tenant's hourly root records (ledger-root/v0) as a chain")
+    ro.add_argument("records", help="the records, a JSON array or {\"records\": [...]}, oldest first")
+    ro.add_argument("--key", help="the tenant's key: its did:key, or the raw public key in hex")
+    ro.add_argument("--json", action="store_true")
+    ro.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
+    ro.set_defaults(func=cmd_roots)
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
     c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")

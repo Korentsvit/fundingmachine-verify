@@ -23,7 +23,9 @@ fixtures/
   anchors/<case>/            batch.json, root.ots, root.test-tsa.tsr, expected.json
   anchors/repo/, repo-changed/  the synthetic repository the batches list, as anchored and as later changed
   certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
-  chain/<case>/              events.json ({"contract", "events"}), expected.json
+  chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
+  roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
+  ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
 ```
 
 ## expected.json

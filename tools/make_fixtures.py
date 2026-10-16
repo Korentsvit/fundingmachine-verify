@@ -317,6 +317,63 @@ def build_ledger_anchors() -> None:
                                                   "ledger_anchor.rfc3161.root.preimage.test-rsa.tsr"]}, pre=other_pre)
 
 
+def build_roots() -> None:
+    """A tenant's hourly root records as a chain, and ways to break it."""
+    import base64
+    import copy
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from fmverify import jcs
+    from fmverify.base58 import ed25519_did_key
+
+    out = FIX / "roots"
+    if out.exists():
+        shutil.rmtree(out)
+    tenant = Ed25519PrivateKey.from_private_bytes(sha256(b"fm-verify test tenant key"))
+    other = Ed25519PrivateKey.from_private_bytes(sha256(b"fm-verify test other key"))
+
+    def raw(k) -> bytes:
+        return k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+    def sign(rec: dict, k) -> dict:
+        rec = {x: y for x, y in rec.items() if x != "sig"}
+        msg = ("ledger-root/v0:" + sha256(jcs.dumps(rec)).hex()).encode()
+        return {**rec, "sig": base64.urlsafe_b64encode(k.sign(msg)).rstrip(b"=").decode()}
+
+    def chain(hours: list[int], key=tenant) -> list[dict]:
+        recs, prev = [], "0" * 64
+        for i, h in enumerate(hours):
+            rec = sign({"contract": "ledger-root/v0", "tenant_id": "fixture",
+                        "window": {"start": f"2026-10-16T{h:02d}:00:00.000Z", "end": f"2026-10-16T{h + 1:02d}:00:00.000Z"},
+                        "size": 3 + i, "root": sha256(b"hour %d" % h).hex(), "prev_root": prev, "key_id": sha256(raw(tenant)).hex()}, key)
+            recs.append(rec)
+            prev = sha256(jcs.dumps(rec)).hex()
+        return recs
+
+    good = chain([8, 9, 11, 12, 15])
+    did = ed25519_did_key(raw(tenant))
+
+    def case(name: str, recs: list[dict], expected: dict) -> None:
+        d = out / name
+        d.mkdir(parents=True)
+        (d / "roots.json").write_text(json.dumps({"records": recs}, indent=1) + "\n", encoding="utf-8")
+        (d / "expected.json").write_text(json.dumps({"key": did, **expected}, indent=1) + "\n", encoding="utf-8")
+
+    case("valid", good, {"description": "Five hours with events (10, 13 and 14 had none), linked and signed", "outcome": "valid"})
+    case("hour-dropped", good[:2] + good[3:], {"description": "The record of 11:00 removed", "outcome": "invalid", "failing": ["roots.links"]})
+    case("re-ordered", [good[0], good[2], good[1]] + good[3:], {"description": "Two records swapped", "outcome": "invalid", "failing": ["roots.links"]})
+    altered = copy.deepcopy(good)
+    altered[2]["size"] += 1
+    case("record-altered", altered, {"description": "One record's size changed after signing", "outcome": "invalid",
+                                     "failing": ["roots.links", "roots.signatures"]})
+    case("signed-by-another-key", chain([8, 9, 11, 12, 15], key=other),
+         {"description": "Records naming the tenant key, signed by another", "outcome": "invalid", "failing": ["roots.signatures"]})
+    case("from-the-middle", good[2:], {"description": "A later stretch of the chain: valid, with a note that earlier records were not given",
+                                       "outcome": "valid"})
+
+
 def build_certificates(writer) -> None:
     """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
     session's published documents with this repository's own test keys, over
@@ -673,6 +730,7 @@ def main() -> None:
     build_ledger_anchors()
     writer = chain_fixtures.build(FIX)
     build_certificates(writer)
+    build_roots()
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

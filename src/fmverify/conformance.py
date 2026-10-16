@@ -23,7 +23,7 @@ from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "anchors", "ledger-anchors", "certificate", "chain")
+KINDS = ("ots", "rfc3161", "anchors", "ledger-anchors", "certificate", "chain", "roots")
 
 
 @dataclass
@@ -96,6 +96,12 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
             v = ledger_text.verify(events, json.loads((case / exp["disclosure"]).read_text(encoding="utf-8")))
         else:
             v = ledger_events.verify(events)
+    elif kind == "roots":
+        from . import ledger_roots
+        from .base58 import did_key_ed25519
+
+        records = json.loads((case / "roots.json").read_text(encoding="utf-8"))["records"]
+        v = ledger_roots.verify(records, public_key=did_key_ed25519(exp["key"]) if "key" in exp else None)
     else:
         raise ValueError(f"unknown kind {kind}")
     return exp, v

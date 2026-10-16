@@ -15,6 +15,7 @@ convenience on top of it.
 | A Provenance Ledger anchor (`docs/ANCHORING.md` layout): descriptor leaves, `root.preimage`, its OpenTimestamps proof and RFC 3161 tokens, and a checkout compared | `fm-verify anchors DIR --repo OWNER/NAME=PATH` | done from the published document; the manifest's own schema arrives with the Ledger's job (17 October) |
 | An anchor batch in this verifier's own format (`batch.json`) | `fm-verify anchors` | done |
 | Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done, JSON or PDF form (the embedded `certificate.json`), with the HTML report (`--html`) |
+| A tenant's hourly root records (`ledger-root/v0`) as a chain: `prev_root` links, one-hour windows in order, the tenant's signatures; a dropped hour shows | `fm-verify roots RECORDS --key did:key:...` | done |
 | Provenance Ledger event chain (`ledger-event/v0`): every chain rule, in the contract's order, with the contract's failure codes; with a disclosed document key and text, every keyed hash replayed | `fm-verify chain [--disclosure FILE]` | done |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
@@ -158,6 +159,9 @@ fixtures` checks the manifest and runs every case; the format is in
   root record signed by another key, a wrong inclusion path, an anchor time
   earlier than the authority's token, a token over another root, a Bitcoin
   block the proof does not hold); an unknown contract version.
+* `roots/*`: a tenant's hourly root records: valid (with hours missing
+  because they had no events), an hour dropped, two swapped, a record
+  altered, records signed by another key, and a later stretch alone.
 * `certificate/pdf-*`: the PDF form: a classic file; PDF 1.5 with object and
   cross-reference streams and a deflated attachment; two attachments under
   one name (refused); an incremental update replacing the attachment (the
