@@ -1,0 +1,9 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "A valid proof, but not under the anchored root given",
+ "root": "662e98d6d6b8e3d90ca4fd840476dd3f76db67552fc298d4ab2082e00e38fb43",
+ "outcome": "invalid",
+ "failing": [
+  "merkle.anchored_root"
+ ]
+}

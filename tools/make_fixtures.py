@@ -317,6 +317,45 @@ def build_ledger_anchors() -> None:
                                                   "ledger_anchor.rfc3161.root.preimage.test-rsa.tsr"]}, pre=other_pre)
 
 
+def build_merkle() -> None:
+    """Inclusion proofs: RFC 9162 and the explicit scheme, and their failures."""
+    from fmverify import merkle
+
+    out = FIX / "merkle"
+    if out.exists():
+        shutil.rmtree(out)
+    leaves = [b"FundingMachine verifier fixture leaf %d\n" % i for i in range(7)]
+    root = merkle.tree_hash(leaves)
+
+    def proof(i: int, size: int = 7) -> dict:
+        return {"scheme": "rfc9162-sha256", "leaf_index": i, "tree_size": size,
+                "path": [h.hex() for h in merkle.inclusion_path(leaves[:size], i)], "root": merkle.tree_hash(leaves[:size]).hex()}
+
+    def case(name: str, p: dict, leaf: bytes, expected: dict) -> None:
+        d = out / name
+        d.mkdir(parents=True)
+        (d / "proof.json").write_text(json.dumps(p, indent=1) + "\n", encoding="utf-8")
+        (d / "leaf.txt").write_bytes(leaf)
+        (d / "expected.json").write_text(json.dumps({"leaf_file": "leaf.txt", **expected}, indent=1) + "\n", encoding="utf-8")
+
+    case("rfc9162-valid", proof(5), leaves[5], {"description": "Leaf 5 of a tree of 7", "root": root.hex(), "outcome": "valid"})
+    case("rfc9162-wrong-leaf", proof(5), leaves[4], {"description": "Another leaf with leaf 5's path", "outcome": "invalid",
+                                                    "failing": ["merkle.root"]})
+    case("rfc9162-wrong-index", dict(proof(5), leaf_index=4), leaves[5], {"description": "The right path under the wrong index",
+                                                                          "outcome": "invalid", "failing": ["merkle.root"]})
+    case("rfc9162-other-root", proof(5), leaves[5], {"description": "A valid proof, but not under the anchored root given",
+                                                    "root": merkle.tree_hash(leaves[:6]).hex(), "outcome": "invalid",
+                                                    "failing": ["merkle.anchored_root"]})
+    case("rfc9162-path-too-long", dict(proof(5), path=proof(5)["path"] + ["00" * 32]), leaves[5],
+         {"description": "A path longer than the tree is deep", "outcome": "invalid", "failing": ["merkle.proof"]})
+    sibling = sha256(b"sibling")
+    case("explicit-valid", {"scheme": "explicit-sha256", "leaf_prefix": "00", "node_prefix": "01",
+                            "steps": [{"side": "right", "hash": sibling.hex()}],
+                            "root": sha256(b"\x01" + sha256(b"\x00" + leaves[0]) + sibling).hex()}, leaves[0],
+         {"description": "The explicit scheme with domain separation: valid, with a warning that it binds no position",
+          "outcome": "valid", "warning": ["merkle.scheme"]})
+
+
 def build_roots() -> None:
     """A tenant's hourly root records as a chain, and ways to break it."""
     import base64
@@ -731,6 +770,7 @@ def main() -> None:
     writer = chain_fixtures.build(FIX)
     build_certificates(writer)
     build_roots()
+    build_merkle()
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

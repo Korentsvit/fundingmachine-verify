@@ -23,7 +23,7 @@ from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "anchors", "ledger-anchors", "certificate", "chain", "roots")
+KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "chain", "roots")
 
 
 @dataclass
@@ -96,6 +96,13 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
             v = ledger_text.verify(events, json.loads((case / exp["disclosure"]).read_text(encoding="utf-8")))
         else:
             v = ledger_events.verify(events)
+    elif kind == "merkle":
+        from . import merkle
+
+        proof = json.loads((case / "proof.json").read_text(encoding="utf-8"))
+        leaf = (case / exp["leaf_file"]).read_bytes()
+        root = bytes.fromhex(exp["root"]) if "root" in exp else None
+        v = merkle.verify_inclusion(leaf, proof, expected_root=root)
     elif kind == "roots":
         from . import ledger_roots
         from .base58 import did_key_ed25519

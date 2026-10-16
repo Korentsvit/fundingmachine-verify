@@ -1,0 +1,8 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "Another leaf with leaf 5's path",
+ "outcome": "invalid",
+ "failing": [
+  "merkle.root"
+ ]
+}

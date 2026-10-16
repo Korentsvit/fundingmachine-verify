@@ -50,7 +50,8 @@ By kind:
 
 ## Answer
 
-The verdict, as the command line's `--json` prints it: `kind`, `subject`,
+The verdict, as the command line's `--json` prints it, described by the JSON
+Schema [docs/verdict.schema.json](verdict.schema.json): `kind`, `subject`,
 `outcome` (`valid`, `invalid`, `indeterminate`), `statement`, `checks` (each
 with `id`, `status`, `summary`, `reasons`, `relies_on`, `required`, `data`),
 `relies_on`, `does_not_establish`, `checked_at`, `tool`.

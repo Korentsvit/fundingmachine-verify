@@ -1,0 +1,8 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "The explicit scheme with domain separation: valid, with a warning that it binds no position",
+ "outcome": "valid",
+ "warning": [
+  "merkle.scheme"
+ ]
+}

@@ -1,0 +1,8 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "A path longer than the tree is deep",
+ "outcome": "invalid",
+ "failing": [
+  "merkle.proof"
+ ]
+}

@@ -117,3 +117,15 @@ def test_every_roots_case_runs_offline(no_network, capsys):
         exp = json.loads((case / "expected.json").read_text())
         main(["roots", str(case / "roots.json"), "--key", exp["key"]])
     assert no_network == []
+
+
+def test_every_merkle_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "merkle").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["merkle", str(case / "proof.json"), "--leaf-file", str(case / exp["leaf_file"])]
+        if "root" in exp:
+            argv += ["--root", exp["root"]]
+        main(argv)
+    assert no_network == []

@@ -5,6 +5,7 @@ fm-verify conformance fixtures      # exit 0 only if the fixtures are the publis
 fm-verify conformance fixtures --json
 ```
 
+Every verdict the suite produces is valid under `docs/verdict.schema.json`.
 The suite first checks `fixtures/SHA256SUMS`, so a run says whether it used
 the published fixtures, then runs every case and compares the verdict with
 the case's `expected.json`. Another implementation can use the same cases:
@@ -25,6 +26,7 @@ fixtures/
   certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
   chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
+  merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root")
   ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
 ```
 

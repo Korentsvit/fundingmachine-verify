@@ -60,7 +60,8 @@ or free of AI assistance, or that it did not exist earlier than its anchor.
 | usage error | a file could not be read, an argument is malformed | 64 |
 | internal error | a fault in the verifier itself: never an outcome, always reported | 70 |
 
-`--json` prints the verdict as JSON. `--html PATH` also writes it as one
+`--json` prints the verdict as JSON, described by
+[docs/verdict.schema.json](docs/verdict.schema.json). `--html PATH` also writes it as one
 self-contained page (no script, no external resource); for a certificate the
 page adds the authorship map and the evidence coverage, each figure labelled
 as recomputed from the chain or read from the certificate, with the
