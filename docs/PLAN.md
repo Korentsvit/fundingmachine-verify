@@ -39,6 +39,7 @@ ledger, capture, capital, or the website.
 | V-21 | `ledger-event/v0.1` (proposed on the Ledger's branch): `capture.resync`, paste of unknown source, sign meaning and signer name hash; unknown versions indeterminate; disclosure checks quotations, declarations and names. To recheck when it merges | this pull request |
 | V-22 | Tenant key rotation: follow `ledger-key-event/v0` handovers (the previous key signs `retired` and `activated`) so root records and certificates signed across a rotation verify. Waits: the Ledger's `docs/KEYS.md` (branch, 16 October) describes the statement in prose only, with no schema, fixture or published location; certificate v0.1 is to carry the chain | waits on the Ledger |
 | V-23 | A certificate fixture over a v0.1 chain (a resync's imported, reconstructed characters in the authorship map), so step 7 is tested on v0.1 | this pull request |
+| V-24 | The Ledger's submission index (`docs/SUBMISSION_INDEX.md`, its branch of 16 October): with the tenant's disclosure, check that each printed statement is the statement the certificate's chain holds at its sign event. The PDF alone cannot show that: the signed record holds keyed hashes of text only | waits on the format reaching the Ledger's main |
 | V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
 
 ## Not available yet
