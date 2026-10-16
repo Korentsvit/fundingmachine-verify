@@ -1,5 +1,7 @@
 import json
+import shlex
 import shutil
+import sys
 from pathlib import Path
 
 from fmverify import conformance
@@ -67,3 +69,40 @@ def test_fixture_archive_is_reproducible_and_conforms(tmp_path):
             tar.extractall(tmp_path)
     manifest, results = conformance.run_suite(tmp_path / "fm-verify-fixtures-0.1.0")
     assert not manifest and results and all(r.ok for r in results)
+
+
+ADAPTER = [sys.executable, "-m", "fmverify.cli", "conformance-case"]
+
+
+def test_another_implementation_is_run_case_by_case():
+    """The reference adapter, run as an outside program, conforms with check
+    ids compared; an implementation answering valid to everything does not."""
+    manifest, results = conformance.run_suite(FIX, implementation=ADAPTER, check_ids=True, kinds=["merkle", "roots"])
+    assert not manifest and len(results) == 14 and all(r.ok for r in results), [r.problems for r in results if not r.ok]
+    always = [sys.executable, "-c", "print('{\"outcome\": \"valid\"}')"]
+    _, results = conformance.run_suite(FIX, implementation=always, kinds=["merkle"])
+    wrong = [r for r in results if not r.ok]
+    assert wrong and all(r.expected != "valid" and r.problems[0].startswith("outcome valid, expected") for r in wrong)
+    assert all(r.ok for r in results if r.expected == "valid")
+
+
+def test_an_implementation_that_does_not_answer_is_named():
+    silent = [sys.executable, "-c", "import sys; sys.stderr.write('cannot read this\\n'); sys.exit(3)"]
+    _, results = conformance.run_suite(FIX, implementation=silent, kinds=["roots"])
+    assert all(r.got == "error" and "exit 3" in r.problems[0] and "cannot read this" in r.problems[0] for r in results)
+    slow = [sys.executable, "-c", "import time; time.sleep(5)"]
+    _, results = conformance.run_suite(FIX, implementation=slow, kinds=["roots"], timeout=0.2)
+    assert results[0].problems == ["no answer within 0.2 s"]
+    _, results = conformance.run_suite(FIX, implementation=["/nonexistent/implementation"], kinds=["roots"])
+    assert results[0].problems[0].startswith("could not run /nonexistent/implementation")
+
+
+def test_conformance_command_line_for_another_implementation(capsys):
+    cmd = " ".join(shlex.quote(a) for a in ADAPTER)
+    assert main(["conformance", str(FIX), "--implementation", cmd, "--check-ids", "--kind", "roots"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Implementation: ") and "6 of 6 cases conform" in out
+    assert main(["conformance", str(FIX), "--check-ids"]) == 64
+    assert main(["conformance", str(FIX), "--kind", "nothing"]) == 64
+    assert main(["conformance-case", "merkle", str(FIX / "merkle" / "rfc9162-wrong-leaf")]) == 1
+    assert json.loads(capsys.readouterr().out)["outcome"] == "invalid"

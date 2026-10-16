@@ -288,19 +288,47 @@ def cmd_merkle(args: argparse.Namespace) -> Verdict:
 
 
 def cmd_conformance(args: argparse.Namespace) -> int:
+    import shlex
+
     from . import conformance
 
     fixtures = Path(args.fixtures)
     if not fixtures.is_dir():
         raise UsageError(f"{fixtures} is not a directory")
-    manifest, results = conformance.run_suite(fixtures)
+    unknown = [k for k in args.only or [] if k not in conformance.KINDS]
+    if unknown:
+        raise UsageError(f"--kind {unknown[0]}: the kinds are {', '.join(conformance.KINDS)}")
+    command = shlex.split(args.implementation) if args.implementation else None
+    if args.implementation is not None and not command:
+        raise UsageError("--implementation names no command")
+    if args.check_ids and not command:
+        raise UsageError("--check-ids applies to --implementation; this verifier's own check ids are always compared")
+    manifest, results = conformance.run_suite(fixtures, implementation=command, check_ids=args.check_ids, kinds=args.only,
+                                              timeout=args.timeout)
+    if not results:
+        raise UsageError(f"no case under {fixtures}" + (f" of kind {', '.join(args.only)}" if args.only else ""))
     if args.json:
         print(json.dumps({"manifest_problems": manifest,
                           "cases": [r.__dict__ for r in results],
                           "conforms": not manifest and all(r.ok for r in results)}, indent=2))
     else:
+        if command:
+            print(f"Implementation: {shlex.join(command)} KIND CASE_DIR ("
+                  + ("outcomes and check ids" if args.check_ids else "outcomes") + " compared)")
         print(conformance.report(manifest, results))
     return 0 if not manifest and results and all(r.ok for r in results) else 1
+
+
+def cmd_conformance_case(args: argparse.Namespace) -> Verdict:
+    from . import conformance
+
+    case = Path(args.case)
+    if args.case_kind not in conformance.KINDS:
+        raise UsageError(f"{args.case_kind}: the kinds are {', '.join(conformance.KINDS)}")
+    if not (case / "expected.json").is_file():
+        raise UsageError(f"{case} holds no expected.json")
+    args.json = True
+    return conformance.run_case(args.case_kind, case)[1]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -386,8 +414,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
     c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")
+    c.add_argument("--implementation", metavar="CMD",
+                   help="run another implementation instead: CMD KIND CASE_DIR, printing its verdict as JSON (docs/CONFORMANCE.md)")
+    c.add_argument("--check-ids", action="store_true",
+                   help="with --implementation, also compare failing and warning check ids (for implementations using these ids)")
+    c.add_argument("--kind", dest="only", action="append", metavar="KIND", help="only cases of this kind (repeatable)")
+    c.add_argument("--timeout", type=float, default=60, metavar="S", help="seconds per case for --implementation (default 60)")
     c.add_argument("--json", action="store_true")
     c.set_defaults(func=cmd_conformance)
+
+    cc = sub.add_parser("conformance-case", help="one conformance case's verdict as JSON: the reference for --implementation")
+    cc.add_argument("case_kind", metavar="KIND", help="the case's kind (the directory it sits under)")
+    cc.add_argument("case", metavar="CASE_DIR", help="the case directory, holding expected.json")
+    cc.set_defaults(func=cmd_conformance_case)
 
     m = sub.add_parser("merkle", help="a Merkle inclusion proof (RFC 9162 or explicit path)")
     m.add_argument("proof", help="the proof, as JSON")

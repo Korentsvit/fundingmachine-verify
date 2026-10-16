@@ -8,8 +8,35 @@ fm-verify conformance fixtures --json
 Every verdict the suite produces is valid under `docs/verdict.schema.json`.
 The suite first checks `fixtures/SHA256SUMS`, so a run says whether it used
 the published fixtures, then runs every case and compares the verdict with
-the case's `expected.json`. Another implementation can use the same cases:
-read the inputs named below, and compare its outcome with `outcome`.
+the case's `expected.json`. Another implementation can be run over the same
+cases with `--implementation` (below).
+
+## Running another implementation
+
+```sh
+fm-verify conformance fixtures --implementation "your-verifier --some-option"
+fm-verify conformance fixtures --implementation "your-verifier" --kind rfc3161 --kind ots
+```
+
+For each case the runner calls the command with two more arguments, the
+case's kind (the directory it sits under: `ots`, `rfc3161`, `merkle`,
+`anchors`, `ledger-anchors`, `certificate`, `chain`, `roots`) and the case
+directory's absolute path. The command reads the inputs the case's
+`expected.json` names (below), and prints its verdict as one JSON object on
+standard output, holding at least `outcome` (`valid`, `invalid` or
+`indeterminate`); its exit status is not read. The runner compares the
+outcome with the case's. An implementation that uses this verifier's check
+ids (`docs/verdict.schema.json`) can add `--check-ids`, and its `checks`
+with status `fail` and `warn` are compared with `failing` and `warning`
+too. `--kind` (repeatable) runs only the formats an implementation covers;
+`--timeout` sets the seconds allowed per case (default 60). No shell is
+involved: the command is split as a POSIX shell would split it, and run
+directly.
+
+`fm-verify conformance-case KIND CASE_DIR` is the reference for this
+contract: this verifier, one case at a time, printing its verdict as JSON.
+Run as an outside program, it conforms on every case with `--check-ids`; a
+command answering `valid` to everything conforms on 45 of the 126 cases.
 
 ## Layout
 
@@ -56,32 +83,46 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-* OpenTimestamps: a real mainnet proof (sparse headers, a header chain, no
-  headers, the wrong file, a forged header) and regtest proofs (valid,
+126 cases, on 16 October 2026:
+
+* OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
+  no headers, the wrong file, a forged header) and regtest proofs (valid,
   tampered file, tampered proof, back-dated, pending only, truncated,
   trailing bytes).
-* RFC 3161: valid tokens under four signature schemes; trust (no root, wrong
-  root, chain missing); tampering (file, back-dated time, signature, ESS);
-  certificate rules (EKU missing or shared, expired); a refused request; and
-  revocation (clean, key compromise, superseded later, revoked before, stale
-  and forged CRLs).
-* Anchor batches: valid; a changed checkout; a changed file a reader holds;
+* RFC 3161 (21): valid tokens under four signature schemes; trust (no root,
+  wrong root, chain missing); tampering (file, back-dated time, signature,
+  ESS); certificate rules (EKU missing or shared, expired); a refused
+  request; and revocation (clean, key compromise, superseded later, revoked
+  before, stale and forged CRLs).
+* Merkle inclusion proofs (8): RFC 9162 valid, the wrong leaf, the wrong
+  index, another root, a path too long, the tree size held, a size of the
+  same shape claimed; the explicit scheme (a warning).
+* Anchor batches (8): valid; a changed checkout; a changed file a reader holds;
   re-ordered and dropped files; a pending proof; a back-dated token; a
   proof over another root.
-* Provenance Ledger anchors (`anchor-manifest/v0`): valid; checkouts later
+* Provenance Ledger anchors (22, `anchor-manifest/v0`): valid; checkouts later
   changed or with the fragment assembled into the log; a descriptor altered
   or dropped; a leaf hash wrong; leaves out of order; the manifest misstating
-  a token; a schema violation; a source not read; one token missing; an
-  unknown contract; no contract; proofs over another root; and sets with
-  `index.jsonl` (valid, a broken link, an anchor not listed).
-
-* Certificates (`ledger-certificate/v0`): valid, anchored or not, with and
-  without the chain; changed after signing; another key; and an issuer
-  signing falsehoods, from the scope statement to the authorship totals.
-* Event chains (`ledger-event/v0`): valid, tampered, back-dated (one event,
-  and the whole chain consistently, which the chain alone cannot detect),
-  re-ordered (plainly, and re-signed), dropped, after close, wrong key, text
-  in a payload.
+  a token; a schema violation; a source not read; one token missing; tokens
+  from one organisation; an authority misnamed; an unknown contract; no
+  contract; proofs over another root; sets with `index.jsonl` (valid, a
+  broken link, an anchor not listed); and the anchors naming one content
+  hash (`prove_sha256`: the earliest that holds, a later one only, none).
+* Certificates (26, `ledger-certificate/v0`), over `ledger-event/v0` and v0.1
+  chains: valid, anchored or not (and issued before its hour has a root),
+  with and without the chain; in PDF form (classic, compressed, updated, no
+  attachment, two attachments); changed after signing; another key; the
+  wrong file; and an issuer signing falsehoods, from the scope statement to
+  the authorship totals and the anchor's times.
+* Event chains (23, `ledger-event/v0` and v0.1): valid, tampered, back-dated
+  (one event, and the whole chain consistently, which the chain alone cannot
+  detect), re-ordered (plainly, and re-signed), dropped, after close, wrong
+  key, text in a payload, no events at all; a `capture.resync` (valid, not
+  first, emptying the document); a version this verifier does not read
+  (indeterminate); and disclosures (valid, one word changed, the wrong key,
+  one event given twice, text no hash covers, the signer's name changed).
+* Hourly root records (6, `ledger-root/v0`): valid, an hour dropped, two
+  swapped, one altered, another key, a later stretch alone.
 
 ## Versioned releases
 

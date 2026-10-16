@@ -2,6 +2,13 @@
 verdict with what the case expects.
 
     fm-verify conformance [FIXTURES_DIR]
+    fm-verify conformance [FIXTURES_DIR] --implementation "CMD ARGS"
+
+The second form runs another implementation instead: ``CMD ARGS KIND
+CASE_DIR`` for each case, which prints its verdict as one JSON object on
+standard output; its ``outcome`` is compared, and with ``--check-ids`` its
+failing and warning check ids too. ``fm-verify conformance-case`` is that
+contract's reference: this verifier, one case at a time.
 
 Each case is a directory holding ``expected.json``: the kind (from the
 directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``, ``chain``), the inputs, the
@@ -16,8 +23,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Sequence
 
 from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc3161
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
@@ -139,6 +148,43 @@ def compare(exp: dict, v: Verdict) -> list[str]:
     return problems
 
 
+def run_external(command: Sequence[str], kind: str, case: Path, timeout: float) -> tuple[dict | None, list[str]]:
+    """Run another implementation on one case: ``command KIND CASE_DIR``,
+    its verdict as one JSON object on standard output."""
+    try:
+        done = subprocess.run([*command, kind, str(case.resolve())], capture_output=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        return None, [f"no answer within {timeout:g} s"]
+    except OSError as exc:
+        return None, [f"could not run {command[0]}: {exc.strerror or exc}"]
+    try:
+        verdict = json.loads(done.stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        last = done.stderr.decode("utf-8", "replace").strip().splitlines()[-1:]
+        return None, [f"exit {done.returncode}, and standard output is not one JSON object" + (f"; stderr: {last[0][:200]}" if last else "")]
+    if not isinstance(verdict, dict) or verdict.get("outcome") not in ("valid", "invalid", "indeterminate"):
+        return None, ["the answer has no outcome (valid, invalid or indeterminate)"]
+    return verdict, []
+
+
+def compare_external(exp: dict, verdict: dict, check_ids: bool) -> list[str]:
+    """As ``compare``, for another implementation's JSON verdict: the
+    outcome, and with ``check_ids`` the failing and warning check ids."""
+    problems = []
+    if verdict["outcome"] != exp["outcome"]:
+        problems.append(f"outcome {verdict['outcome']}, expected {exp['outcome']}")
+    if check_ids:
+        checks = [c for c in verdict.get("checks") or [] if isinstance(c, dict)]
+        failing = [c.get("id") for c in checks if c.get("status") == "fail"]
+        if failing != exp.get("failing", []):
+            problems.append(f"failing checks {failing}, expected {exp.get('failing', [])}")
+        warned = {c.get("id") for c in checks if c.get("status") == "warn"}
+        missing = [w for w in exp.get("warning", []) if w not in warned]
+        if missing:
+            problems.append(f"expected warnings not given: {missing}")
+    return problems
+
+
 def cases(fixtures: Path) -> list[tuple[str, Path]]:
     out = []
     for kind in KINDS:
@@ -148,10 +194,23 @@ def cases(fixtures: Path) -> list[tuple[str, Path]]:
     return out
 
 
-def run_suite(fixtures: str | Path) -> tuple[list[str], list[CaseResult]]:
+def run_suite(fixtures: str | Path, implementation: Sequence[str] | None = None, check_ids: bool = False,
+              kinds: Sequence[str] | None = None, timeout: float = 60) -> tuple[list[str], list[CaseResult]]:
+    """Every case (of ``kinds``, when given), run by this verifier or, with
+    ``implementation``, by that command."""
     fixtures = Path(fixtures)
     results = []
     for kind, case in cases(fixtures):
+        if kinds and kind not in kinds:
+            continue
+        if implementation:
+            exp = json.loads((case / "expected.json").read_text(encoding="utf-8"))
+            verdict, problems = run_external(implementation, kind, case, timeout)
+            if verdict is not None:
+                problems = compare_external(exp, verdict, check_ids)
+            results.append(CaseResult(kind, case.name, exp["outcome"], verdict["outcome"] if verdict else "error", not problems,
+                                      problems, exp.get("description", "")))
+            continue
         try:
             exp, v = run_case(kind, case)
             problems = compare(exp, v)

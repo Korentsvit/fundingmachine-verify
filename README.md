@@ -118,8 +118,11 @@ the verdict quotes it as the header's time.
 verifier must reach, and `fixtures/SHA256SUMS`. `python tools/make_fixtures.py`
 rebuilds them offline, byte for byte. `fm-verify conformance fixtures`
 checks the manifest and runs every case; the format is in
-[docs/CONFORMANCE.md](docs/CONFORMANCE.md), so other implementations can use
-the cases too. `python tools/tamper_audit.py` changes every input of every
+[docs/CONFORMANCE.md](docs/CONFORMANCE.md).
+`fm-verify conformance fixtures --implementation "your-verifier"` runs
+another implementation over the same cases instead (it is given each case's
+kind and directory, and prints its verdict as JSON), so the suite tests any
+verifier, not only this one. `python tools/tamper_audit.py` changes every input of every
 valid case 200 ways and fails if any change is accepted without showing in
 the verdict or being explained (the security note lists what it accepts). No key in them protects anything: every key comes from a seed
 published in `tools/`, and no key file is committed. No content from
