@@ -1,0 +1,191 @@
+{
+ "@context": [
+  "https://www.w3.org/ns/credentials/v2"
+ ],
+ "id": "urn:uuid:3c2f1e0d-0000-4000-8000-00000000c0de",
+ "type": [
+  "VerifiableCredential",
+  "ProvenanceCertificate"
+ ],
+ "issuer": {
+  "id": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "name": "Provenance Ledger"
+ },
+ "validFrom": "2026-10-16T09:10:00.000Z",
+ "credentialSubject": {
+  "type": "DocumentWritingRecord",
+  "contract": "ledger-certificate/v0",
+  "scope_statement": "This record shows how this document was written in this environment; it does not detect AI, certify originality, or prove what the author consulted elsewhere.",
+  "tenant_id": "fixture",
+  "doc_id": "d63ddcae-ae7f-47db-9774-8b678d63c7a8",
+  "document": {
+   "exported_sha256": "81a94fb9eb7e9558aa8e7087993bae32f8e42d3f2f8cfe6e6995647618a80ca4",
+   "media_type": "text/plain",
+   "byte_length": 66,
+   "doc_hash": "22a60227bc474b045bc5dfa1113375ae82050a89e5cc748cadbe8bf4caf6183b",
+   "key_commitment": "5f5d7a86a7857b06a1e245d658d14868343eb9dd275b30287a41325de1a2b855"
+  },
+  "signed": {
+   "seq": 20,
+   "event_hash": "b1028806da5ed14955c93550c1933ceb3b8a800a263ac88dbd3e0ea59e385927",
+   "ts": "2026-10-16T08:00:20.000Z",
+   "actor_id": "person:0f1x",
+   "declaration_hash": "21831c4d3f49de37b83fa07101998356fa7d8e12ee04615a78e7fe792bf1cf1c"
+  },
+  "chain": {
+   "first_event_hash": "7b009fa243e3dbc8d62c2d214dd8711ccee9bb001ac4dfac436c76862f8f6360",
+   "events": 20,
+   "sessions": [
+    {
+     "session_id": "e085029c-e20e-4c03-8072-d71ec1e65e23",
+     "key_id": "323a9fde7e367f46d5e70b438eb0ec855dd558dc5a6dbab256e455890fd4097a",
+     "public_key": "-ezXYN1rP3Cvrw2T5M7GAnGgmQtQFKtZPtEOPK09tIs",
+     "client": {
+      "name": "fm-verify-fixture-writer",
+      "version": "0.1.0"
+     },
+     "opened_seq": 1,
+     "closed_seq": 14
+    },
+    {
+     "session_id": "8adde6d8-d001-4612-b4b1-989c9f137c85",
+     "key_id": "2bd3202967edccf3bf10df8e0532c4c2e92b05c2a66c6a8314e529d65c3a5533",
+     "public_key": "huz_ugu-3APWcjMQj-N4WoMqfCdrnUx9t5WqPJ9iZvI",
+     "client": {
+      "name": "fm-verify-fixture-writer",
+      "version": "0.1.0"
+     },
+     "opened_seq": 15,
+     "closed_seq": null
+    }
+   ]
+  },
+  "authorship": {
+   "contract": "authorship-map/v0",
+   "map_sha256": "7ea8b884acd5942f36e223e81e609ec3c02d57c7e8b311f7840d966133e5d550",
+   "unit": "unicode_code_point",
+   "document": {
+    "total": 161,
+    "counts": {
+     "human_typed": 92,
+     "imported": 33,
+     "tool_generated": 33,
+     "tool_edited": 3
+    },
+    "percent": {
+     "human_typed": "57.1",
+     "imported": "20.5",
+     "tool_generated": "20.5",
+     "tool_edited": "1.9"
+    }
+   },
+   "sections": [
+    {
+     "section_id": "approach",
+     "section_ref": "call:example/approach",
+     "statements": 1,
+     "total": 91,
+     "counts": {
+      "human_typed": 59,
+      "imported": 32,
+      "tool_generated": 0,
+      "tool_edited": 0
+     },
+     "percent": {
+      "human_typed": "64.8",
+      "imported": "35.2",
+      "tool_generated": "0.0",
+      "tool_edited": "0.0"
+     }
+    },
+    {
+     "section_id": "team",
+     "section_ref": "call:example/team",
+     "statements": 1,
+     "total": 70,
+     "counts": {
+      "human_typed": 33,
+      "imported": 1,
+      "tool_generated": 33,
+      "tool_edited": 3
+     },
+     "percent": {
+      "human_typed": "47.2",
+      "imported": "1.4",
+      "tool_generated": "47.1",
+      "tool_edited": "4.3"
+     }
+    }
+   ],
+   "fidelity": {
+    "total": 161,
+    "counts": {
+     "live": 92,
+     "snapshot_diff": 33,
+     "tool_report": 36,
+     "reconstructed": 0,
+     "declared": 0
+    },
+    "percent": {
+     "live": "57.1",
+     "snapshot_diff": "20.5",
+     "tool_report": "22.4",
+     "reconstructed": "0.0",
+     "declared": "0.0"
+    }
+   },
+   "activity": {
+    "inserted": {
+     "human_typed": 101,
+     "imported": 33,
+     "tool_generated": 36,
+     "tool_edited": 3
+    },
+    "deleted": 12
+   }
+  },
+  "tools": [
+   {
+    "tool_name": "Example Assistant",
+    "model_id": "example-model-1"
+   }
+  ],
+  "evidence": {
+   "statements": 2,
+   "statements_with_evidence": 1,
+   "bindings": [
+    {
+     "binding_id": "a04b28ec-17c8-41fc-9cad-98b2298d9334",
+     "statement_id": "st-1",
+     "bound_seq": 11,
+     "source": {
+      "ref": "url:https://example.org/source",
+      "visibility": "public"
+     },
+     "date": {
+      "kind": "retrieved",
+      "value": "2026-10-15"
+     },
+     "licence": "CC-BY-4.0",
+     "page_hash": "eab30e813a83b4e36477ddd480221ee03eb010e76c1a7d24614244bf0fadaf7e",
+     "quoted_span": {
+      "quote_hash": "9b1eafcb270f5b336de68568907ec65c89f8fba3ea69ca8fff3c0edbcae240fe",
+      "locator": "paragraph 2"
+     }
+    }
+   ]
+  },
+  "ledger_root": null
+ },
+ "proof": {
+  "type": "DataIntegrityProof",
+  "cryptosuite": "eddsa-jcs-2022",
+  "created": "2026-10-16T09:10:00.000Z",
+  "verificationMethod": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu#z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "proofPurpose": "assertionMethod",
+  "@context": [
+   "https://www.w3.org/ns/credentials/v2"
+  ],
+  "proofValue": "z4VnYfmUJYCKutwmE65hFRxi7TMGwd7cyQXbkd8LBaXMGzMSZHucJSXd61pdy4WFHZAyA1987TMguLfgQ3C1ae96g"
+ }
+}

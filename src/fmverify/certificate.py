@@ -339,7 +339,8 @@ def verify(
     signed = subj.get("signed") or {}
     file_part = (" The exported file presented is the one it covers." if exported_file is not None
                  else " No exported file was presented.")
-    root_part = ""
+    root_part = (" The sign event is not yet in a signed hourly root, and nothing anchors it: its time is the issuer's "
+                 "and the capture client's claim.")
     if lr is not None:
         root_part = (f" The sign event is in the issuer's signed hourly root {lr.get('record', {}).get('root')}."
                      + (f" That root is anchored. {anchored_statement}" if anchored_statement else " That root is not anchored in this certificate."))

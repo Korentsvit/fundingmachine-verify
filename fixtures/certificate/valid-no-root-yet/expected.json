@@ -1,0 +1,15 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "Issued before its hour had a signed root (ledger_root null, as the Ledger's CERTIFICATE.md allows): steps 4 to 6 do not run",
+ "outcome": "valid",
+ "file": "exported.txt"
+}

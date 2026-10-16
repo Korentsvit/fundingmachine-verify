@@ -717,6 +717,9 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
     case("chain-of-another-document", issue(subject),
          {"description": "The events presented are another document's", "outcome": "invalid", "failing": ["certificate.chain"]},
          events_doc=other_chain.events)
+    case("valid-no-root-yet", issue(variant(ledger_root=None)),
+         {"description": "Issued before its hour had a signed root (ledger_root null, as the Ledger's CERTIFICATE.md allows): steps 4 to 6 do not run",
+          "outcome": "valid"})
     case("valid-not-anchored", issue(variant(ledger_root__anchor=None)),
          {"description": "Issued before the hour was anchored: steps 4 and 5 run, step 6 cannot", "outcome": "valid"})
     case("wrong-file", issue(subject), {"description": "The file presented is not the exported document", "outcome": "invalid",
