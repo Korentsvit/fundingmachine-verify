@@ -77,3 +77,21 @@ def test_api_render():
     cred = json.loads((FIX / "certificate" / "valid-not-anchored" / "certificate.json").read_text())
     answer = api.verify({"kind": "certificate", "certificate": cred, "render": "html"})
     assert answer["outcome"] == "valid" and "<!doctype html>" in answer["html"]
+
+
+def test_ledger_anchor_page():
+    from fmverify import ledger_anchors, pki
+    from fmverify.bitcoin import NETWORKS, HeaderChain
+
+    fix = Path(__file__).resolve().parent.parent / "fixtures"
+    roots = [c for p in ("rfc3161/pki/root.pem", "ledger-anchors/pki/second-root.pem") for c in pki.load_certificates((fix / p).read_bytes())]
+    hdr = [HeaderChain.from_file(fix / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin", 0, NETWORKS["regtest"])]
+    v = ledger_anchors.verify_dir(fix / "ledger-anchors" / "valid", roots=roots, header_sources=hdr, network=NETWORKS["regtest"])
+    page = report.render(v)
+    assert "What this anchor covers" in page and "Decisions log entries, one by one" in page and "Time proofs over the root" in page
+    assert "<script" not in page.lower()
+    bad = ledger_anchors.verify_dir(fix / "ledger-anchors" / "leaf-hash-wrong", roots=roots, header_sources=hdr, network=NETWORKS["regtest"])
+    assert "What this anchor covers" not in report.render(bad)  # no table from leaves that do not give the root
+    proof = ledger_anchors.prove(fix / "ledger-anchors" / "set-valid", "1199f8a6e12fc811a087d17a1037589b637da1bb0edc31b02b15680402f077fe",
+                                 roots=roots, header_sources=hdr, network=NETWORKS["regtest"])
+    assert "Anchors naming this content, earliest first" in report.render(proof)

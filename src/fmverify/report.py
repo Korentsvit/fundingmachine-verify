@@ -97,6 +97,54 @@ def _checks(verdict: Verdict) -> str:
     return f'<table><thead><tr><th>Status</th><th>Check</th><th>Finding</th></tr></thead><tbody>{"".join(rows)}</tbody></table>'
 
 
+KIND_LABELS = {
+    "standing_rulings": "Standing rulings",
+    "decisions_log": "Decisions log, whole file",
+    "decisions_entry": "Decisions log entries, one by one",
+    "decisions_fragment": "Decisions fragments",
+    "release_manifest": "Release manifests in tagged trees",
+    "release_asset_manifest": "Release asset manifests",
+    "published_manifest": "Published manifests",
+}
+
+
+def _anchor_sections(verdict: Verdict) -> str:
+    """For a Provenance Ledger anchor: what it covers and its time proofs;
+    for a --prove verdict: every anchor naming the content."""
+    out = []
+    by_id = {c.id: c for c in verdict.checks}
+    leaves = by_id.get("ledger_anchor.leaves")
+    cov = (leaves.data or {}).get("coverage") if leaves is not None else None
+    if cov:
+        rows = "".join(f'<tr><td class="mono">{escape(repo)}</td><td>{escape(KIND_LABELS.get(kind, kind))}</td>'
+                       f'<td class="num">{n}</td></tr>'
+                       for repo, kinds in cov.items() for kind, n in kinds.items())
+        total = sum(n for kinds in cov.values() for n in kinds.values())
+        note = ("Each leaf is the SHA-256 of one file or one log entry, as the manifest lists it. "
+                + ("The leaves give the anchored root." if leaves.status is Status.PASS else
+                   "The leaves do NOT give the anchored root: do not rely on this table."))
+        out.append(f'<h2>What this anchor covers</h2><p class="note">{escape(note)}</p>'
+                   f'<table><thead><tr><th>Repository</th><th>Artefact</th><th class="num">Leaves</th></tr></thead>'
+                   f'<tbody>{rows}<tr><th colspan="2">Total</th><td class="num">{total}</td></tr></tbody></table>')
+    proofs = [c for c in verdict.checks if c.id == "ledger_anchor.ots" or c.id.startswith("ledger_anchor.rfc3161.")]
+    if proofs:
+        rows = "".join(f'<tr><td class="{c.status.value}">{escape(c.status.value.replace("_", " "))}</td>'
+                       f'<td class="mono">{escape(c.id.split(".", 1)[1])}</td><td>{escape(c.summary)}</td></tr>' for c in proofs)
+        out.append('<h2>Time proofs over the root</h2><table><thead><tr><th>Status</th><th>Proof</th><th>What it shows</th>'
+                   f'</tr></thead><tbody>{rows}</tbody></table>')
+    hits = [c for c in verdict.checks if c.id.startswith("prove.") and c.id != "prove.search"]
+    if hits:
+        rows = []
+        for c in hits:
+            v = (c.data or {}).get("verdict") or {}
+            named = "; ".join(f'{x.get("kind")} {x.get("repo")}:{x.get("path")} at {x.get("ref")}' for x in (c.data or {}).get("descriptors", []))
+            rows.append(f'<tr><td class="{c.status.value}">{escape(str(v.get("outcome", c.status.value)))}</td>'
+                        f'<td class="mono">{escape(c.id.split(".", 1)[1])}</td><td>{escape(named)}</td></tr>')
+        out.append('<h2>Anchors naming this content, earliest first</h2><table><thead><tr><th>Outcome</th><th>Anchor</th>'
+                   f'<th>Named as</th></tr></thead><tbody>{"".join(rows)}</tbody></table>')
+    return "".join(out)
+
+
 def _certificate_sections(verdict: Verdict, cred: dict) -> str:
     subj = cred.get("credentialSubject") or {}
     status = {c.id: c.status for c in verdict.checks}
@@ -173,6 +221,8 @@ def render(verdict: Verdict, certificate: dict | None = None, title: str | None 
     ]
     if certificate is not None:
         body.append(_certificate_sections(verdict, certificate))
+    if verdict.kind in ("ledger-anchor", "anchor-proof"):
+        body.append(_anchor_sections(verdict))
     body.append("<h2>Checks</h2>" + _checks(verdict))
     if verdict.relies_on:
         body.append("<h2>What this relies on</h2><ul>" + "".join(f"<li>{escape(r)}</li>" for r in verdict.relies_on) + "</ul>")

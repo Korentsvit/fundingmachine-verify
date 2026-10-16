@@ -326,7 +326,9 @@ def verify_dir(directory: str | Path, repos: dict[str, str | Path] | None = None
     """``repos`` maps a repository name as descriptors give it
     (``Korentsvit/fundingmachine-core``), or ``NAME@TAG``, to a local checkout."""
     d = Path(directory)
-    return verify_files(read_anchor_files(d), name=d.name, repos=repos, **kwargs)
+    dated = "/".join(d.resolve().parts[-4:])  # anchors/YYYY/MM/DD/HHMMSSZ: name it by its date and time
+    name = dated if re.fullmatch(r"\d{4}/\d{2}/\d{2}/\d{6}Z", dated) else d.name
+    return verify_files(read_anchor_files(d), name=name, repos=repos, **kwargs)
 
 
 @guarded("ledger-anchor", "ledger_anchor.preimage", "anchor")
@@ -411,7 +413,7 @@ def verify_files(
             else:
                 checks.append(Check("ledger_anchor.leaves", Status.PASS,
                                     f"the {len(leaves)} leaves, each the RFC 8785 JSON of its descriptor, give the anchored root, "
-                                    "and root.preimage is their root node", data={"leaves": len(leaves)}))
+                                    "and root.preimage is their root node", data={"leaves": len(leaves), "coverage": coverage(descriptors)}))
             if leaves != sorted_leaves(descriptors):
                 checks.append(Check("ledger_anchor.order", Status.WARN,
                                     "the leaves are not in the documented order (their canonical JSON sorted in UTF-16 code units)",
@@ -444,7 +446,7 @@ def verify_files(
         else:
             checks.append(Check("ledger_anchor.leaves", Status.PASS,
                                 f"the {len(leaves)} descriptors, as RFC 8785 JSON sorted in UTF-16 order, give the anchored root",
-                                data={"leaves": len(leaves)}))
+                                data={"leaves": len(leaves), "coverage": coverage(descriptors)}))
         checks.append(Check("ledger_anchor.manifest_schema", Status.INFO,
                             "descriptors found by their documented shape; the manifest's own schema (anchor-manifest/v0) was not checked",
                             required=False))
@@ -626,6 +628,15 @@ def assembled_runs(lines: list[str]) -> dict[str, tuple[tuple[int, int], str | N
                 for texts, number in variants:
                     found.setdefault(sha256(("\n".join(texts) + "\n").encode("utf-8")).hex(), (at, number))
     return found
+
+
+def coverage(descriptors: Sequence[dict]) -> dict[str, dict[str, int]]:
+    """How many leaves name each kind of artefact, per repository."""
+    out: dict[str, dict[str, int]] = {}
+    for x in descriptors:
+        by_kind = out.setdefault(str(x.get("repo")), {})
+        by_kind[str(x.get("kind"))] = by_kind.get(str(x.get("kind")), 0) + 1
+    return {repo: dict(sorted(kinds.items())) for repo, kinds in sorted(out.items())}
 
 
 def read_index(path: str | Path) -> list[dict]:
