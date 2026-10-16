@@ -190,11 +190,13 @@ Those tools are test-time only; the verifier never imports them.
 
 ## What the verifier cannot detect
 
-A full security note is due by 14 November. In short: an anchor shows that a
-digest existed no later than a time. It does not show who made the content,
-that it is true, or that it did not exist earlier. A headers file or explorer
-you are given could describe a chain other than Bitcoin's most-work chain;
-the verdict says which you relied on.
+[docs/SECURITY_NOTE.md](docs/SECURITY_NOTE.md), a first version of the note
+due 14 November. In short: an anchor shows that a digest existed no later
+than a time, not who made the content, that it is true, or that it did not
+exist earlier. An event chain records what the capture client observed and
+signed; whoever holds the client keys can record any history, and only an
+anchor bounds its time. Headers, authority roots and revocation lists are
+the reader's evidence, and every verdict says which it relied on.
 
 ## Licence
 

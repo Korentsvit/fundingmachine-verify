@@ -28,7 +28,7 @@ ledger, capture, capital, or the website.
 | V-3b | The Ledger session's anchor layout (`docs/ANCHORING.md`: RFC 8785 descriptor leaves, `root.preimage`, the `anchors` branch, `anchor-manifest/v0` arriving with the job on 17 October) beside the verifier's own batch format | next, as soon as the schema lands |
 | V-8 | Static HTML report: authorship map and evidence coverage, no script at all (`--html`, and `render: html` in the API) | this pull request |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use (`docs/CONFORMANCE.md`). Runner, and fixtures for anchors, certificates and chains: this pull request. To finish: a versioned release of the fixtures and the runner's instructions for other implementations | in progress |
-| V-10 | Security note: what the verifier cannot detect | queued |
+| V-10 | Security note: what the verifier cannot detect (`docs/SECURITY_NOTE.md`, first version in this pull request; final by 14 November) | in progress |
 | V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file | queued |
 
 ## Not available yet
