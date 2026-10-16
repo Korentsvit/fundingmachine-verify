@@ -12,7 +12,7 @@ def test_published_fixtures_conform():
     manifest, results = conformance.run_suite(FIX)
     assert manifest == []
     assert results and all(r.ok for r in results), conformance.report(manifest, results)
-    assert {r.kind for r in results} == {"ots", "rfc3161", "anchors", "certificate", "chain"}
+    assert {r.kind for r in results} == {"ots", "rfc3161", "anchors", "ledger-anchors", "certificate", "chain"}
 
 
 def test_cli_conformance(capsys):

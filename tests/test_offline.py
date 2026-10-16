@@ -92,3 +92,19 @@ def test_every_chain_case_runs_offline(no_network, capsys):
     for case in sorted(p for p in (FIX / "chain").iterdir() if (p / "expected.json").is_file()):
         main(["chain", str(case / "events.json")])
     assert no_network == []
+
+
+def test_every_ledger_anchor_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "ledger-anchors").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["anchors", str(case), "--network", exp["network"]]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        for name, path in exp.get("repos", {}).items():
+            argv += ["--repo", f"{name}={case / path}"]
+        main(argv)
+    assert no_network == []

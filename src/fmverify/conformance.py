@@ -19,11 +19,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import anchors, certificate, ledger_events, ots, pki, rfc3161
+from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc3161
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "anchors", "certificate", "chain")
+KINDS = ("ots", "rfc3161", "anchors", "ledger-anchors", "certificate", "chain")
 
 
 @dataclass
@@ -80,6 +80,9 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
         files = [repo / f for f in exp.get("files", [])] if repo is not None else []
         v = anchors.verify_batch(case, repo_root=repo, files=files, header_sources=_sources(case, exp), network=net,
                                  roots=roots, extra_certs=chain, crls=crls)
+    elif kind == "ledger-anchors":
+        v = ledger_anchors.verify_dir(case, repos={k: case / p for k, p in exp.get("repos", {}).items()},
+                                      header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls)
     elif kind == "certificate":
         events = json.loads((case / exp["events"]).read_text(encoding="utf-8"))["events"] if "events" in exp else None
         v = certificate.verify_file(case / "certificate.json", case / exp["file"] if "file" in exp else None,

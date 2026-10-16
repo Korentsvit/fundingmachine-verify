@@ -49,11 +49,17 @@ fundingmachine-ledger, and read by this verifier from those documents:
 
 * `ledger-certificate/v0` (`docs/CERTIFICATE.md`): `fm-verify certificate`,
   steps 1 to 6; step 7 next.
-* Artefact anchoring (`docs/ANCHORING.md`): leaves are the RFC 8785 JSON of
-  a descriptor `{kind, path, ref, repo, sha256}`, sorted; the anchored
-  digest is the SHA-256 of `root.preimage`; proofs on the `anchors` branch.
-  Its `anchor-manifest/v0` schema arrives with the job on 17 October; the
-  verifier reads that layout from then (V-3b).
+* Artefact anchoring (`docs/ANCHORING.md`): `fm-verify anchors DIR` reads an
+  anchor directory (`manifest.json`, `root.preimage`, `root.preimage.ots`,
+  `root.preimage.<authority>.tsr`). Leaves are the RFC 8785 JSON of each
+  descriptor `{kind, path, ref, repo, sha256}`, sorted in UTF-16 code unit
+  order; the anchored digest is the SHA-256 of `root.preimage`. Until the
+  manifest's schema (`anchor-manifest/v0`, with the Ledger's job on
+  17 October) is published, descriptors are found in the manifest by their
+  documented shape, and the verdict says the schema was not checked.
+  `--repo OWNER/NAME=PATH` compares a checkout: files by hash, and log
+  entries by the hash of a single line (an entry spanning several lines is
+  reported as not present).
 
 ## Anchor batches (`fm-verify anchors`)
 

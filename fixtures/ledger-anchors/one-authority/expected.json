@@ -1,0 +1,17 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "Only one authority's token: valid, with a warning",
+ "outcome": "valid",
+ "warning": [
+  "ledger_anchor.policy"
+ ]
+}

@@ -123,7 +123,18 @@ def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
 
 
 def cmd_anchors(args: argparse.Namespace) -> Verdict:
-    from . import anchors
+    from . import anchors, ledger_anchors
+
+    if ledger_anchors.is_layout(args.batch):
+        repos = {}
+        for spec in args.repo or []:
+            name, sep, path = spec.partition("=")
+            if not sep or not name or not path:
+                raise UsageError(f"--repo {spec!r}: expected OWNER/NAME=PATH")
+            repos[name] = path
+        return ledger_anchors.verify_dir(args.batch, repos=repos, header_sources=header_sources(args),
+                                         network=NETWORKS[args.network], roots=_certs(args.roots, "--roots"),
+                                         extra_certs=_certs(args.chain, "--chain"), crls=_crls(args.crl))
 
     if args.emit_proof:
         try:
@@ -255,8 +266,11 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     r.set_defaults(func=cmd_rfc3161)
 
-    a = sub.add_parser("anchors", help="an anchor batch: listed files, Merkle root, and the anchors over the root")
-    a.add_argument("batch", help="the batch directory (batch.json, .ots and .tsr files)")
+    a = sub.add_parser("anchors", help="an anchor: listed files, their Merkle root, and the proofs over the root")
+    a.add_argument("batch", help="an anchor directory in the Provenance Ledger's layout (manifest.json, root.preimage and its proofs), "
+                                 "or a batch directory in this verifier's own format (batch.json)")
+    a.add_argument("--repo", action="append", metavar="OWNER/NAME=PATH",
+                   help="Ledger layout: a checkout of a repository the descriptors name, to compare (repeatable)")
     a.add_argument("--repo-root", help="a checkout to compare every listed file with")
     a.add_argument("--file", action="append", help="a file you hold, named by its listed path (repeatable); a mismatch is a failure")
     a.add_argument("--strict-files", action="store_true", help="with --repo-root, treat any changed file as a failure")

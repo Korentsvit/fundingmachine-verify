@@ -12,7 +12,8 @@ convenience on top of it.
 | Merkle inclusion proof (RFC 9162, or an explicit path) | `fm-verify merkle` | done |
 | OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` | done |
 | RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
-| An anchor batch: listed files, their Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | done, in the verifier's proposed format until the Ledger session publishes its own |
+| A Provenance Ledger anchor (`docs/ANCHORING.md` layout): descriptor leaves, `root.preimage`, its OpenTimestamps proof and RFC 3161 tokens, and a checkout compared | `fm-verify anchors DIR --repo OWNER/NAME=PATH` | done from the published document; the manifest's own schema arrives with the Ledger's job (17 October) |
+| An anchor batch in this verifier's own format (`batch.json`) | `fm-verify anchors` | done |
 | Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done, with the HTML report (`--html`); the PDF form for 31 October |
 | Provenance Ledger event chain (`ledger-event/v0`): every chain rule, in the contract's order, with the contract's failure codes | `fm-verify chain` | done |
 
@@ -128,6 +129,10 @@ fixtures` checks the manifest and runs every case; the format is in
 * `ots/regtest-*`: valid, tampered file, tampered proof, back-dated, pending
   only, truncated and trailing-byte proofs on a regtest chain mined by the
   fixture builder.
+* `ledger-anchors/*`: anchors in the Provenance Ledger's layout over a
+  synthetic repository (made-up rulings file, log and fragment): valid; a
+  later checkout (a warning); a descriptor altered or dropped; one authority
+  only (a warning); proofs over another root.
 * `anchors/*`: batches over a synthetic four-file repository (no
   FundingMachine content): valid; checkout changed (a warning); a named file
   changed, files re-ordered, a file dropped, a back-dated token, a proof over

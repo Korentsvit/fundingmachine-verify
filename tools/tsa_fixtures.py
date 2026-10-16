@@ -248,6 +248,14 @@ def test_authority() -> tuple:
     return tsa_k, tsa, ica
 
 
+def test_authority_p256() -> tuple:
+    """The P-256 test authority's key, its certificate and the issuing CA, as build() makes them."""
+    root_k, ica_k, tsa_k = rsa_key("fm-verify test root CA"), rsa_key("fm-verify test issuing CA"), ec_key("fm-verify test TSA p256")
+    ica = cert("FM Verify Test Issuing CA", ica_k, "FM Verify Test Root CA", root_k, 2, ca=True, pathlen=0)
+    tsa = cert("FM Verify Test TSA P-256", tsa_k, "FM Verify Test Issuing CA", ica_k, 102, ca=False)
+    return tsa_k, tsa, ica
+
+
 def build(fix: Path) -> None:
     out = fix / "rfc3161"
     pki_dir = out / "pki"

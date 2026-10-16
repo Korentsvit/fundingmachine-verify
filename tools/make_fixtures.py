@@ -214,6 +214,108 @@ def build_anchors() -> None:
            "failing": ["anchors.ots.root.ots"]})
 
 
+LEDGER_REPO = {
+    "docs/STANDING_RULINGS.md": b"# Standing rulings (synthetic)\n\nA made-up rulings file for the verifier's fixtures; it is no FundingMachine ruling.\n",
+    "docs/DECISIONS_LOG.md": (b"# Decisions log (synthetic)\n\n| Date | Layer | Ruling | Why | Pull request |\n| --- | --- | --- | --- | --- |\n"
+                              b"| 2026-10-15 | example | A made-up first row | Fixture only | #1 |\n"
+                              b"| 2026-10-16 | example | A made-up second row | Fixture only | #2 |\n"),
+    "docs/decisions.d/2026-10-16-example.md": b"| 2026-10-16 | example | A made-up fragment row | Fixture only | this pull request |\n",
+}
+
+
+def build_ledger_anchors() -> None:
+    """Anchors in the Provenance Ledger's layout (docs/ANCHORING.md v0) over a
+    synthetic repository: descriptor leaves, root.preimage, a regtest
+    OpenTimestamps proof and two test authorities' tokens."""
+    import datetime as _dt
+
+    from fmverify import ledger_anchors
+
+    out = FIX / "ledger-anchors"
+    if out.exists():
+        shutil.rmtree(out)
+    repo = "example/repository"
+    for rel, data in LEDGER_REPO.items():
+        (out / "repo" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / "repo" / rel).write_bytes(data)
+    changed = dict(LEDGER_REPO)
+    changed["docs/STANDING_RULINGS.md"] = LEDGER_REPO["docs/STANDING_RULINGS.md"] + b"\nA ruling added later.\n"
+    for rel, data in changed.items():
+        (out / "repo-later" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (out / "repo-later" / rel).write_bytes(data)
+
+    def desc(kind: str, path: str, digest: bytes) -> dict:
+        return {"kind": kind, "path": path, "ref": "main", "repo": repo, "sha256": digest.hex()}
+
+    entries = [line for line in LEDGER_REPO["docs/DECISIONS_LOG.md"].decode().splitlines() if line.startswith("| 2026")]
+    descriptors = [desc("standing_rulings", "docs/STANDING_RULINGS.md", sha256(LEDGER_REPO["docs/STANDING_RULINGS.md"])),
+                   desc("decisions_log", "docs/DECISIONS_LOG.md", sha256(LEDGER_REPO["docs/DECISIONS_LOG.md"])),
+                   desc("decisions_fragment", "docs/decisions.d/2026-10-16-example.md", sha256(LEDGER_REPO["docs/decisions.d/2026-10-16-example.md"]))]
+    descriptors += [desc("decisions_entry", "docs/DECISIONS_LOG.md", sha256(e.encode())) for e in entries]
+    leaves = ledger_anchors.sorted_leaves(descriptors)
+    preimage = ledger_anchors.preimage_for(leaves)
+    root = sha256(preimage)
+    from fmverify import merkle
+
+    assert merkle.tree_hash(leaves) == root
+
+    # Regtest block 2 commits to SHA-256(root.preimage) = root.
+    path_ops = [append(sha256(b"ledger anchor nonce")[:16]), SHA256,
+                prepend(bytes.fromhex("0100000001") + bytes(36) + bytes.fromhex("00ffffffff01") + bytes(8) + bytes.fromhex("226a20")),
+                append(bytes(4)), SHA256, SHA256]
+    prev, headers = bytes(32), []
+    for height in range(5):
+        h = mine_regtest(prev, run(root, path_ops) if height == 2 else sha256d(b"ledger regtest %d" % height), 1760300000 + 600 * height)
+        headers.append(h)
+        prev = sha256d(h)
+    (REG / "ledger-anchor-headers-0-4.bin").write_bytes(b"".join(headers))
+    good_ots = ots.DetachedTimestamp(SHA256, chain(root, path_ops, bitcoin_attestation(2))).serialize()
+
+    gen = _dt.datetime(2026, 10, 17, 8, 4, 12, tzinfo=_dt.timezone.utc)
+    rsa_k, rsa_cert, ica = tsa_fixtures.test_authority()
+    ec_k, ec_cert, _ = tsa_fixtures.test_authority_p256()
+    tsr_a = tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], preimage, serial=4001, sig="rsa", gen_time=gen)
+    tsr_b = tsa_fixtures.token(ec_k, ec_cert, [ec_cert, ica], preimage, serial=4002, sig="ecdsa", gen_time=gen)
+
+    def manifest(descs: list[dict]) -> dict:
+        ls = ledger_anchors.sorted_leaves(descs)
+        return {"contract": "anchor-manifest/v0", "root": merkle.tree_hash(ls).hex(), "size": len(ls),
+                "leaves": [{"descriptor": json.loads(x), "leaf_hash": merkle.leaf_hash(x).hex()} for x in ls]}
+
+    common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin", "start": 0}],
+              "roots": ["../../rfc3161/pki/root.pem"]}
+
+    def case(name: str, expected: dict, man: dict | None = None, pre: bytes = preimage, ots_bytes: bytes | None = good_ots,
+             tokens: dict | None = None) -> None:
+        d = out / name
+        d.mkdir(parents=True)
+        (d / "manifest.json").write_text(json.dumps(man if man is not None else manifest(descriptors), indent=1) + "\n", encoding="utf-8")
+        (d / "root.preimage").write_bytes(pre)
+        if ots_bytes is not None:
+            (d / "root.preimage.ots").write_bytes(ots_bytes)
+        for tname, data in (tokens if tokens is not None else {"test-rsa": tsr_a, "test-p256": tsr_b}).items():
+            (d / f"root.preimage.{tname}.tsr").write_bytes(data)
+        (d / "expected.json").write_text(json.dumps({**common, **expected}, indent=1) + "\n", encoding="utf-8")
+
+    case("valid", {"description": "Five leaves (three files, two log entries) from one repository, an OpenTimestamps proof and two authorities' tokens",
+                   "repos": {repo: "../repo"}, "outcome": "valid"})
+    case("checkout-later", {"description": "The same anchor against a checkout where the rulings file grew since: a warning",
+                            "repos": {repo: "../repo-later"}, "outcome": "valid", "warning": ["ledger_anchor.checkout.example/repository"]})
+    altered = [dict(x) for x in descriptors]
+    altered[0]["sha256"] = sha256(b"something else").hex()
+    case("descriptor-altered", {"description": "A descriptor's hash changed after anchoring", "outcome": "invalid",
+                                "failing": ["ledger_anchor.leaves"]}, man=manifest(altered))
+    case("descriptor-dropped", {"description": "A descriptor removed after anchoring", "outcome": "invalid",
+                                "failing": ["ledger_anchor.leaves"]}, man=manifest(descriptors[:-1]))
+    case("one-authority", {"description": "Only one authority's token: valid, with a warning", "outcome": "valid",
+                           "warning": ["ledger_anchor.policy"]}, tokens={"test-rsa": tsr_a})
+    other_pre = ledger_anchors.preimage_for(ledger_anchors.sorted_leaves(descriptors[:-1]))
+    case("proofs-over-another-root", {"description": "The proofs cover another root's preimage", "outcome": "invalid",
+                                      "failing": ["ledger_anchor.leaves", "ledger_anchor.ots",
+                                                  "ledger_anchor.rfc3161.root.preimage.test-p256.tsr",
+                                                  "ledger_anchor.rfc3161.root.preimage.test-rsa.tsr"]}, pre=other_pre)
+
+
 def build_certificates(writer) -> None:
     """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
     session's published documents with this repository's own test keys, over
@@ -541,6 +643,7 @@ def main() -> None:
 
     tsa_fixtures.build(FIX)
     build_anchors()
+    build_ledger_anchors()
     writer = chain_fixtures.build(FIX)
     build_certificates(writer)
 

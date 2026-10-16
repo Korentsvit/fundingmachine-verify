@@ -1,0 +1,17 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "Five leaves (three files, two log entries) from one repository, an OpenTimestamps proof and two authorities' tokens",
+ "repos": {
+  "example/repository": "../repo"
+ },
+ "outcome": "valid"
+}
