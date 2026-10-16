@@ -29,7 +29,7 @@ ledger, capture, capital, or the website.
 | V-8 | Static HTML report: authorship map and evidence coverage, no script at all (`--html`, and `render: html` in the API) | this pull request |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use (`docs/CONFORMANCE.md`). Runner, and fixtures for anchors, certificates and chains: this pull request. To finish: a versioned release of the fixtures and the runner's instructions for other implementations | in progress |
 | V-10 | Security note: what the verifier cannot detect (`docs/SECURITY_NOTE.md`, first version in this pull request; final by 14 November) | in progress |
-| V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file | queued |
+| V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file (`--bitcoind`) | this pull request |
 | V-12 | Disclosure: with the document key and the inserted texts, replay a chain and check every keyed hash (`fm-verify chain --disclosure`) | this pull request |
 | V-13 | A tenant's hourly root records as a chain of their own (`prev_root` linkage, signatures): a dropped hour shows (`fm-verify roots`) | this pull request |
 | V-14 | The `anchors` branch's `index.jsonl`: every anchor listed, roots unique, times in order | queued, with the Ledger's job |

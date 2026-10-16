@@ -34,8 +34,9 @@ access: see [docs/API.md](docs/API.md).
   its SHA-256 fingerprint, for you to compare with the authority's own
   publication.
 * **No phoning home.** The verifier opens no network connection unless you
-  pass `--explorer`. A test replaces the socket layer with one that refuses,
-  then runs every fixture through the command line.
+  pass `--explorer` (a public explorer) or `--bitcoind` (your own node). A
+  test replaces the socket layer with one that refuses, then runs every
+  fixture through the command line.
 * **Offline when given block headers.** With a headers file, an
   OpenTimestamps proof is checked with no network at all.
 * **Reliance stated.** Every verdict lists what it had to take on trust: a
@@ -109,6 +110,7 @@ fm-verify merkle proof.json --leaf-file document.pdf --root 6f1c...
 | `--headers-chain FILE[@START]`: 80-byte headers back to back (Electrum's `blockchain_headers` has this layout) | linkage, proof of work, difficulty retargets and median time past, from `START`; from 0, the genesis hash | that the file is on Bitcoin's most-work chain; headers before `START` |
 | `--headers FILE`: lines `HEIGHT HEX`, or JSON | each header's proof of work alone, against a floor of 2^70 expected hashes (`--min-work-bits`); links between neighbours in the file | that each header is the block at its height on the most-work chain |
 | `--explorer URL`: an Esplora API | the header hashes to the block id the explorer gave, and meets its proof of work | that the explorer told the truth about which block is at that height |
+| `--bitcoind URL`: a Bitcoin Core node you run (JSON-RPC; credentials from `--bitcoind-cookie` or `FM_BITCOIND_USER`/`FM_BITCOIND_PASSWORD`, never printed) | the header hashes to the block id the node gave, and meets its proof of work | that your node follows the most-work chain, which it does by validating every block |
 
 Several sources may be given; if they disagree about a height, the verdict
 is `invalid`. A Bitcoin block time is set by the miner and is only roughly

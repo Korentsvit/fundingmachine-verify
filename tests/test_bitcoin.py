@@ -206,3 +206,52 @@ def test_one_source_failing_while_another_vouches_is_a_warning():
     ev, notes = lookup_header([good, bad], 840000)
     assert ev is not None
     assert notes[0].status is Status.WARN and not notes[0].required
+
+
+def _fake_node(answers, seen):
+    import json as _json
+
+    def post(url, body, headers):
+        req = _json.loads(body)
+        seen.append((req["method"], headers.get("Authorization")))
+        if req["method"] not in answers:
+            raise OSError("connection refused")
+        return _json.dumps({"result": answers[req["method"]](req["params"]), "error": None}).encode()
+
+    return post
+
+
+def test_bitcoin_core_node_source():
+    from fmverify.bitcoin import BitcoinCoreSource
+
+    seen = []
+    post = _fake_node({"getblockhash": lambda p: HASH_840000, "getblockheader": lambda p: SPARSE[840000].hex()}, seen)
+    src = BitcoinCoreSource("http://127.0.0.1:8332", ("__cookie__", "secret-value"), MAINNET, post=post, clock=lambda: "T")
+    ev = src.lookup(840000)
+    assert ev.header.hash_hex == HASH_840000 and "a node you run" in ev.relies_on[0]
+    assert [m for m, _ in seen] == ["getblockhash", "getblockheader"] and seen[0][1].startswith("Basic ")
+    assert "secret-value" not in json_dump(ev)
+
+
+def test_bitcoin_core_node_unreachable_says_so_without_credentials():
+    from fmverify.bitcoin import BitcoinCoreSource
+
+    src = BitcoinCoreSource("http://127.0.0.1:8332", ("u", "secret-value"), MAINNET, post=_fake_node({}, []))
+    reason = src.lookup(840000)
+    assert "could not be read" in reason and "secret-value" not in reason
+
+
+def test_cookie_file(tmp_path):
+    from fmverify.bitcoin import read_cookie
+
+    (tmp_path / ".cookie").write_text("__cookie__:abc\n")
+    assert read_cookie(tmp_path / ".cookie") == ("__cookie__", "abc")
+    (tmp_path / "bad").write_text("nocolon")
+    with pytest.raises(bitcoin.HeaderError):
+        read_cookie(tmp_path / "bad")
+
+
+def json_dump(ev) -> str:
+    import json as _json
+
+    return _json.dumps({"checks": [c.__dict__ for c in ev.checks], "relies": ev.relies_on}, default=str)

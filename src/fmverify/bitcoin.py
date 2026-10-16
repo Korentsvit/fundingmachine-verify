@@ -440,6 +440,74 @@ class EsploraSource(HeaderSource):
         return HeaderEvidence(height, h, self.name, checks, relies)
 
 
+class BitcoinCoreSource(HeaderSource):
+    """A Bitcoin Core node the reader runs, over JSON-RPC (getblockhash, then
+    getblockheader in hex). Used only when a caller passes its URL. Credentials
+    come from the node's cookie file or from the caller, are sent only to that
+    URL, and are never printed."""
+
+    def __init__(self, url: str, auth: tuple[str, str] | None = None, network: Network = MAINNET,
+                 post: Callable[[str, bytes, dict], bytes] | None = None, clock: Callable[[], str] | None = None):
+        from .verdict import now_utc
+
+        self.url = url
+        self.name = f"Bitcoin Core node at {url}"
+        self.network = network
+        self.auth = auth
+        self.post = post or self._post
+        self.clock = clock or now_utc
+        self._id = 0
+
+    @staticmethod
+    def _post(url: str, body: bytes, headers: dict) -> bytes:
+        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read(1 << 16)
+
+    def _call(self, method: str, params: list):
+        import base64
+
+        self._id += 1
+        headers = {"Content-Type": "application/json", "User-Agent": "fm-verify"}
+        if self.auth:
+            headers["Authorization"] = "Basic " + base64.b64encode(f"{self.auth[0]}:{self.auth[1]}".encode()).decode()
+        reply = json.loads(self.post(self.url, json.dumps({"jsonrpc": "1.0", "id": self._id, "method": method, "params": params}).encode(), headers))
+        if reply.get("error"):
+            raise HeaderError(f"{method}: {reply['error'].get('message', reply['error'])}")
+        return reply["result"]
+
+    def lookup(self, height: int) -> HeaderEvidence | None | str:
+        try:
+            block_hash = self._call("getblockhash", [height])
+            raw = bytes.fromhex(self._call("getblockheader", [block_hash, False]))
+        except Exception as exc:  # every failure is a stated reason; the exception text carries no credential
+            return f"{self.name} could not be read for height {height}: {type(exc).__name__}"
+        try:
+            h = parse_header(raw)
+        except HeaderError as exc:
+            return f"{self.name}: {exc}"
+        if h.hash_hex != block_hash:
+            return f"{self.name} returned a header that hashes to {h.hash_hex}, not {block_hash}"
+        ok, reason, target = check_pow(h, self.network)
+        if not ok:
+            return f"{self.name}, height {height}: {reason}"
+        when = self.clock()
+        check = Check("bitcoin.header_node", Status.PASS,
+                      f"your node reports block {block_hash} at height {height}, and its header meets its proof of work",
+                      reasons=[f"asked at {when}", f"header time {h.time_iso}"],
+                      data={"height": height, "block_hash": block_hash})
+        relies = [f"the Bitcoin Core node at {self.url}, asked at {when}, follows Bitcoin's most-work chain (a node you run validates every block)"]
+        return HeaderEvidence(height, h, self.name, [check], relies)
+
+
+def read_cookie(path: str | Path) -> tuple[str, str]:
+    """Bitcoin Core's .cookie file: user:password on one line."""
+    user, _, password = Path(path).read_text(encoding="utf-8").strip().partition(":")
+    if not password:
+        raise HeaderError("the cookie file does not hold user:password")
+    return user, password
+
+
 def lookup_header(sources: Iterable[HeaderSource], height: int) -> tuple[HeaderEvidence | None, list[Check]]:
     """Ask every source for ``height``. Sources that disagree about the header
     make a failing check; the first source's evidence is returned otherwise."""

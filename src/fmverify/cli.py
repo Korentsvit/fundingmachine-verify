@@ -60,6 +60,20 @@ def header_sources(args: argparse.Namespace) -> list[HeaderSource]:
         raise UsageError(f"headers: {exc}") from exc
     for url in args.explorer or []:
         sources.append(EsploraSource(url, network, min_work_bits=args.min_work_bits))
+    if getattr(args, "bitcoind", None):
+        import os
+
+        from .bitcoin import BitcoinCoreSource, read_cookie
+
+        auth = None
+        try:
+            if args.bitcoind_cookie:
+                auth = read_cookie(args.bitcoind_cookie)
+            elif os.environ.get("FM_BITCOIND_USER") and os.environ.get("FM_BITCOIND_PASSWORD"):
+                auth = (os.environ["FM_BITCOIND_USER"], os.environ["FM_BITCOIND_PASSWORD"])
+        except (OSError, HeaderError) as exc:
+            raise UsageError(f"--bitcoind-cookie: {exc}") from exc
+        sources.append(BitcoinCoreSource(args.bitcoind, auth, network))
     return sources
 
 
@@ -228,6 +242,10 @@ def _header_options(p: argparse.ArgumentParser) -> None:
                    help="contiguous 80-byte headers from height START (default 0), checked by Bitcoin's header rules (repeatable)")
     p.add_argument("--explorer", action="append", metavar="URL",
                    help="an Esplora API base URL, e.g. https://mempool.space/api; the verdict states that its answer was trusted (repeatable)")
+    p.add_argument("--bitcoind", metavar="URL",
+                   help="a Bitcoin Core node you run, e.g. http://127.0.0.1:8332; credentials from --bitcoind-cookie or "
+                        "FM_BITCOIND_USER and FM_BITCOIND_PASSWORD, never printed")
+    p.add_argument("--bitcoind-cookie", metavar="FILE", help="the node's .cookie file")
     p.add_argument("--network", choices=sorted(NETWORKS), default="mainnet")
     p.add_argument("--min-work-bits", type=float, default=None,
                    help="least proof of work (log2 of expected hashes) a header checked alone must carry; default 70 on mainnet")
