@@ -500,33 +500,34 @@ def verify_files(
         base = Path(path)
         logs: dict[str, list[str]] = {}
 
-        def log_lines(rel: str) -> list[str]:
-            if rel not in logs:
-                f = base / rel
-                logs[rel] = f.read_text(encoding="utf-8").splitlines() if f.is_file() else []
-            return logs[rel]
+        def log_lines(f: Path) -> list[str]:
+            if f not in logs:
+                try:
+                    logs[f] = f.read_text(encoding="utf-8").splitlines() if f.is_file() else []
+                except (OSError, UnicodeDecodeError):
+                    logs[f] = []  # unreadable, or not UTF-8: no entry can be found in it
+            return logs[f]
 
         for x in mine:
+            rel = str(x.get("path", ""))
+            rel = rel[len("release-asset:"):] if rel.startswith("release-asset:") else rel
+            p = _inside(base, rel)
+            if p is None:
+                absent.append(f"{x.get('path')!r} (not a path inside the checkout; not read)")
+                continue
             if x["kind"] == "decisions_entry":
-                at = _entry_runs_cached(tuple(log_lines(x["path"]))).get(x["sha256"])
+                at = _entry_runs_cached(tuple(log_lines(p))).get(x["sha256"])
                 if at:
                     same.append(f"{x['path']} (an entry, {_lines(at)})")
                 else:
                     absent.append(f"{x['path']} (an entry)")
                 continue
-            rel = str(x.get("path", ""))
-            rel = rel[len("release-asset:"):] if rel.startswith("release-asset:") else rel
-            parts = PurePosixPath(rel).parts
-            if not parts or PurePosixPath(rel).is_absolute() or ".." in parts:
-                absent.append(f"{x.get('path')!r} (not a path inside the checkout; not read)")
-                continue
-            p = base.joinpath(*parts)
             if p.is_file():
                 (same if sha256(p.read_bytes()).hex() == x["sha256"] else changed).append(x["path"])
                 continue
             at = None
             if x["kind"] == "decisions_fragment":
-                at = _assembled_runs_cached(tuple(log_lines("docs/DECISIONS_LOG.md"))).get(x["sha256"])
+                at = _assembled_runs_cached(tuple(log_lines(base / "docs" / "DECISIONS_LOG.md"))).get(x["sha256"])
             if at:
                 (a, b), number = at
                 assembled.append(f"{x['path']} (assembled: {_lines((a, b))} of docs/DECISIONS_LOG.md"
@@ -556,6 +557,22 @@ def verify_files(
         Outcome.INDETERMINATE: f"The anchor's root {root.hex()} could not be shown anchored: see the checks not run.",
     }
     return make_verdict("ledger-anchor", subject, checks, statements, ANCHOR_LIMITS, checked_at)
+
+
+def _inside(base: Path, rel: str) -> Path | None:
+    """``base/rel`` when ``rel`` is a relative path that stays inside
+    ``base`` (symbolic links resolved); None otherwise. A manifest names the
+    paths, so it must not be able to make the verifier read, and report on,
+    a reader's files outside the checkout."""
+    parts = PurePosixPath(rel).parts
+    if not parts or PurePosixPath(rel).is_absolute() or ".." in parts:
+        return None
+    p = base.joinpath(*parts)
+    try:
+        p.resolve().relative_to(base.resolve())
+    except (ValueError, OSError):
+        return None
+    return p
 
 
 def _lines(at: tuple[int, int]) -> str:
@@ -660,6 +677,7 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return Check("anchor_set.index", Status.FAIL, "index.jsonl is not one JSON object per line", reasons=[str(exc)])
     listed: set[Path] = set()
+    anchors = {x.resolve() for x in dirs}
     before: dict | None = None
     for i, line in enumerate(lines, 1):
         if not isinstance(line, dict) or set(line) != INDEX_KEYS:
@@ -674,6 +692,10 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
             continue
         d = base.joinpath(*parts)
         listed.add(d.resolve())
+        if d.resolve() not in anchors:
+            problems.append(f"line {i}: {rel} is not an anchor here (no root.preimage), so nothing proves it")
+            before = line
+            continue
         try:
             m = jcs.loads((d / "manifest.json").read_text(encoding="utf-8"))
         except (OSError, jcs.JcsError, UnicodeDecodeError):
@@ -736,8 +758,11 @@ def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Ver
     n = len(dirs)
     statements = {
         Outcome.VALID: f"All {n} anchors under {root} hold.",
-        Outcome.INVALID: (f"{outcomes[Outcome.INVALID]} of {n} anchors under {root} do not hold; "
-                          f"{outcomes[Outcome.VALID]} hold and {outcomes[Outcome.INDETERMINATE]} could not be checked."),
+        Outcome.INVALID: ((f"{outcomes[Outcome.INVALID]} of {n} anchors under {root} do not hold; "
+                           f"{outcomes[Outcome.VALID]} hold and {outcomes[Outcome.INDETERMINATE]} could not be checked.")
+                          if outcomes[Outcome.INVALID] else
+                          f"index.jsonl under {root} does not agree with the anchors there (see anchor_set.index); "
+                          f"{outcomes[Outcome.VALID]} of {n} anchors hold on their own."),
         Outcome.INDETERMINATE: (f"{outcomes[Outcome.VALID]} of {n} anchors under {root} hold; "
                                 f"{outcomes[Outcome.INDETERMINATE]} could not be checked."),
     }

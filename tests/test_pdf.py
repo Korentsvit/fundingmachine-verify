@@ -75,3 +75,15 @@ def test_document_budget_spans_streams():
                     + b"\nendstream\nendobj\n" for n in range(3, 3 + pdf.MAX_DOCUMENT // pdf.MAX_STREAM + 2))
     with pytest.raises(pdf.PdfError, match="more than"):
         pdf.Document(_doc(objs))
+
+
+def test_many_unterminated_objects_parse_in_one_pass():
+    """Each broken object is passed over to its endobj: a small hostile file
+    costs one pass, not one per object (it once took 46 s for 80 KB)."""
+    import time
+
+    data = _doc(b"".join(b"%d 0 obj (" % n for n in range(1, 8001)))
+    t = time.perf_counter()
+    with pytest.raises(pdf.PdfError):
+        pdf.extract(data)
+    assert time.perf_counter() - t < 2

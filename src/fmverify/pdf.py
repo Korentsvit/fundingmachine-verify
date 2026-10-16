@@ -239,13 +239,16 @@ class Document:
         skip_until = 0
         for m in _OBJ.finditer(data):
             if m.start() < skip_until:
-                continue  # inside a stream already read: its bytes are data, not objects
+                continue  # inside an object already read (a stream's bytes, a string's text): data, not objects
             try:
                 value, end = _read_object(data, m.end())
             except (PdfError, IndexError, ValueError):
+                # A broken object is passed over to its endobj, so that a file of many
+                # unterminated objects costs one pass, not one pass per object.
+                close = data.find(b"endobj", m.end())
+                skip_until = len(data) if close < 0 else close
                 continue
-            if isinstance(value, Stream):
-                skip_until = end
+            skip_until = end
             self.objects[int(m.group(1))] = value  # a later definition replaces an earlier one
         for num, obj in list(self.objects.items()):
             if isinstance(obj, Stream) and self.resolve(obj.dict.get("Type")) == Name("ObjStm"):

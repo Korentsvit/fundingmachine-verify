@@ -364,6 +364,9 @@ def _check_chain(subj: dict, events: list) -> list[Check]:
     seq = signed.get("seq")
     upto = [e for e in events if isinstance(e, dict) and isinstance(e.get("seq"), int) and e["seq"] <= (seq or 0)]
     result = ledger_events.validate_chain(upto)
+    if not result.ok and result.code == "empty":
+        return [Check("certificate.chain", Status.NOT_CHECKED, "no events up to the sign event were given, so step 7 could not run",
+                      reasons=[result.message or result.code])]
     if not result.ok and result.unknown_contract:
         return [Check("certificate.chain", Status.NOT_CHECKED,
                       f"the event at seq {result.seq} names a contract version this verifier does not read, so step 7 could not run",

@@ -141,11 +141,19 @@ the event chain). It does not, and cannot:
   OpenTimestamps library, OpenSSL, RFC 8032's reference Ed25519, and the
   Provenance Ledger session's own TypeScript, in both directions).
 * The verifier holds no secret, so timing side channels do not apply.
+* **A chain's claims cost what its events cost.** Documents are kept as runs
+  of characters, never one entry per character, so an event claiming a
+  length up to 2^53 - 1 costs no memory; checking is linear in the events
+  times the runs within one statement.
+* **Paths a manifest names stay inside the checkout.** A descriptor path
+  that is absolute, climbs out, or resolves outside through a symbolic link
+  is not read, so a manifest cannot make the verifier report on a reader's
+  other files.
 * **Untrusted input is bounded.** A PDF stream inflates to at most 16 MiB and
   a document to 64 MiB in all, with at most four filters per stream, so a
   small file cannot exhaust memory (a deflate stream can inflate a
   thousandfold, and filters chain); only the attachment asked for is
-  decoded. JSON nested too deeply to read is a malformed input (exit 64, or
+  decoded; a broken object is passed over to its end in one pass. JSON nested too deeply to read is a malformed input (exit 64, or
   an error answer from the API), never a crash. OpenTimestamps proofs keep
   the reference implementation's limits.
 * Verify the verifier: run `fm-verify conformance fixtures`, which first

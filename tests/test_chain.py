@@ -109,3 +109,66 @@ def test_unknown_contract_version_is_indeterminate():
     v = ledger_events.verify(d["events"])
     assert v.outcome is Outcome.INDETERMINATE and "does not read" in v.statement
     assert [c.status.value for c in v.checks] == ["not_checked"]
+
+
+def test_empty_chain_is_not_valid(tmp_path):
+    """EVENT_CONTRACT.md: a verifier given no events answers empty."""
+    r = ledger_events.validate_chain([])
+    assert (r.ok, r.code) == (False, "empty")
+    assert ledger_events.verify([]).outcome is Outcome.INDETERMINATE
+    assert api.verify({"kind": "chain", "events": []})["outcome"] == "indeterminate"
+    f = tmp_path / "events.json"
+    f.write_text(json.dumps({"events": []}))
+    assert main(["chain", str(f)]) == 2
+
+
+def _writer_tools():
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    import chain_fixtures
+
+    return chain_fixtures
+
+
+def test_null_section_ref_on_a_known_section_claims_nothing():
+    """section_ref_conflict: a section keeps the ref it was first given; a
+    null ref names no new one (as the Ledger's state.ts reads it), and a ref
+    with no section id is the conflict."""
+    cf = _writer_tools()
+    w = cf.Writer("section refs")
+    w.open("s1", ("st-1", "approach", "call:example/approach"))
+    w.insert("s1", "st-1", 0, "One. Two.")
+    w.split("s1", "st-1", 4, "st-2", "approach", None)
+    assert ledger_events.validate_chain(w.events).ok
+    w.contract = "ledger-event/v0.1"
+    w.close("s1")
+    w.open("s2")
+    w.resync("s2", added=(("st-3", "st-2", "approach", None, "Three."),))
+    assert ledger_events.validate_chain(w.events).ok
+    bad = cf.Writer("section ref without id")
+    bad.open("s1", ("st-1", "approach", "call:example/approach"))
+    bad.insert("s1", "st-1", 0, "One. Two.")
+    bad.split("s1", "st-1", 4, "st-2", None, "call:example/other")
+    r = ledger_events.validate_chain(bad.events)
+    assert (r.ok, r.code, r.index) == (False, "section_ref_conflict", 2)
+
+
+def test_huge_lengths_cost_no_memory():
+    """A signed event may claim a length up to 2^53 - 1; state is kept as runs,
+    so the claim costs nothing (it once cost a list entry per code point)."""
+    import resource
+    import time
+
+    cf = _writer_tools()
+    w = cf.Writer("huge length")
+    w.open("s1", ("st-1", "approach", None))
+    w.emit("s1", "edit.insert", w.person, {"statement_id": "st-1", "start": 0, "end": 0}, "x", {"length": 2**53 - 1})
+    w.emit("s1", "edit.delete", w.person, {"statement_id": "st-1", "start": 5, "end": 2**52}, "y", {})
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    t = time.perf_counter()
+    r = ledger_events.validate_chain(w.events)
+    assert r.ok and time.perf_counter() - t < 2
+    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 100 * 1024  # KiB on Linux
+    amap = ledger_events.authorship_map(r.state, 3, r.head)
+    assert amap["document"]["total"] == 2**53 - 1 - (2**52 - 5)

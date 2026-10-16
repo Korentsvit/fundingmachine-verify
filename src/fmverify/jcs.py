@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from decimal import Decimal
 from typing import Any
 
@@ -45,7 +46,12 @@ def loads(text: str | bytes) -> Any:
 _SHORT = {0x08: "\\b", 0x09: "\\t", 0x0A: "\\n", 0x0C: "\\f", 0x0D: "\\r", 0x22: '\\"', 0x5C: "\\\\"}
 
 
+_PLAIN = re.compile(r'[^\x00-\x1f"\\\ud800-\udfff]*\Z')
+
+
 def _string(s: str) -> str:
+    if _PLAIN.match(s):  # nothing to escape: most strings, checked in C
+        return '"' + s + '"'
     out = ['"']
     for ch in s:
         c = ord(ch)

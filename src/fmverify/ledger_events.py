@@ -22,6 +22,9 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
+from bisect import bisect_left
+from itertools import accumulate
+from operator import itemgetter
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -329,11 +332,72 @@ def event_hash(ev: dict) -> str:
     return sha256(jcs.dumps({k: v for k, v in ev.items() if k != "client_sig"})).hex()
 
 
-@dataclass
+Run = tuple  # (origin, fidelity, seq, length): code points of one origin and fidelity, from one event
+
+
+_LEN = itemgetter(3)
+
+
+def _cut(runs: list, at: int) -> tuple[list, list]:
+    """The runs before and from code point ``at`` (C-level search and slicing:
+    a chain of many small edits makes many runs)."""
+    if at <= 0:
+        return [], list(runs)
+    ends = list(accumulate(map(_LEN, runs)))
+    i = bisect_left(ends, at)
+    if i == len(runs):
+        return list(runs), []
+    if ends[i] == at:
+        return runs[: i + 1], runs[i + 1:]
+    r = runs[i]
+    k = at - (ends[i] - r[3])
+    return runs[:i] + [r[:3] + (k,)], [r[:3] + (r[3] - k,)] + runs[i + 1:]
+
+
+def _join(a: list, b: list) -> list:
+    """Two normalised run lists, joined; only the seam can merge."""
+    if a and b and a[-1][:3] == b[0][:3]:
+        return a[:-1] + [a[-1][:3] + (a[-1][3] + b[0][3],)] + b[1:]
+    return a + b
+
+
+def _norm(runs: list) -> list:
+    """Adjacent runs of the same origin, fidelity and event, merged; empty runs dropped."""
+    out: list = []
+    for r in runs:
+        if r[3] == 0:
+            continue
+        if out and out[-1][:3] == r[:3]:
+            out[-1] = r[:3] + (out[-1][3] + r[3],)
+        else:
+            out.append(r)
+    return out
+
+
+@dataclass(eq=False)
 class Statement:
+    """A statement's text as runs, never one entry per code point: an event
+    may state a length up to 2^53 - 1, and memory must follow the number of
+    events, not the lengths they claim."""
     statement_id: str
     section_id: str
-    chars: list = field(default_factory=list)  # (origin, fidelity, seq) per code point
+    runs: list = field(default_factory=list)
+    length: int = field(init=False)  # kept with the runs, never recounted per event
+
+    def __post_init__(self) -> None:
+        self.length = sum(map(_LEN, self.runs))
+
+    def set_runs(self, runs: list, length: int | None = None) -> None:
+        self.runs = runs
+        self.length = sum(map(_LEN, runs)) if length is None else length
+
+    def replace(self, start: int, end: int, insert: list) -> list:
+        """Replace code points [start, end) with ``insert`` (normalised runs);
+        return the removed runs."""
+        before, rest = _cut(self.runs, start)
+        removed, after = _cut(rest, end - start)
+        self.set_runs(_join(_join(before, insert), after), self.length - (end - start) + sum(map(_LEN, insert)))
+        return removed
 
 
 @dataclass
@@ -349,9 +413,22 @@ class State:
     inserted: dict = field(default_factory=lambda: dict.fromkeys(ORIGINS, 0))
     deleted: int = 0
     hashes: list[str] = field(default_factory=list)
+    event_ids: set = field(default_factory=set)
+    last: tuple | None = None  # (type, session_id) of the last event applied
+
+    by_id: dict = field(default_factory=dict)  # statement_id -> Statement, for the statements in the document
 
     def find(self, sid: str) -> int | None:
-        return next((i for i, s in enumerate(self.statements) if s.statement_id == sid), None)
+        s = self.by_id.get(sid)
+        return None if s is None else self.statements.index(s)  # identity comparison, in C
+
+    def add(self, at: int, s: "Statement") -> None:
+        self.statements.insert(at, s)
+        self.by_id[s.statement_id] = s
+
+    def drop(self, at: int) -> None:
+        del self.by_id[self.statements[at].statement_id]
+        del self.statements[at]
 
 
 class ChainError(Exception):
@@ -406,7 +483,7 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         raise ChainError("doc_mismatch", "the event names another document")
     if ev["tenant_id"] != st.tenant_id:
         raise ChainError("tenant_mismatch", "the event names another tenant")
-    if ev["event_id"] in getattr(st, "_event_ids", set()):
+    if ev["event_id"] in st.event_ids:
         raise ChainError("event_id_duplicate", f"event_id {ev['event_id']} repeats")
     sid = ev["session_id"]
     session = st.sessions.get(sid)
@@ -428,7 +505,7 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         raise ChainError("session_closed", "the session is closed")
     if t == "session.open" and "genesis" in p and seq != 1:
         raise ChainError("genesis_not_first", "only seq 1 carries genesis")
-    if t == "capture.resync" and getattr(st, "_last", None) != ("session.open", sid):
+    if t == "capture.resync" and st.last != ("session.open", sid):
         raise ChainError("resync_not_first", "a capture.resync must directly follow its session's session.open")
 
     # Statements and ranges.
@@ -444,7 +521,7 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
     if t == "statement.split" and p["new_statement_id"] in st.used_ids:
         raise ChainError("statement_id_reused", f"statement id {p['new_statement_id']} was used before")
     if r is not None:
-        start, end, length = r["start"], r["end"], len(st.statements[target].chars)
+        start, end, length = r["start"], r["end"], st.statements[target].length
         empty = start == end
         if t in ("edit.insert", "statement.split", "statement.merge") and not empty:
             raise ChainError("range_not_empty", f"{t} needs an empty range")
@@ -454,7 +531,7 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
             raise ChainError("range_out_of_bounds", f"[{start}, {end}) is outside a statement of {length}")
         if t == "edit.move":
             dest = st.find(p["to"]["statement_id"])
-            room = len(st.statements[dest].chars) - ((end - start) if dest == target else 0)
+            room = st.statements[dest].length - ((end - start) if dest == target else 0)
             if p["to"]["offset"] > room:
                 raise ChainError("range_out_of_bounds", f"move offset {p['to']['offset']} is outside a statement of {room}")
         if t in ("import.paste", "tool.generate") and (p["removed_hash"] is None) != empty:
@@ -467,10 +544,8 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
                 raise ChainError("merge_not_adjacent", "the merged statement is not directly after the surviving one")
             if start != length:
                 raise ChainError("range_mismatch", "a merge's range must be at the end of the surviving statement")
-    if t == "statement.split" and p["section_id"] is not None:
-        known = st.sections.get(p["section_id"], p["section_ref"])
-        if p["section_id"] in st.sections and known != p["section_ref"]:
-            raise ChainError("section_ref_conflict", f"section {p['section_id']} already has section_ref {known}")
+    if t == "statement.split":
+        _check_section(st, p["section_id"], p["section_ref"])
     if t == "evidence.bind":
         if p["binding_id"] in st.used_bindings:
             raise ChainError("binding_duplicate", f"binding {p['binding_id']} is not new")
@@ -478,33 +553,28 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         raise ChainError("binding_unknown", f"binding {p['binding_id']} is not active")
 
     # Apply.
-    st._event_ids = getattr(st, "_event_ids", set()) | {ev["event_id"]}
-    st._last = (t, sid)
+    st.event_ids.add(ev["event_id"])
+    st.last = (t, sid)
     fid = ev["capture_fidelity"]
     if t == "session.open":
         st.sessions[sid] = {"public_key": public, "key_id": key_id, "client": p["client"], "opened_seq": seq, "closed_seq": None}
         if "genesis" in p:
             g = p["genesis"]
-            st.statements.append(Statement(g["statement_id"], g["section_id"]))
+            st.add(len(st.statements), Statement(g["statement_id"], g["section_id"]))
             st.used_ids.add(g["statement_id"])
             st.sections.setdefault(g["section_id"], g["section_ref"])
     elif t == "session.close":
         session["closed_seq"] = seq
     elif t in ("edit.insert", "edit.delete", "edit.replace", "import.paste", "tool.generate", "tool.edit"):
-        chars = st.statements[target].chars
-        removed = end - start
-        del chars[start:end]
-        st.deleted += removed
-        if t != "edit.delete":
-            n = p["length"]
-            chars[start:start] = [(ORIGIN_OF[t], fid, seq)] * n
+        n = 0 if t == "edit.delete" else p["length"]
+        st.statements[target].replace(start, end, [(ORIGIN_OF[t], fid, seq, n)] if n else [])
+        st.deleted += end - start
+        if n:
             st.inserted[ORIGIN_OF[t]] += n
     elif t == "edit.move":
-        src = st.statements[target].chars
-        seg = src[start:end]
-        del src[start:end]
-        dest = st.statements[st.find(p["to"]["statement_id"])].chars
-        dest[p["to"]["offset"]:p["to"]["offset"]] = seg
+        seg = st.statements[target].replace(start, end, [])
+        dest = st.statements[st.find(p["to"]["statement_id"])]
+        dest.replace(p["to"]["offset"], p["to"]["offset"], seg)
     elif t == "evidence.bind":
         st.bindings[p["binding_id"]] = r["statement_id"]
         st.used_bindings.add(p["binding_id"])
@@ -515,20 +585,33 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         section = p["section_id"] if p["section_id"] is not None else s.section_id
         if p["section_id"] is not None:
             st.sections.setdefault(section, p["section_ref"])
-        new = Statement(p["new_statement_id"], section, s.chars[start:])
-        s.chars = s.chars[:start]
-        st.statements.insert(target + 1, new)
+        before, after = _cut(s.runs, start)
+        new = Statement(p["new_statement_id"], section, after)
+        s.set_runs(before, start)
+        st.add(target + 1, new)
         st.used_ids.add(p["new_statement_id"])
     elif t == "statement.merge":
         s, m = st.statements[target], st.statements[target + 1]
-        s.chars += m.chars
-        del st.statements[target + 1]
+        s.set_runs(_join(s.runs, m.runs), s.length + m.length)
+        st.drop(target + 1)
         for b, owner in st.bindings.items():
             if owner == m.statement_id:
                 st.bindings[b] = s.statement_id
     elif t == "capture.resync":
         _resync(st, p, seq, fid)
     st.hashes.append(ehash)
+
+
+def _check_section(st: State, section_id: str | None, section_ref: str | None) -> None:
+    """``section_ref_conflict``: "A section keeps the section_ref it was first
+    given." A null ref on a known section claims nothing; a ref without a
+    section id names no section."""
+    if section_id is None:
+        if section_ref is not None:
+            raise ChainError("section_ref_conflict", "a section_ref is given without a section_id")
+        return
+    if section_id in st.sections and section_ref is not None and st.sections[section_id] != section_ref:
+        raise ChainError("section_ref_conflict", f"section {section_id} already has section_ref {st.sections[section_id]}")
 
 
 def _resync(st: State, p: dict, seq: int, fid: str) -> None:
@@ -540,24 +623,23 @@ def _resync(st: State, p: dict, seq: int, fid: str) -> None:
         i = st.find(x["statement_id"])
         if i is None:
             raise ChainError("statement_unknown", f"statement {x['statement_id']} does not exist")
-        st.deleted += len(st.statements[i].chars)
-        del st.statements[i]
+        st.deleted += st.statements[i].length
+        st.drop(i)
         for b in [b for b, owner in st.bindings.items() if owner == x["statement_id"]]:
             del st.bindings[b]  # a binding ends with its statement
     for x in p["changed"]:
         i = st.find(x["statement_id"])
         if i is None:
             raise ChainError("statement_unknown", f"statement {x['statement_id']} does not exist")
-        chars, start, end = st.statements[i].chars, x["start"], x["end"]
-        if start > end or end > len(chars):
-            raise ChainError("range_out_of_bounds", f"[{start}, {end}) is outside a statement of {len(chars)}")
+        stmt, start, end = st.statements[i], x["start"], x["end"]
+        if start > end or end > stmt.length:
+            raise ChainError("range_out_of_bounds", f"[{start}, {end}) is outside a statement of {stmt.length}")
         if (x["removed_hash"] is None) != (start == end):
             raise ChainError("removed_hash_mismatch", "removed_hash must be null exactly when the span is empty")
         if (x["content_hash"] is None) != (x["length"] == 0):
             raise ChainError("content_hash_mismatch", "content_hash must be null exactly when length is 0")
-        del chars[start:end]
+        stmt.replace(start, end, [("imported", fid, seq, x["length"])] if x["length"] else [])
         st.deleted += end - start
-        chars[start:start] = [("imported", fid, seq)] * x["length"]
         st.inserted["imported"] += x["length"]
     for x in p["added"]:
         at = 0
@@ -570,10 +652,9 @@ def _resync(st: State, p: dict, seq: int, fid: str) -> None:
             raise ChainError("statement_id_reused", f"statement id {x['statement_id']} was used before")
         if (x["content_hash"] is None) != (x["length"] == 0):
             raise ChainError("content_hash_mismatch", "content_hash must be null exactly when length is 0")
-        if x["section_id"] in st.sections and st.sections[x["section_id"]] != x["section_ref"]:
-            raise ChainError("section_ref_conflict", f"section {x['section_id']} already has section_ref {st.sections[x['section_id']]}")
+        _check_section(st, x["section_id"], x["section_ref"])
         st.sections.setdefault(x["section_id"], x["section_ref"])
-        st.statements.insert(at, Statement(x["statement_id"], x["section_id"], [("imported", fid, seq)] * x["length"]))
+        st.add(at, Statement(x["statement_id"], x["section_id"], [("imported", fid, seq, x["length"])] if x["length"] else []))
         st.used_ids.add(x["statement_id"])
         st.inserted["imported"] += x["length"]
     if not st.statements:
@@ -583,6 +664,8 @@ def _resync(st: State, p: dict, seq: int, fid: str) -> None:
 def validate_chain(events: list) -> ChainResult:
     """Apply the chain rules in the contract's order; stop at the first failure."""
     st = State()
+    if not events:
+        return ChainResult(False, 0, st, None, None, "empty", "no events were given: there is no chain to check")
     prev = None
     for i, ev in enumerate(events):
         try:
@@ -610,11 +693,11 @@ def _percent(counts: dict, keys: list[str], total: int) -> dict:
     return {k: f"{floors[k] // 10}.{floors[k] % 10}" for k in keys}
 
 
-def _block(chars: list, keys: list[str], index: int) -> dict:
+def _block(runs: list, keys: list[str], index: int) -> dict:
     counts = dict.fromkeys(keys, 0)
-    for c in chars:
-        counts[c[index]] += 1
-    total = len(chars)
+    for r in runs:
+        counts[r[index]] += r[3]
+    total = sum(r[3] for r in runs)
     return {"total": total, "counts": counts, "percent": _percent(counts, keys, total)}
 
 
@@ -622,21 +705,16 @@ def authorship_map(st: State, seq: int, ehash: str) -> dict:
     """docs/AUTHORSHIP_MAP.md: the map of the state after event ``seq``."""
     statements = []
     for s in st.statements:
-        runs: list[dict] = []
-        for origin, fid, eseq in s.chars:
-            if runs and (runs[-1]["origin"], runs[-1]["fidelity"], runs[-1]["seq"]) == (origin, fid, eseq):
-                runs[-1]["length"] += 1
-            else:
-                runs.append({"origin": origin, "fidelity": fid, "seq": eseq, "length": 1})
-        statements.append({"statement_id": s.statement_id, "section_id": s.section_id, "length": len(s.chars), "runs": runs})
+        runs = [{"origin": o, "fidelity": f, "seq": q, "length": n} for o, f, q, n in _norm(s.runs)]
+        statements.append({"statement_id": s.statement_id, "section_id": s.section_id, "length": s.length, "runs": runs})
     sections, order = {}, []
     for s in st.statements:
         if s.section_id not in sections:
             order.append(s.section_id)
-            sections[s.section_id] = {"statements": 0, "chars": []}
+            sections[s.section_id] = {"statements": 0, "runs": []}
         sections[s.section_id]["statements"] += 1
-        sections[s.section_id]["chars"] += s.chars
-    all_chars = [c for s in st.statements for c in s.chars]
+        sections[s.section_id]["runs"] += s.runs
+    all_runs = [r for s in st.statements for r in s.runs]
     return {
         "contract": "authorship-map/v0",
         "tenant_id": st.tenant_id,
@@ -645,9 +723,9 @@ def authorship_map(st: State, seq: int, ehash: str) -> dict:
         "unit": "unicode_code_point",
         "statements": statements,
         "sections": [{"section_id": sid, "section_ref": st.sections.get(sid), "statements": sections[sid]["statements"],
-                      **_block(sections[sid]["chars"], ORIGINS, 0)} for sid in order],
-        "document": _block(all_chars, ORIGINS, 0),
-        "fidelity": _block(all_chars, FIDELITIES, 1),
+                      **_block(sections[sid]["runs"], ORIGINS, 0)} for sid in order],
+        "document": _block(all_runs, ORIGINS, 0),
+        "fidelity": _block(all_runs, FIDELITIES, 1),
         "activity": {"inserted": dict(st.inserted), "deleted": st.deleted},
     }
 
@@ -671,6 +749,9 @@ def _verify_chain(events: list, subject: str | None = None, checked_at: str | No
         checks = [Check("chain.rules", Status.PASS, f"all {result.count} events follow the {named} chain rules",
                         reasons=[f"head {result.head}", f"{len(result.state.sessions)} sessions"],
                         data={"code": None, "index": None, "head": result.head, "events": result.count, "versions": versions})]
+    elif result.code == "empty":
+        checks = [Check("chain.rules", Status.NOT_CHECKED, "no events were given: there is no chain to check",
+                        reasons=[result.message], data={"code": "empty", "index": None})]
     elif result.unknown_contract:
         checks = [Check("chain.rules", Status.NOT_CHECKED,
                         f"event {result.index} (seq {result.seq}) names a contract version this verifier does not read; "
@@ -687,7 +768,8 @@ def _verify_chain(events: list, subject: str | None = None, checked_at: str | No
     statements = {
         Outcome.VALID: f"The {result.count} events form a {named} chain that follows every chain rule, ending in {result.head}.",
         Outcome.INVALID: f"The chain breaks the rule '{result.code}' at event {result.index} (seq {result.seq}).",
-        Outcome.INDETERMINATE: (f"The chain could not be checked past event {result.index}: it names a contract version "
+        Outcome.INDETERMINATE: ("No events were given, so there is no chain to check." if result.code == "empty" else
+                                f"The chain could not be checked past event {result.index}: it names a contract version "
                                 "this verifier does not read." if result.unknown_contract else "The chain could not be checked."),
     }
     return make_verdict("event-chain", subject, checks, statements, limits, checked_at)

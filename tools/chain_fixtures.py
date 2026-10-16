@@ -414,6 +414,9 @@ def build(fix: Path) -> Writer:
     case("text-in-payload", t, {"description": "An event carrying the text itself: text never leaves the tenant", "outcome": "invalid",
                                 "index": 1, "code": "schema"})
 
+    case("empty", [], {"description": "No events at all: there is no chain to check (the contract's code: empty)",
+                        "outcome": "indeterminate", "code": "empty"})
+
     # ledger-event/v0.1.
     def v01_case(name: str, wr: Writer, expected: dict, evs: list | None = None) -> None:
         evs = evs if evs is not None else wr.events

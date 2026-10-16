@@ -1,0 +1,5 @@
+{
+ "description": "No events at all: there is no chain to check (the contract's code: empty)",
+ "outcome": "indeterminate",
+ "code": "empty"
+}

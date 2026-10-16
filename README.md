@@ -200,10 +200,10 @@ not take this code's word:
   steps (`FM_LEDGER_REPO`; its repository is private and its fixtures are
   not copied here); and the reverse, `tools/ledger_crosscheck/run.mts` runs
   its validator over these fixtures. With its branch carrying the proposed
-  v0.1 (27cec9a, 16 October 2026), it agreed on 14 of 15 chains (the other,
-  a version neither reads, it calls invalid and this verifier
-  indeterminate), on all 20 certificate proofs, and on both authorship map
-  hashes, v0 and v0.1;
+  v0.1 (27cec9a, 16 October 2026), it agreed on 14 of 16 chains (the other
+  two, no events at all and a version neither reads, it calls invalid and
+  this verifier indeterminate), on all 21 certificate proofs, and on both
+  authorship map hashes, v0 and v0.1;
 * the Ledger's anchoring work (its branch of 16 October 2026): its recorded
   DigiCert and Sectigo responses and OpenTimestamps proof verify here; this
   verifier's schema check gives the published `anchor-manifest/v0` schema's

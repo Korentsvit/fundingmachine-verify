@@ -78,3 +78,23 @@ def test_base58_and_did_key():
         base58.b58decode("0OIl")
     with pytest.raises(base58.EncodingError):
         base58.did_key_ed25519("did:key:z" + base58.b58encode(b"\x12\x00" + pub))
+
+
+def test_string_fast_path_matches_the_escaping_loop():
+    """The C-level path for strings with nothing to escape gives what the
+    character loop gives, on random strings of every kind of character."""
+    import random
+
+    def slow(s: str) -> str:
+        out = ['"']
+        for ch in s:
+            c = ord(ch)
+            out.append(jcs._SHORT[c] if c in jcs._SHORT else f"\\u{c:04x}" if c < 0x20 else ch)
+        return "".join(out) + '"'
+
+    rng = random.Random(8785)
+    alphabet = [chr(c) for c in list(range(0, 0x80)) + [0xE9, 0x6F22, 0x1F600, 0x2028, 0xFEFF]]
+    for _ in range(3000):
+        s = "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 12)))
+        assert jcs._string(s) == slow(s), repr(s)
+    assert jcs._string("\x7f") == '"\x7f"'

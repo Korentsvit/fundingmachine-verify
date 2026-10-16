@@ -270,3 +270,45 @@ def test_cli_prove(capsys, tmp_path):
     capsys.readouterr()
     assert main(base + ["--prove", str(held), "--prove-sha256", "a" * 64]) == 64
     assert main(base + ["--prove-sha256", "xyz"]) == 64
+
+
+def test_entry_paths_outside_the_checkout_are_not_read(tmp_path):
+    """A decisions entry names a log file: a manifest must not make the
+    verifier read, and report on, a file outside the checkout."""
+    outside = tmp_path / "secret.txt"
+    outside.write_text("a secret line\n")
+    checkout = tmp_path / "checkout"
+    (checkout / "docs").mkdir(parents=True)
+    (checkout / "docs" / "DECISIONS_LOG.md").write_bytes(b"| 2026-10-16 | x |\n\xff\xfe not UTF-8\n")
+    (checkout / "docs" / "link.md").symlink_to(outside)
+    line = sha256(b"a secret line").hex()
+
+    def desc(path):
+        return {"kind": "decisions_entry", "path": path, "ref": "main", "repo": "o/r", "sha256": line}
+
+    descs = [desc("../secret.txt"), desc(str(outside)), desc("docs/link.md"), desc("docs/DECISIONS_LOG.md")]
+    leaves = ledger_anchors.sorted_leaves(descs)
+    d = tmp_path / "anchor"
+    d.mkdir()
+    (d / "root.preimage").write_bytes(ledger_anchors.preimage_for(leaves))
+    (d / "manifest.json").write_text(json.dumps({"leaves": [{"descriptor": json.loads(x)} for x in leaves]}))
+    v = ledger_anchors.verify_dir(d, repos={"o/r": checkout})
+    c = next(c for c in v.checks if c.id == "ledger_anchor.checkout.o/r")
+    assert c.data["matching"] == []
+    assert sum("not a path inside the checkout" in a for a in c.data["absent"]) == 3
+    assert "docs/DECISIONS_LOG.md (an entry)" in c.data["absent"]  # a log that is not UTF-8 holds no entry, and no crash
+
+
+def test_index_line_naming_no_anchor_fails(tmp_path):
+    import shutil
+
+    shutil.copytree(FIX / "ledger-anchors" / "set-valid", tmp_path / "set")
+    fake = tmp_path / "set" / "2026" / "10" / "17" / "100411Z"
+    fake.mkdir(parents=True)
+    m2 = json.loads((tmp_path / "set" / "2026" / "10" / "17" / "090411Z" / "manifest.json").read_text())
+    m3 = {**m2, "created": "2026-10-17T10:04:11.000Z", "previous": {"path": "2026/10/17/090411Z", "root": m2["root"]}}
+    (fake / "manifest.json").write_text(json.dumps(m3))
+    with open(tmp_path / "set" / "index.jsonl", "a") as f:
+        f.write(json.dumps({"created": m3["created"], "root": m3["root"], "size": m3["size"], "path": "2026/10/17/100411Z"}) + "\n")
+    c = ledger_anchors.check_index(tmp_path / "set", ledger_anchors.find_anchor_dirs(tmp_path / "set"))
+    assert c.status.value == "fail" and any("not an anchor here" in r for r in c.reasons)
