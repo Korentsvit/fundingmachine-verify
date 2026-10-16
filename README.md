@@ -43,6 +43,16 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   socket layer with one that refuses, then runs every fixture through the
   command line.
 * **Reliance stated.** Every verdict lists what it took on trust.
+* **The verifier is checkable too.** `python tools/build_release.py` builds
+  the wheel and source archive so that the same commit gives the same bytes
+  (CI builds twice, with different file times and umask, and compares). To
+  check a published release, rebuild from its tag and compare SHA-256
+  values; on a machine whose zlib compresses differently,
+  `python tools/build_release.py --compare A B` compares what two archives
+  hold. Then install that file itself
+  (`pip install ./fundingmachine_verify-VERSION-py3-none-any.whl`); with
+  `--require-hashes`, pip asks for the hash of every dependency too
+  (`cryptography` and what it needs), not only the verifier's.
 
 ## Verdicts
 
