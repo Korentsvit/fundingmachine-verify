@@ -80,3 +80,69 @@ def test_the_ledger_sessions_own_fixture():
     cred = json.loads(path.read_text())
     cred["credentialSubject"]["authorship"]["document"]["counts"]["human_typed"] += 1
     assert certificate.verify(json.dumps(cred).encode()).outcome is Outcome.INVALID
+
+
+# Every step of docs/CERTIFICATE.md (Verifying offline) is reported on its own,
+# whether it ran or not, and a failed proof hides none of the others (the
+# Provenance Ledger's validation-conformance/v0, CS-04 to CS-07, CS-15, CS-50).
+STEP_IDS = {
+    "proof": {"certificate.proof"}, "scope": {"certificate.scope_statement"}, "file": {"certificate.file"},
+    "root": {"certificate.root_record"}, "inclusion": {"certificate.inclusion"},
+    "anchor": {"certificate.anchor", "certificate.anchor_inclusion"}, "chain": {"certificate.chain"},
+}
+
+
+def _steps(v):
+    ids = {c.id for c in v.checks}
+    return {step for step, want in STEP_IDS.items() if ids & want}
+
+
+def test_every_step_is_reported_for_every_certificate_read():
+    seen = 0
+    for case in sorted((FIX / "certificate").iterdir()):
+        source = case / "certificate.json" if (case / "certificate.json").exists() else case / "certificate.pdf"
+        v = certificate.verify(source.read_bytes())
+        if any(c.id in ("certificate.parse", "certificate.contract", "certificate.pdf") and c.status is not Status.PASS for c in v.checks):
+            continue  # not read as a certificate of this version: no step can run
+        assert _steps(v) == set(STEP_IDS), case.name
+        seen += 1
+    assert seen >= 20
+
+
+def test_a_failed_proof_hides_no_other_step():
+    v = certificate.verify((FIX / "certificate" / "tampered-after-signing" / "certificate.json").read_bytes())
+    status = {c.id: c.status for c in v.checks}
+    assert status["certificate.proof"] is Status.FAIL and v.outcome is Outcome.INVALID
+    assert status["certificate.root_record"] is Status.PASS and status["certificate.inclusion"] is Status.PASS
+    root = next(c for c in v.checks if c.id == "certificate.root_record")
+    assert any("own proof does not verify" in r for r in root.reasons)
+
+
+def test_an_issuer_that_is_not_the_proofs_key_fails_the_root_too():
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from fmverify.base58 import ed25519_did_key
+
+    cred = json.loads((FIX / "certificate" / "valid-not-anchored" / "certificate.json").read_text())
+    other = Ed25519PrivateKey.from_private_bytes(bytes(32)).public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    cred["issuer"]["id"] = ed25519_did_key(other)
+    v = certificate.verify(json.dumps(cred).encode())
+    failing = [c.id for c in v.checks if c.status is Status.FAIL]
+    assert "certificate.proof" in failing and "certificate.root_record" in failing
+    assert next(c for c in v.checks if c.id == "certificate.inclusion").status is Status.PASS
+
+
+def test_no_root_yet_reports_steps_4_to_6_each_as_not_run():
+    v = certificate.verify((FIX / "certificate" / "valid-no-root-yet" / "certificate.json").read_bytes())
+    rows = {c.id: c for c in v.checks if c.id in ("certificate.root_record", "certificate.inclusion", "certificate.anchor")}
+    assert set(rows) == {"certificate.root_record", "certificate.inclusion", "certificate.anchor"}
+    assert all(c.status is Status.NOT_CHECKED and "did not run" in c.summary for c in rows.values())
+    assert v.outcome is Outcome.VALID
+
+
+def test_the_text_output_prints_the_scope_statement():
+    # validation-conformance/v0 CS-51: the output prints the scope statement as the certificate carries it.
+    case = FIX / "certificate" / "valid-not-anchored"
+    statement = json.loads((case / "certificate.json").read_text())["credentialSubject"]["scope_statement"]
+    assert statement in certificate.verify((case / "certificate.json").read_bytes()).to_text()
