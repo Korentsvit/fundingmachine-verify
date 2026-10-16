@@ -14,7 +14,7 @@ convenience on top of it.
 | RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
 | A Provenance Ledger anchor (`docs/ANCHORING.md` layout): descriptor leaves, `root.preimage`, its OpenTimestamps proof and RFC 3161 tokens, and a checkout compared | `fm-verify anchors DIR --repo OWNER/NAME=PATH` | done from the published document; the manifest's own schema arrives with the Ledger's job (17 October) |
 | An anchor batch in this verifier's own format (`batch.json`) | `fm-verify anchors` | done |
-| Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done, with the HTML report (`--html`); the PDF form for 31 October |
+| Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done, JSON or PDF form (the embedded `certificate.json`), with the HTML report (`--html`) |
 | Provenance Ledger event chain (`ledger-event/v0`): every chain rule, in the contract's order, with the contract's failure codes | `fm-verify chain` | done |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
@@ -156,6 +156,11 @@ fixtures` checks the manifest and runs every case; the format is in
   root record signed by another key, a wrong inclusion path, an anchor time
   earlier than the authority's token, a token over another root, a Bitcoin
   block the proof does not hold); an unknown contract version.
+* `certificate/pdf-*`: the PDF form: a classic file; PDF 1.5 with object and
+  cross-reference streams and a deflated attachment; two attachments under
+  one name (refused); an incremental update replacing the attachment (the
+  current one is checked); no attachment. pypdf and poppler's `pdfdetach`
+  take the same bytes from each.
 * `rfc3161/*`: tokens from a test PKI (a root, an issuing CA, RSA, P-256 and
   Ed25519 authorities): valid with PKCS#1 v1.5, PSS, ECDSA and Ed25519; no
   root, wrong root, chain missing, tampered file, back-dated, tampered

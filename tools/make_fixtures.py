@@ -26,6 +26,7 @@ from fmverify import ots  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools"))
 import chain_fixtures  # noqa: E402
+import pdf_fixtures  # noqa: E402
 import tsa_fixtures  # noqa: E402
 from fmverify.bitcoin import parse_header  # noqa: E402
 
@@ -514,6 +515,32 @@ def build_certificates(writer) -> None:
     case("ots-status-overstated", issue(variant(ledger_root__anchor=anchor_block(tsr(anchor_root), ots_block=99))),
          {"description": "The certificate names a Bitcoin block the proof does not hold", "outcome": "invalid",
           "failing": ["certificate.opentimestamps.status"]})
+    def pdf_case(name: str, data: bytes, expected: dict) -> None:
+        d = out / name
+        d.mkdir()
+        (d / "certificate.pdf").write_bytes(data)
+        (d / "exported.txt").write_bytes(exported)
+        exp = {**common, "certificate": "certificate.pdf", "file": "exported.txt", **expected}
+        (d / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+
+    good_json = (json.dumps(issue(subject), indent=1) + "\n").encode()
+    pdf_case("pdf-classic", pdf_fixtures.classic(good_json),
+             {"description": "The PDF form: certificate.json embedded, uncompressed", "outcome": "valid"})
+    pdf_case("pdf-compressed", pdf_fixtures.compressed(good_json),
+             {"description": "The PDF form, PDF 1.5: the file specification in an object stream, the embedded file deflated",
+              "outcome": "valid"})
+    other_json = (json.dumps(issue(variant(tools=[])), indent=1) + "\n").encode()
+    pdf_case("pdf-two-attachments", pdf_fixtures.classic(good_json, [("certificate.json", good_json), ("certificate.json", other_json)]),
+             {"description": "Two different embedded files both named certificate.json: refused", "outcome": "invalid",
+              "failing": ["certificate.pdf"]})
+    tampered_json = good_json.replace(b'"ledger-certificate/v0"', b'"ledger-certificate/v0" ', 1).replace(
+        subject["doc_id"].encode(), subject["doc_id"][:-1].encode() + b"0", 1)
+    pdf_case("pdf-updated-attachment", pdf_fixtures.with_update(pdf_fixtures.classic(good_json), tampered_json),
+             {"description": "An incremental update replaces the embedded certificate with an altered one: the current one is checked, and fails",
+              "outcome": "invalid", "failing": ["certificate.proof"]})
+    pdf_case("pdf-no-attachment", pdf_fixtures.classic(good_json, []),
+             {"description": "A PDF carrying no certificate.json", "outcome": "invalid", "failing": ["certificate.pdf"]})
+
     case("unknown-version", issue(variant(contract="ledger-certificate/v9")),
          {"description": "A contract version this verifier does not know: not verified", "outcome": "indeterminate"})
 

@@ -50,8 +50,11 @@ the event chain). It does not, and cannot:
 * **An unanchored certificate has no time bound** beyond the issuer's claim.
 * **Fields the verifier does not understand** are listed as a warning: they
   are covered by the signature but not checked.
-* **The PDF form** is a rendering; the verifier checks the JSON (extraction
-  from the PDF is planned for 31 October).
+* **The PDF form** is a rendering; the verifier checks the JSON the PDF
+  carries as `certificate.json`, not what the pages show. It takes the
+  current version after incremental updates, and refuses a PDF carrying two
+  different `certificate.json` files. Text on the pages that disagrees with
+  the JSON is not detected.
 
 ## OpenTimestamps
 

@@ -213,6 +213,17 @@ def verify(
     to the sign event; with it, step 7 runs."""
     checks: list[Check] = []
     bad = {o: "The certificate does not hold: see the failing checks." for o in Outcome}
+    if cert_bytes.startswith(b"%PDF-"):
+        from . import pdf
+
+        try:
+            cert_bytes = pdf.extract(cert_bytes)
+        except (pdf.PdfError, ValueError, IndexError) as exc:
+            checks.append(Check("certificate.pdf", Status.FAIL, "no single certificate.json could be taken from the PDF", reasons=[str(exc)]))
+            return make_verdict("certificate", subject or "certificate PDF", checks, bad, LIMITS, checked_at)
+        checks.append(Check("certificate.pdf", Status.PASS,
+                            f"certificate.json taken from the PDF's embedded files ({len(cert_bytes)} bytes, SHA-256 {sha256(cert_bytes).hex()})",
+                            reasons=["the PDF is a rendering; what follows checks the JSON it carries, which is the record"]))
     try:
         cred = jcs.loads(cert_bytes)
         if not isinstance(cred, dict) or not isinstance(cred.get("credentialSubject"), dict):

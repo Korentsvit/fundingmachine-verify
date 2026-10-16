@@ -1,0 +1,281 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(certificate.json) 10 0 R] >> >> /AF [10 0 R] >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 7 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 69 >>
+stream
+BT /F1 12 Tf 72 720 Td (Provenance Ledger certificate: fixture) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+10 0 obj
+<< /Type /Filespec /F (certificate.json) /UF (certificate.json) /AFRelationship /Source /EF << /F 11 0 R /UF 11 0 R >> >>
+endobj
+11 0 obj
+<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size 10560 >> /Length 10560 >>
+stream
+{
+ "@context": [
+  "https://www.w3.org/ns/credentials/v2"
+ ],
+ "id": "urn:uuid:3c2f1e0d-0000-4000-8000-00000000c0de",
+ "type": [
+  "VerifiableCredential",
+  "ProvenanceCertificate"
+ ],
+ "issuer": {
+  "id": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "name": "Provenance Ledger"
+ },
+ "validFrom": "2026-10-16T09:10:00.000Z",
+ "credentialSubject": {
+  "type": "DocumentWritingRecord",
+  "contract": "ledger-certificate/v0",
+  "scope_statement": "This record shows how this document was written in this environment; it does not detect AI, certify originality, or prove what the author consulted elsewhere.",
+  "tenant_id": "fixture",
+  "doc_id": "0b7d1c52-5f1e-4c47-9a0e-6d1f6d3f2a11",
+  "document": {
+   "exported_sha256": "81a94fb9eb7e9558aa8e7087993bae32f8e42d3f2f8cfe6e6995647618a80ca4",
+   "media_type": "text/plain",
+   "byte_length": 66,
+   "doc_hash": "22a60227bc474b045bc5dfa1113375ae82050a89e5cc748cadbe8bf4caf6183b",
+   "key_commitment": "5f5d7a86a7857b06a1e245d658d14868343eb9dd275b30287a41325de1a2b855"
+  },
+  "signed": {
+   "seq": 20,
+   "event_hash": "b1028806da5ed14955c93550c1933ceb3b8a800a263ac88dbd3e0ea59e385927",
+   "ts": "2026-10-16T08:00:20.000Z",
+   "actor_id": "person:0f1x",
+   "declaration_hash": "21831c4d3f49de37b83fa07101998356fa7d8e12ee04615a78e7fe792bf1cf1c"
+  },
+  "chain": {
+   "first_event_hash": "7b009fa243e3dbc8d62c2d214dd8711ccee9bb001ac4dfac436c76862f8f6360",
+   "events": 20,
+   "sessions": [
+    {
+     "session_id": "e085029c-e20e-4c03-8072-d71ec1e65e23",
+     "key_id": "323a9fde7e367f46d5e70b438eb0ec855dd558dc5a6dbab256e455890fd4097a",
+     "public_key": "-ezXYN1rP3Cvrw2T5M7GAnGgmQtQFKtZPtEOPK09tIs",
+     "client": {
+      "name": "fm-verify-fixture-writer",
+      "version": "0.1.0"
+     },
+     "opened_seq": 1,
+     "closed_seq": 14
+    },
+    {
+     "session_id": "8adde6d8-d001-4612-b4b1-989c9f137c85",
+     "key_id": "2bd3202967edccf3bf10df8e0532c4c2e92b05c2a66c6a8314e529d65c3a5533",
+     "public_key": "huz_ugu-3APWcjMQj-N4WoMqfCdrnUx9t5WqPJ9iZvI",
+     "client": {
+      "name": "fm-verify-fixture-writer",
+      "version": "0.1.0"
+     },
+     "opened_seq": 15,
+     "closed_seq": null
+    }
+   ]
+  },
+  "authorship": {
+   "contract": "authorship-map/v0",
+   "map_sha256": "7ea8b884acd5942f36e223e81e609ec3c02d57c7e8b311f7840d966133e5d550",
+   "unit": "unicode_code_point",
+   "document": {
+    "total": 161,
+    "counts": {
+     "human_typed": 92,
+     "imported": 33,
+     "tool_generated": 33,
+     "tool_edited": 3
+    },
+    "percent": {
+     "human_typed": "57.1",
+     "imported": "20.5",
+     "tool_generated": "20.5",
+     "tool_edited": "1.9"
+    }
+   },
+   "sections": [
+    {
+     "section_id": "approach",
+     "section_ref": "call:example/approach",
+     "statements": 1,
+     "total": 91,
+     "counts": {
+      "human_typed": 59,
+      "imported": 32,
+      "tool_generated": 0,
+      "tool_edited": 0
+     },
+     "percent": {
+      "human_typed": "64.8",
+      "imported": "35.2",
+      "tool_generated": "0.0",
+      "tool_edited": "0.0"
+     }
+    },
+    {
+     "section_id": "team",
+     "section_ref": "call:example/team",
+     "statements": 1,
+     "total": 70,
+     "counts": {
+      "human_typed": 33,
+      "imported": 1,
+      "tool_generated": 33,
+      "tool_edited": 3
+     },
+     "percent": {
+      "human_typed": "47.2",
+      "imported": "1.4",
+      "tool_generated": "47.1",
+      "tool_edited": "4.3"
+     }
+    }
+   ],
+   "fidelity": {
+    "total": 161,
+    "counts": {
+     "live": 92,
+     "snapshot_diff": 33,
+     "tool_report": 36,
+     "reconstructed": 0,
+     "declared": 0
+    },
+    "percent": {
+     "live": "57.1",
+     "snapshot_diff": "20.5",
+     "tool_report": "22.4",
+     "reconstructed": "0.0",
+     "declared": "0.0"
+    }
+   },
+   "activity": {
+    "inserted": {
+     "human_typed": 101,
+     "imported": 33,
+     "tool_generated": 36,
+     "tool_edited": 3
+    },
+    "deleted": 12
+   }
+  },
+  "tools": [
+   {
+    "tool_name": "Example Assistant",
+    "model_id": "example-model-1"
+   }
+  ],
+  "evidence": {
+   "statements": 2,
+   "statements_with_evidence": 1,
+   "bindings": [
+    {
+     "binding_id": "a04b28ec-17c8-41fc-9cad-98b2298d9334",
+     "statement_id": "st-1",
+     "bound_seq": 11,
+     "source": {
+      "ref": "url:https://example.org/source",
+      "visibility": "public"
+     },
+     "date": {
+      "kind": "retrieved",
+      "value": "2026-10-15"
+     },
+     "licence": "CC-BY-4.0",
+     "page_hash": "eab30e813a83b4e36477ddd480221ee03eb010e76c1a7d24614244bf0fadaf7e",
+     "quoted_span": {
+      "quote_hash": "9b1eafcb270f5b336de68568907ec65c89f8fba3ea69ca8fff3c0edbcae240fe",
+      "locator": "paragraph 2"
+     }
+    }
+   ]
+  },
+  "ledger_root": {
+   "record": {
+    "contract": "ledger-root/v0",
+    "tenant_id": "fixture",
+    "window": {
+     "start": "2026-10-16T08:00:00.000Z",
+     "end": "2026-10-16T09:00:00.000Z"
+    },
+    "size": 20,
+    "root": "85d00035b5df859ac019eaa1cd740aff126923d360153745163def74f69977de",
+    "prev_root": "0000000000000000000000000000000000000000000000000000000000000000",
+    "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+    "sig": "Cv-VYe7vWjfnzsjiSuO-MTNgEF8VHA5KFKe6_NFyS0wZcTXKQKjTk1PWvIK-_nIF6JaXMpjUIdsMPEc4ki9TCA"
+   },
+   "leaf_index": 19,
+   "audit_path": [
+    "e6978f1e25d8ce5837508793ef7fa3a1bccc065f73c6a063a3bd7412d16a413a",
+    "e3f29eef6d8a30bead7ca0c4915908d108abd736b7009b4e11028cd1c98bc864",
+    "b55967116c4135add06b5d74538b75a3e0330f8abb24b7c017f46136210134d2"
+   ],
+   "anchor": {
+    "contract": "ledger-anchor/v0",
+    "root": "fe9fb45b25a72bdf237d7b96d45d0fc9b12e02e185ab4592fc79064aa9d34ea3",
+    "size": 2,
+    "leaf_index": 0,
+    "audit_path": [
+     "20263b7479f24702695cd59bfcf20f4e39428a4f1d3fb6b269f79c7b51a6e9ca"
+    ],
+    "opentimestamps": {
+     "proof_b64": "AE9wZW5UaW1lc3RhbXBzAABQcm9vZgC/ieLohOiSlAEI/p+0WyWnK98jfXuW1F0PybEuAuGFq0WS/HkGSqnTTqPwENv4kUZeqxBNJJ+GWPTkZM8I8SBQMVj9J1jVr59yLTXNtLoZD/zpvLTlouNvuaIiYUI0RwjxOgEAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////8BAAAAAAAAAAAiaiDwBAAAAAAICPAgUXeARYVMOilHbxofAOVToE9t3HJWQ1ZDQwEKZ39FiA8ICAAFiJYNc9cZAQED",
+     "status": "bitcoin",
+     "bitcoin_block": 3
+    },
+    "rfc3161": [
+     {
+      "authority": "FM Verify Test TSA RSA",
+      "url": "http://tsa.example.org",
+      "token_b64": "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",
+      "gen_time": "2026-10-16T09:05:00Z"
+     }
+    ]
+   }
+  }
+ },
+ "proof": {
+  "type": "DataIntegrityProof",
+  "cryptosuite": "eddsa-jcs-2022",
+  "created": "2026-10-16T09:10:00.000Z",
+  "verificationMethod": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu#z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "proofPurpose": "assertionMethod",
+  "@context": [
+   "https://www.w3.org/ns/credentials/v2"
+  ],
+  "proofValue": "z5fsErMJUXskj9VcwZiWeSgqJnJhooFx3RvXGHyUSk8y73BEC3HZRZV1tYEyiKpcLJvpUaASZMeap86CfrtKckSAJ"
+ }
+}
+
+endstream
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000015 00000 n 
+0000000146 00000 n 
+0000000203 00000 n 
+0000000329 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000448 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000518 00000 n 
+0000000656 00000 n 
+trailer
+<< /Size 12 /Root 1 0 R >>
+startxref
+11345
+%%EOF

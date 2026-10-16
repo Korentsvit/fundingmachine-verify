@@ -18,7 +18,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "cryptography>=44"]
-interop = ["opentimestamps>=0.4.5"]
+interop = ["opentimestamps>=0.4.5", "pypdf>=4"]
 
 [project.scripts]
 fm-verify = "fmverify.cli:main"

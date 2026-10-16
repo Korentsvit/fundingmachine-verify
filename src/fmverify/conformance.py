@@ -85,7 +85,7 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
                                       header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls)
     elif kind == "certificate":
         events = json.loads((case / exp["events"]).read_text(encoding="utf-8"))["events"] if "events" in exp else None
-        v = certificate.verify_file(case / "certificate.json", case / exp["file"] if "file" in exp else None,
+        v = certificate.verify_file(case / exp.get("certificate", "certificate.json"), case / exp["file"] if "file" in exp else None,
                                     header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls,
                                     events=events)
     elif kind == "chain":

@@ -24,7 +24,7 @@ ledger, capture, capital, or the website.
 | V-6b | Run the API under Pyodide in CI, so the browser claim is tested rather than stated | this pull request |
 | V-7 | Certificate v0 against the Ledger session's `docs/CERTIFICATE.md` (published 16 October): steps 1 to 6 (proof, scope statement, file, root record, inclusion, anchor) | this pull request |
 | V-7b | Certificate step 7: the `ledger-event/v0` chain rules and the authorship map recomputed and hashed to `map_sha256`; `fm-verify chain`; chain fixtures (valid, tampered, back-dated, re-ordered) | this pull request |
-| V-7c | The PDF form: extract the embedded `certificate.json` and verify it | queued |
+| V-7c | The PDF form: extract the embedded `certificate.json` and verify it | this pull request |
 | V-3b | The Ledger session's anchor layout (`docs/ANCHORING.md`: RFC 8785 descriptor leaves, `root.preimage`, proofs over it), read from the document: this pull request. To finish when the job lands on 17 October: the manifest's `anchor-manifest/v0` schema, the `anchors` branch's `index.jsonl`, and the authorities' chains under `anchors/tsa/` | in progress |
 | V-8 | Static HTML report: authorship map and evidence coverage, no script at all (`--html`, and `render: html` in the API) | this pull request |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use (`docs/CONFORMANCE.md`). Runner, and fixtures for anchors, certificates and chains: this pull request. To finish: a versioned release of the fixtures and the runner's instructions for other implementations | in progress |

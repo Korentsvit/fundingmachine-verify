@@ -283,8 +283,8 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     a.set_defaults(func=cmd_anchors)
 
-    ce = sub.add_parser("certificate", help="a Provenance Ledger certificate (ledger-certificate/v0, JSON form)")
-    ce.add_argument("certificate", help="the certificate JSON")
+    ce = sub.add_parser("certificate", help="a Provenance Ledger certificate (ledger-certificate/v0), JSON or PDF")
+    ce.add_argument("certificate", help="the certificate: its JSON, or the PDF that carries it as certificate.json")
     ce.add_argument("--file", help="the exported document the certificate covers")
     ce.add_argument("--events", help="the document's event chain (ledger-event/v0 events, a JSON array or {\"events\": [...]}), for step 7")
     _header_options(ce)
@@ -332,9 +332,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         cert = None
         if args.kind == "certificate":
+            from . import pdf
+
             try:
-                cert = json.loads(_read(args.certificate).decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError):
+                raw = _read(args.certificate)
+                cert = json.loads((pdf.extract(raw) if raw.startswith(b"%PDF-") else raw).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError, pdf.PdfError):
                 cert = None
         title = "Provenance Ledger certificate: verification report" if args.kind == "certificate" else None
         try:
