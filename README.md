@@ -13,7 +13,7 @@ convenience on top of it.
 | OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` | done |
 | RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
 | An anchor batch: listed files, their Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | done, in the verifier's proposed format until the Ledger session publishes its own |
-| Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done; the PDF form and the HTML report for 31 October |
+| Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): all seven steps of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor, and with `--events` the chain and the authorship map) | `fm-verify certificate` | done, with the HTML report (`--html`); the PDF form for 31 October |
 | Provenance Ledger event chain (`ledger-event/v0`): every chain rule, in the contract's order, with the contract's failure codes | `fm-verify chain` | done |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
@@ -62,7 +62,12 @@ A verdict is never a bare pass. Each one gives:
 | `indeterminate` | nothing contradicts, but something needed could not be checked: no header for the block, a proof still pending, a header too weak to rely on, no trusted root given | 2 |
 | usage error | a file could not be read, an argument is malformed | 64 |
 
-`--json` prints the same verdict as JSON.
+`--json` prints the same verdict as JSON. `--html PATH` also writes it as a
+self-contained page (no script, no external resource); for a certificate the
+page adds the authorship map (by document, section and capture fidelity) and
+the evidence coverage, each figure labelled as recomputed from the chain or
+read from the certificate, with the certificate's scope statement near the
+top.
 
 ## Use
 

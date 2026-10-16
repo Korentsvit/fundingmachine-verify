@@ -164,7 +164,15 @@ def verify(request: dict) -> dict:
     """Answer one request. Never raises for a malformed request: the answer
     then carries ``error``."""
     try:
-        return _run(request).to_dict()
+        verdict = _run(request)
+        answer = verdict.to_dict()
+        if isinstance(request, dict) and request.get("render") == "html":
+            from . import report
+
+            cert = request.get("certificate") if request.get("kind") == "certificate" else None
+            answer["html"] = report.render(verdict, cert if isinstance(cert, dict) else None,
+                                           "Provenance Ledger certificate: verification report" if cert else None)
+        return answer
     except (RequestError, KeyError, TypeError, AttributeError) as exc:
         return {"api": API, "error": str(exc) if isinstance(exc, RequestError) else f"malformed request: {exc!r}",
                 "tool": {"name": "fm-verify", "version": __version__}}

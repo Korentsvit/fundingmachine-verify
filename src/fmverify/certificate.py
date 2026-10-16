@@ -329,8 +329,8 @@ def verify(
                  else " No exported file was presented.")
     root_part = ""
     if lr is not None:
-        root_part = (f" The sign event is in the issuer's signed hourly root {lr.get('record', {}).get('root')}"
-                     + (f"; {anchored_statement}" if anchored_statement else "; that root is not anchored in this certificate") + ".")
+        root_part = (f" The sign event is in the issuer's signed hourly root {lr.get('record', {}).get('root')}."
+                     + (f" That root is anchored. {anchored_statement}" if anchored_statement else " That root is not anchored in this certificate."))
     statements = {
         Outcome.VALID: (f"{cred.get('issuer', {}).get('id')} signed this record of how document {subj.get('doc_id')} "
                         f"(exported SHA-256 {doc.get('exported_sha256')}) was written in this environment, signed at event "

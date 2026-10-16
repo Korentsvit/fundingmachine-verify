@@ -238,6 +238,7 @@ def build_parser() -> argparse.ArgumentParser:
     who.add_argument("--digest", help="the digest (hex) the proof should cover, if the file is not at hand")
     _header_options(o)
     o.add_argument("--json", action="store_true")
+    o.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     o.set_defaults(func=cmd_ots)
 
     r = sub.add_parser("rfc3161", help="an RFC 3161 time-stamp token against the authority's certificate chain")
@@ -251,6 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the token (repeatable)")
     r.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     r.add_argument("--json", action="store_true")
+    r.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     r.set_defaults(func=cmd_rfc3161)
 
     a = sub.add_parser("anchors", help="an anchor batch: listed files, Merkle root, and the anchors over the root")
@@ -264,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
     a.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     a.add_argument("--json", action="store_true")
+    a.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     a.set_defaults(func=cmd_anchors)
 
     ce = sub.add_parser("certificate", help="a Provenance Ledger certificate (ledger-certificate/v0, JSON form)")
@@ -275,11 +278,13 @@ def build_parser() -> argparse.ArgumentParser:
     ce.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
     ce.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     ce.add_argument("--json", action="store_true")
+    ce.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ce.set_defaults(func=cmd_certificate)
 
     ch = sub.add_parser("chain", help="a Provenance Ledger event chain (ledger-event/v0)")
     ch.add_argument("events", help="the events, a JSON array or {\"events\": [...]}")
     ch.add_argument("--json", action="store_true")
+    ch.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ch.set_defaults(func=cmd_chain)
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
@@ -294,6 +299,7 @@ def build_parser() -> argparse.ArgumentParser:
     leaf.add_argument("--leaf-hex", help="the leaf data in hex")
     m.add_argument("--root", help="the root (hex) held from the anchored record; the proof's root must equal it")
     m.add_argument("--json", action="store_true")
+    m.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     m.set_defaults(func=cmd_merkle)
     return p
 
@@ -307,6 +313,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_USAGE
     if isinstance(verdict, int):
         return verdict
+    if getattr(args, "html", None):
+        from . import report
+
+        cert = None
+        if args.kind == "certificate":
+            try:
+                cert = json.loads(_read(args.certificate).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                cert = None
+        title = "Provenance Ledger certificate: verification report" if args.kind == "certificate" else None
+        try:
+            Path(args.html).write_text(report.render(verdict, cert if isinstance(cert, dict) else None, title), encoding="utf-8")
+        except OSError as exc:
+            print(f"fm-verify: cannot write {args.html}: {exc.strerror}", file=sys.stderr)
+            return EXIT_USAGE
     print(verdict.to_json() if args.json else verdict.to_text())
     return verdict.exit_code
 

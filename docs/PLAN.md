@@ -26,7 +26,7 @@ ledger, capture, capital, or the website.
 | V-7b | Certificate step 7: the `ledger-event/v0` chain rules and the authorship map recomputed and hashed to `map_sha256`; `fm-verify chain`; chain fixtures (valid, tampered, back-dated, re-ordered) | this pull request |
 | V-7c | The PDF form: extract the embedded `certificate.json` and verify it | queued |
 | V-3b | The Ledger session's anchor layout (`docs/ANCHORING.md`: RFC 8785 descriptor leaves, `root.preimage`, the `anchors` branch, `anchor-manifest/v0` arriving with the job on 17 October) beside the verifier's own batch format | next, as soon as the schema lands |
-| V-8 | Static HTML report: authorship map and evidence coverage, no script from any third party | queued |
+| V-8 | Static HTML report: authorship map and evidence coverage, no script at all (`--html`, and `render: html` in the API) | this pull request |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use (`docs/CONFORMANCE.md`). Runner, and fixtures for anchors, certificates and chains: this pull request. To finish: a versioned release of the fixtures and the runner's instructions for other implementations | in progress |
 | V-10 | Security note: what the verifier cannot detect | queued |
 | V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file | queued |

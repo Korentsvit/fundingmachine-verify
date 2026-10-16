@@ -29,6 +29,7 @@ Common fields:
 | `min_work_bits` | floor for headers checked alone (default 70 on mainnet) |
 | `roots`, `chain` | PEM certificates: roots you trust, and intermediates not in a token |
 | `crls` | PEM certificate revocation lists you hold, checked along the trusted path |
+| `render` | `html` adds `html` to the answer: the verdict as a self-contained page (for a certificate, with its authorship map and evidence coverage) |
 
 `explorer` is refused: this entry point makes no network call. A page that
 fetches headers from an explorer passes them as sparse headers and names
