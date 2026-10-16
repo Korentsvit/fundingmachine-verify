@@ -95,3 +95,28 @@ def test_ledger_anchor_page():
     proof = ledger_anchors.prove(fix / "ledger-anchors" / "set-valid", "1199f8a6e12fc811a087d17a1037589b637da1bb0edc31b02b15680402f077fe",
                                  roots=roots, header_sources=hdr, network=NETWORKS["regtest"])
     assert "Anchors naming this content, earliest first" in report.render(proof)
+
+
+def test_styles_are_one_element_a_policy_can_pin():
+    # The hosted page shows reports under a Content Security Policy
+    # (docs/HOSTED_PAGE.md): every style must be the one <style> element,
+    # whose hash CSP_STYLE_HASH gives, and no element may carry style="...".
+    import base64
+    import hashlib
+    import re
+
+    cred = json.loads((CASE / "certificate.json").read_text())
+    html = report.render(_verdict(), cred)
+    assert '<svg class="bar"' in html  # the authorship bar is drawn, as geometry
+    p = _Tags()
+    p.feed(html)
+    assert not any(k == "style" for k, _ in p.attrs)
+    styles = re.findall(r"<style>(.*?)</style>", html, re.S)
+    assert len(styles) == 1
+    assert report.CSP_STYLE_HASH == "'sha256-" + base64.b64encode(hashlib.sha256(styles[0].encode()).digest()).decode() + "'"
+
+
+def test_bar_segments_stay_within_the_bar():
+    labels = {"a": "A", "b": "B", "c": "C"}
+    svg = report._bar({"percent": {"a": 60, "b": 50.5, "c": "x"}}, ["a", "b", "c"], labels)
+    assert 'x="0.0" y="0" width="60.0"' in svg and 'x="60.0" y="0" width="40.0"' in svg and 'x="100.0" y="0" width="0.0"' in svg

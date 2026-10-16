@@ -15,8 +15,11 @@ package is pure Python apart from `cryptography`, which Pyodide ships). CI
 runs `tools/pyodide/check.mjs`, which loads the package into Pyodide 0.27.7
 (Python 3.12, cryptography 42.0.5, the oldest version the package accepts)
 and checks ten fixture requests: among them a certificate with its HTML
-page, and two certificates passed as the PDF received. The command line
-remains the proof.
+page, and two certificates passed as the PDF received. The same CI job runs
+three of them in Chrome, served from one origin under the hosted page's
+Content Security Policy (`tools/pyodide/policy/check.mjs`; what the page
+must do is in [HOSTED_PAGE.md](HOSTED_PAGE.md)). The command line remains
+the proof.
 
 ## Request
 
@@ -32,7 +35,7 @@ Common fields:
 | `min_work_bits` | floor for headers checked alone (default 70 on mainnet) |
 | `roots`, `chain` | PEM certificates: roots you trust, and intermediates not in a token |
 | `crls` | PEM certificate revocation lists you hold, checked along the trusted path |
-| `render` | `html` adds `html` to the answer: the verdict as a self-contained page (for a certificate, with its authorship map and evidence coverage) |
+| `render` | `html` adds `html` to the answer: the verdict as a self-contained page (for a certificate, with its authorship map and evidence coverage), styled by one `<style>` element whose Content Security Policy source is `fmverify.report.CSP_STYLE_HASH` |
 
 `explorer` is refused: this entry point makes no network call. A page that
 fetches headers from an explorer passes them as sparse headers and names

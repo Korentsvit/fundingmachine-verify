@@ -54,6 +54,10 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   (`pip install ./fundingmachine_verify-VERSION-py3-none-any.whl`); with
   `--require-hashes`, pip asks for the hash of every dependency too
   (`cryptography` and what it needs), not only the verifier's.
+* **The hosted page runs this code, in your browser.** verify.fundingmachine.ai
+  is to run the same wheel under Pyodide, every file from its own origin,
+  nothing you give leaving the tab, under a Content Security Policy CI tests
+  in Chrome: [docs/HOSTED_PAGE.md](docs/HOSTED_PAGE.md), its specification.
 
 ## Verdicts
 

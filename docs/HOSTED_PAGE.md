@@ -1,0 +1,251 @@
+# The hosted verifier page
+
+Specification `hosted-page/0` for verify.fundingmachine.ai, written by the
+Verifier session for the website side to build. Its purpose is that the page
+shows what `fm-verify` shows for the same inputs and says what that verdict
+rests on. The command line remains the proof; the page is a convenience
+(`docs/decisions.d/2026-10-16-verify-report.md`).
+
+"Must" and "must not" are requirements. Everything else is advice.
+
+## 1. Where the verifying happens
+
+1. The page runs this repository's library entry point (`fmverify.api.verify`,
+   [API.md](API.md)) in the reader's browser under Pyodide. No server verifies
+   anything, and the page has no "verify on our server" mode.
+2. Nothing the reader gives leaves the browser tab: not the file, its hash or
+   the verdict. Inputs are not written to local storage, IndexedDB or cookies,
+   and a reload forgets them.
+3. The page has no analytics, error reporting, tracking or third-party embed,
+   and keeps no record of what was verified.
+4. The page passes each file as the bytes the reader picked. It does not take
+   `certificate.json` out of a PDF itself, re-encode JSON or change line
+   endings. A certificate goes in as `certificate_file`, so this verifier's
+   reader decides what the PDF holds: two readers can take different
+   certificates from one damaged file (V-28 in [PLAN.md](PLAN.md)).
+
+## 2. What it loads
+
+Everything comes from the page's own origin. No script, stylesheet, font or
+image is loaded from anywhere else.
+
+| Files | Source | Pinned by |
+| --- | --- | --- |
+| The page's own HTML, scripts and styles | the website side | its build |
+| Pyodide: `pyodide.mjs`, `pyodide.asm.js`, `pyodide.asm.wasm`, `python_stdlib.zip`, `pyodide-lock.json` | the `pyodide` npm package of the pinned version | the page's npm lock file |
+| `cryptography` and what it depends on (for Pyodide 0.27.7: cffi, openssl, pycparser, six) | Pyodide's distribution for that version | the SHA-256 values in `pyodide-lock.json`; `tools/pyodide/policy/fetch_packages.py` keeps no other file |
+| The fm-verify wheel | `tools/build_release.py` at a tagged commit of this repository | its SHA-256, which anyone can rebuild |
+
+* The tested combination is Pyodide 0.27.7 (Python 3.12) with cryptography
+  42.0.5, the oldest version the package accepts. Before another version of
+  either ships, the page's CI must pass section 8 with it.
+* Next to every verdict the page shows fm-verify's version and tag, the
+  wheel's SHA-256 and the Pyodide version, and links to how the wheel is
+  rebuilt (README, "Independence"). A reader who does not trust the
+  host can compare that hash with a build of their own, or use the command
+  line.
+* The page pins a tagged release. None exists yet: the tag of v0.1.0 waits on
+  the owner.
+
+Loading takes three calls: `loadPyodide({indexURL})` with the page's own
+path, `loadPackage(["cryptography"])` (resolved through the lock file, from
+the same origin), and `unpackArchive(wheelBytes, "wheel")`. No micropip and
+no package index. `tools/pyodide/policy/app.mjs` shows the sequence.
+
+## 3. Content Security Policy
+
+The page must send this policy as an HTTP header on every response (a meta
+tag cannot set `frame-ancestors`):
+
+```
+default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://mempool.space https://blockstream.info; style-src 'self' STYLE_HASH; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+```
+
+* `STYLE_HASH` is `fmverify.report.CSP_STYLE_HASH` of the shipped version,
+  the hash of the HTML report's one `<style>` element. The report has no other
+  style, no script and no external resource (`tests/test_report.py`).
+* There is no `'unsafe-eval'` and no `'unsafe-inline'`. The verifier, Pyodide
+  0.27.7 and cryptography 42.0.5 run without them.
+  * `tools/pyodide/policy/check.mjs` was run on 16 October 2026 in Chromium
+    141.0.7390.37. It found no violation and the outcomes the fixtures
+    expect, and the report frame rendered with its styles.
+  * Built from the code before the report's bar became SVG, the same check
+    fails on the report's inline styles.
+  * CI's `pyodide` job runs the check in Chrome on every change.
+* The page's own styles are files from its origin. If the page needs any
+  other source, that is a change to this specification, made here first.
+* The page must also send `Referrer-Policy: no-referrer` and
+  `X-Content-Type-Options: nosniff`, and a `Permissions-Policy` that denies
+  camera, microphone, geolocation and payment.
+
+## 4. Inputs
+
+| The reader gives | Request field |
+| --- | --- |
+| The certificate, PDF or JSON, as received | `certificate_file` (base64) |
+| The document the certificate covers (optional) | `file` |
+| The document's events, if the tenant gave them (optional) | `events` |
+| Bitcoin block headers (section 5) | `headers` |
+| Roots for the time-stamping authorities (section 6) | `roots` |
+| Revocation lists the reader holds (optional) | `crls` |
+
+The page always asks for `render: "html"`.
+
+The page may also offer one OpenTimestamps proof with its file
+(`kind: ots`), one RFC 3161 token with its file (`kind: rfc3161`), and an
+event chain (`kind: chain`), optionally with a disclosure. The page never
+shows text from a disclosure, and the verdict never repeats it.
+
+Not in `hosted-page/0`:
+
+* Provenance Ledger anchors (`kind: ledger-anchor`, or "when did this file
+  exist"). None is published yet. Also, the conformance kind `ledger-anchors`
+  includes checkout comparisons and whole-tree searches the entry point
+  cannot take. They come in a later version.
+* Fetching a certificate from a URL.
+
+The page must refuse a file over 64 MiB before reading it, with a message
+rather than a verdict. That matches the verifier's own bound on a PDF's
+decoded content.
+
+Running Pyodide in a Web Worker keeps the page responsive. A worker falls
+under the same policy (`worker-src` falls back to `script-src 'self'`). The
+tested run is on the main thread.
+
+## 5. Block headers
+
+OpenTimestamps proofs are checked against Bitcoin block headers. The reader
+supplies them, or the page fetches them, but only when the reader asks. The
+page offers three sources, strongest first:
+
+1. **A headers file the reader holds**: `HEIGHT HEX` lines, or consecutive
+   80-byte headers with the first header's height. It is passed as
+   `{"kind": "sparse"}` or `{"kind": "chain"}`, with `name` set to the file
+   name.
+2. **Two explorers compared**, the default once the reader agrees to a fetch.
+   * For each block the proof names, the page fetches the header from
+     mempool.space and from blockstream.info, through their Esplora API:
+     `GET /api/block-height/{height}`, then `GET /api/block/{hash}/header`.
+   * It passes the two answers as two sparse sources, each named by its origin
+     (for example `mempool.space, fetched by this page`).
+   * The verifier finds any disagreement and gives an invalid verdict. The page
+     never chooses between the two answers itself.
+3. **One explorer, trusted outright**, only if the reader picks it. The
+   verdict's reliance names that explorer.
+
+Before fetching, the page says what the explorers learn:
+
+* the block heights, which show roughly when the anchor was made;
+* the reader's IP address;
+* that the request comes from this page (browsers send the page's origin with
+  a cross-origin request).
+
+They learn nothing else about the document.
+
+Both explorers allowed cross-origin reads (`Access-Control-Allow-Origin: *`)
+when checked on 16 October 2026 at 23:27 UTC. They also returned identical
+headers for blocks 971642 and 971659. If either stops serving the page, the
+page offers the other alone, stated as one explorer trusted.
+
+The page never passes `explorer`, which the entry point refuses. It fetches
+nothing by transaction id, commitment or document hash, and it contacts no
+OpenTimestamps calendar.
+
+## 6. Roots and revocation
+
+Browsers do not expose their trust store to a page. So the page ships the
+roots of the authorities the Provenance Ledger uses (DigiCert and Sectigo, its
+`docs/ANCHORING.md`).
+
+* Each root is taken from the authority's own publication. Its URL, retrieval
+  date and SHA-256 fingerprint are shown beside the verdict.
+* The verdict names the root a token chained to.
+* The page says these roots were chosen by the page, and lets the reader
+  replace them with PEM files of their own.
+
+The page does not fetch revocation lists. The reader may add lists they hold
+(`crls`). Without them, the verdict says revocation was not checked, and the
+page shows that.
+
+## 7. Showing the answer
+
+1. **The outcome.** The page shows the outcome word exactly as the verifier
+   gives it: VALID, INVALID or INDETERMINATE.
+   * The verdict's statement is always beside it.
+   * The "Relied on" and "Does not establish" lists are on the same screen,
+     without a click.
+   * There is never a tick, seal or colour on its own; every status is spelt
+     out in words.
+2. **Every check**, with its id, status, summary and reasons. Checks may be
+   folded, but warnings and failures start unfolded.
+3. **The report.** The `html` the entry point returns is shown in an
+   `<iframe sandbox srcdoc="...">`. The `sandbox` attribute is empty: no
+   scripts, no same origin, no forms, no navigation. The report and the
+   verdict's JSON can each be saved as they are.
+4. **Errors.**
+   * An answer with `error` is shown as "Could not check" with the error text,
+     never as a verdict.
+   * An answer with `internal: true` is a fault in the verifier. The page says
+     so and links to [SECURITY_NOTE.md](SECURITY_NOTE.md), "Reporting a
+     problem".
+5. **The equivalent command line**, built from the file names the reader
+   gave, so the result can be reproduced without the page:
+   `fm-verify certificate certificate.pdf --file proposal.pdf --headers headers.txt --roots roots.pem`.
+6. **The issuer key.** The certificate's issuer key (`did:key`) is shown with
+   "compare it with a key the tenant publishes somewhere you trust".
+   * The page keeps no list of tenants' keys and never names the holder of a
+     key.
+   * Doing either would make FundingMachine the authority the certificate is
+     checked against.
+7. **The words.** These follow standing ruling
+   `shows-the-work-never-proves-no-AI`.
+   * The page never calls a document human-written, authentic, original, free
+     of AI, or verified by FundingMachine.
+   * The certificate's scope statement is printed word for word, as the report
+     prints it.
+8. **The clock.** The verdict's `checked_at` comes from the reader's clock, and
+   the page says so.
+9. **Layout.** The page fits a 390-pixel screen without sideways scrolling,
+   works in light and dark, and can be used from the keyboard.
+
+## 8. Conformance of the page
+
+Before each deploy, the page's CI must do three things:
+
+1. **The policy check.** Run `tools/pyodide/policy/check.mjs`, or its
+   equivalent in the page's own test framework, against the build as it will
+   be served: the same files, under the production policy header. It must find
+   the expected outcomes, no policy violation, and the report frame rendered.
+2. **The conformance suite, through the page.** Run
+   `fm-verify conformance fixtures --implementation ADAPTER --kind certificate --kind ots --kind rfc3161 --kind chain --check-ids`.
+   * `ADAPTER` takes `KIND CASE_DIR` ([CONFORMANCE.md](CONFORMANCE.md)) and
+     turns the case into the page's request.
+   * It runs that request in the built page, in a headless browser, and prints
+     the verdict JSON.
+   * Every case must conform.
+3. **The wheel.** Check that the fm-verify wheel it ships has the SHA-256 of
+   the release it names.
+
+Any failure blocks the deploy.
+
+## 9. What the page cannot show
+
+Everything in [SECURITY_NOTE.md](SECURITY_NOTE.md) applies, plus three limits
+of the page itself:
+
+* **The host.** A reader using the page trusts the host to serve the wheel the
+  page names, and the hash on display comes from that same host. The
+  independent checks are rebuilding the wheel, or the command line on the
+  reader's own machine.
+* **The explorers.** Headers from explorers are only as good as the explorers,
+  compared (section 5).
+* **The roots.** They are the page's choice unless the reader replaces them
+  (section 6).
+
+## 10. Changes
+
+* An addition keeps the version.
+* A new version is needed for any change that alters what the page shows for
+  a given verdict, or that loosens sections 1 to 3. It is made here first.
+* Questions from the website side reach the Verifier session through
+  Filipp's daily batch.
