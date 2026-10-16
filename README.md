@@ -132,7 +132,9 @@ FundingMachine's private repositories is in them.
   falsehoods (scope statement, percentages, root record, inclusion, anchor
   time, a token over another root, a Bitcoin block the proof does not hold);
   two attachments under one name; an attachment replaced by an incremental
-  update; an unknown contract version.
+  update; an unknown contract version. Over the v0.1 chain: valid, anchored
+  and with the chain, and a total crediting text changed while capture was
+  off to the person.
 * `chain/*`: chains from `tools/chain_fixtures.py` (two sessions, every event
   type, keyed hashes, no text): valid; tampered; a tool's text relabelled as
   a person's; one event back-dated; the whole chain back-dated and re-signed
@@ -197,8 +199,11 @@ not take this code's word:
   map byte for byte, its journal replayed, its certificate through all seven
   steps (`FM_LEDGER_REPO`; its repository is private and its fixtures are
   not copied here); and the reverse, `tools/ledger_crosscheck/run.mts` runs
-  its validator over these fixtures: on 16 October 2026 it agreed on all 11
-  chains, all 17 certificate proofs and the authorship map hash;
+  its validator over these fixtures. With its branch carrying the proposed
+  v0.1 (27cec9a, 16 October 2026), it agreed on 14 of 15 chains (the other,
+  a version neither reads, it calls invalid and this verifier
+  indeterminate), on all 20 certificate proofs, and on both authorship map
+  hashes, v0 and v0.1;
 * the Ledger's anchoring work (its branch of 16 October 2026): its recorded
   DigiCert and Sectigo responses and OpenTimestamps proof verify here; this
   verifier's schema check gives the published `anchor-manifest/v0` schema's

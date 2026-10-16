@@ -277,7 +277,7 @@ def basic_chain() -> Writer:
     return w
 
 
-def v01_chain(resync_first: bool = True, empty_document: bool = False) -> Writer:
+def v01_chain(resync_first: bool = True, empty_document: bool = False, close: bool = True) -> Writer:
     """Begun under v0, resumed under v0.1 after changes made while capture
     was off: a capture.resync (a statement removed, one changed, one added),
     a paste of unknown source, and a sign with its meaning and the keyed hash
@@ -300,7 +300,8 @@ def v01_chain(resync_first: bool = True, empty_document: bool = False) -> Writer
              added=(("st-3", "st-1", "team", "call:example/team", "The lead has run two such trials."),))
     w.paste("s2", "st-3", 0, "Note: ", source_kind="unknown")
     w.sign("s2", EXPORTED, meaning="authorship", signer_name="Alex Example")
-    w.close("s2")
+    if close:
+        w.close("s2")
     return w
 
 

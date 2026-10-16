@@ -541,10 +541,12 @@ def build_roots() -> None:
                                        "outcome": "valid"})
 
 
-def build_certificates(writer) -> None:
+def build_certificates(writer, prefix: str = "", headers_name: str = "certificate-headers-0-5.bin", fresh: bool = True,
+                       core_only: bool = False) -> None:
     """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
     session's published documents with this repository's own test keys, over
-    the fixture chain of tools/chain_fixtures.py."""
+    a fixture chain of tools/chain_fixtures.py. With ``core_only``, only the
+    valid cases and the overstated map, named with ``prefix``."""
     import base64
     import copy
     import datetime as _dt
@@ -556,9 +558,9 @@ def build_certificates(writer) -> None:
     from fmverify.certificate import ORIGINS, SCOPE_STATEMENT, percentages
 
     out = FIX / "certificate"
-    if out.exists():
+    if fresh and out.exists():
         shutil.rmtree(out)
-    out.mkdir(parents=True)
+    out.mkdir(parents=True, exist_ok=True)
 
     def key(seed: str) -> Ed25519PrivateKey:
         return Ed25519PrivateKey.from_private_bytes(sha256(seed.encode()))
@@ -607,7 +609,7 @@ def build_certificates(writer) -> None:
                          1760200000 + 600 * height)
         headers.append(h)
         prev = sha256d(h)
-    (REG / "certificate-headers-0-5.bin").write_bytes(b"".join(headers))
+    (REG / headers_name).write_bytes(b"".join(headers))
     ots_proof = ots.DetachedTimestamp(SHA256, chain(anchor_root, path_ops, bitcoin_attestation(3))).serialize()
 
     tsa_k, tsa_cert, ica = tsa_fixtures.test_authority()
@@ -624,7 +626,8 @@ def build_certificates(writer) -> None:
                              "gen_time": gen_time_text}]}
 
     exported = chain_fixtures.EXPORTED
-    Writer_tool = chain_fixtures.Writer.tool
+    used_tools = sorted({(e["actor"]["tool_name"], e["actor"]["model_id"]) for e in chain_events if e["actor"]["kind"] == "tool"},
+                        key=lambda t: (t[0], t[1] or ""))
     st = result.state
     bound = {e["payload"]["binding_id"]: e for e in chain_events if e["type"] == "evidence.bind"}
     subject = {
@@ -640,7 +643,7 @@ def build_certificates(writer) -> None:
                                 "opened_seq": v["opened_seq"], "closed_seq": v["closed_seq"]} for sid, v in st.sessions.items()]},
         "authorship": {"contract": "authorship-map/v0", "map_sha256": sha256(jcs.dumps(amap)).hex(), "unit": "unicode_code_point",
                        **{k: amap[k] for k in ("document", "sections", "fidelity", "activity")}},
-        "tools": [{"tool_name": Writer_tool["tool_name"], "model_id": Writer_tool["model_id"]}],
+        "tools": [{"tool_name": name, "model_id": model} for name, model in used_tools],
         "evidence": {"statements": len(st.statements), "statements_with_evidence": len(set(st.bindings.values())),
                      "bindings": [{"binding_id": b, "statement_id": owner, "bound_seq": bound[b]["seq"],
                                    **{k: bound[b]["payload"][k] for k in ("source", "date", "licence", "page_hash", "quoted_span")}}
@@ -660,16 +663,17 @@ def build_certificates(writer) -> None:
         cred["proof"] = {**config, "proofValue": "z" + b58encode(sig)}
         return cred
 
-    common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/certificate-headers-0-5.bin", "start": 0}],
+    common = {"network": "regtest", "headers_chain": [{"path": f"../../bitcoin/regtest/{headers_name}", "start": 0}],
               "roots": ["../../rfc3161/pki/root.pem"]}
 
     def case(name: str, cred: dict, expected: dict, file_bytes: bytes | None = exported, events_doc: list | None = None) -> None:
-        d = out / name
+        d = out / (prefix + name)
         d.mkdir()
         (d / "certificate.json").write_text(json.dumps(cred, indent=1) + "\n", encoding="utf-8")
         exp = {**common, **expected}
         if events_doc is not None:
-            (d / "events.json").write_text(json.dumps({"contract": "ledger-event/v0", "events": events_doc}, indent=1) + "\n", encoding="utf-8")
+            (d / "events.json").write_text(json.dumps({"contract": events_doc[-1]["contract"], "events": events_doc}, indent=1) + "\n",
+                                           encoding="utf-8")
             exp["events"] = "events.json"
         if file_bytes is not None:
             (d / "exported.txt").write_bytes(file_bytes)
@@ -690,14 +694,19 @@ def build_certificates(writer) -> None:
     case("valid-with-chain", issue(subject), {"description": "Anchored certificate, the exported file and the event chain presented: all seven steps run",
                                               "outcome": "valid"}, events_doc=chain_events)
     inflated = copy.deepcopy(amap)
-    moved = inflated["document"]["counts"]["tool_generated"]
+    source = "tool_generated" if amap["document"]["counts"]["tool_generated"] else "imported"
+    moved = inflated["document"]["counts"][source]
     inflated["document"]["counts"]["human_typed"] += moved
-    inflated["document"]["counts"]["tool_generated"] = 0
+    inflated["document"]["counts"][source] = 0
     inflated["document"]["percent"] = percentages(inflated["document"]["counts"], ORIGINS, inflated["document"]["total"])
     case("authorship-overstated", issue(variant(authorship={**subject["authorship"], "document": inflated["document"],
                                                             "map_sha256": sha256(jcs.dumps(inflated)).hex()})),
-         {"description": "The issuer signed a document total crediting the tool's text to the person; only the chain shows it",
+         {"description": ("The issuer signed a document total crediting the tool's text to the person; only the chain shows it"
+                          if source == "tool_generated" else
+                          "The issuer signed a document total crediting text changed while capture was off to the person; only the chain shows it"),
           "outcome": "invalid", "failing": ["certificate.authorship_map"]}, events_doc=chain_events)
+    if core_only:
+        return
     case("tools-omitted", issue(variant(tools=[])),
          {"description": "The issuer signed a certificate naming no tool, where the chain records one", "outcome": "invalid",
           "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
@@ -897,6 +906,8 @@ def main() -> None:
     build_ledger_anchors()
     writer = chain_fixtures.build(FIX)
     build_certificates(writer)
+    build_certificates(chain_fixtures.v01_chain(close=False), prefix="v01-", headers_name="certificate-v01-headers-0-5.bin", fresh=False,
+                       core_only=True)
     build_roots()
     build_merkle()
 
