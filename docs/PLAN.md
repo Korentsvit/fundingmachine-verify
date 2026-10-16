@@ -37,6 +37,8 @@ ledger, capture, capital, or the website.
 | V-19 | When did this file exist: every anchor naming a content hash, earliest first, each verified (`fm-verify anchors DIR --prove FILE`, `--prove-sha256`) | this pull request |
 | V-20 | A Ledger anchor through the library entry point (`kind: ledger-anchor`, files as base64), run under Pyodide in CI | this pull request |
 | V-21 | `ledger-event/v0.1` (proposed on the Ledger's branch): `capture.resync`, paste of unknown source, sign meaning and signer name hash; unknown versions indeterminate; disclosure checks quotations, declarations and names. To recheck when it merges | this pull request |
+| V-22 | Tenant key rotation: follow `ledger-key-event/v0` handovers (the previous key signs `retired` and `activated`) so root records and certificates signed across a rotation verify. Waits: the Ledger's `docs/KEYS.md` (branch, 16 October) describes the statement in prose only, with no schema, fixture or published location; certificate v0.1 is to carry the chain | waits on the Ledger |
+| V-23 | A certificate fixture over a v0.1 chain (a resync's imported, reconstructed characters in the authorship map), so step 7 is tested on v0.1 | queued |
 | V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
 
 ## Not available yet
