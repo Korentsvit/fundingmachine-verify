@@ -82,3 +82,22 @@ Check ids are this verifier's; another implementation is asked to match
   and the whole chain consistently, which the chain alone cannot detect),
   re-ordered (plainly, and re-signed), dropped, after close, wrong key, text
   in a payload.
+
+## Versioned releases
+
+A release of the suite is one file, `fm-verify-fixtures-VERSION.tar`, made by
+`python tools/fixture_archive.py VERSION` from the tagged commit. The archive
+is reproducible: POSIX ustar entries in path order, every timestamp 0, owner
+0, fixed modes, and no compression, so the same commit gives the same bytes
+on any machine (checked with Python 3.11, 3.12 and 3.13, and in the tests).
+To check a release without trusting whoever published it, rebuild the
+archive from the tag and compare SHA-256 values, then run:
+
+```sh
+tar xf fm-verify-fixtures-VERSION.tar
+fm-verify conformance fm-verify-fixtures-VERSION
+```
+
+A release's version changes when a case's expected verdict changes (major),
+when cases are added (minor), or when bytes change without changing any
+verdict (patch).

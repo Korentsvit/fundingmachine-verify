@@ -44,3 +44,26 @@ def test_every_verdict_matches_the_published_schema():
     for kind, case in conformance.cases(FIX):
         _, v = conformance.run_case(kind, case)
         jsonschema.validate(json.loads(v.to_json()), schema)
+
+
+def test_fixture_archive_is_reproducible_and_conforms(tmp_path):
+    """tools/fixture_archive.py gives the same bytes twice, and the suite
+    extracted from it conforms."""
+    import importlib.util
+    import io
+    import tarfile
+
+    spec = importlib.util.spec_from_file_location("fixture_archive", Path(__file__).resolve().parent.parent / "tools" / "fixture_archive.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    first, second = mod.build("0.1.0"), mod.build("0.1.0")
+    assert first == second
+    with tarfile.open(fileobj=io.BytesIO(first)) as tar:
+        members = tar.getmembers()
+        assert all(m.mtime == 0 and m.uid == 0 and m.name.startswith("fm-verify-fixtures-0.1.0") for m in members)
+        if hasattr(tarfile, "data_filter"):
+            tar.extractall(tmp_path, filter="data")
+        else:  # Python releases before the extraction filters
+            tar.extractall(tmp_path)
+    manifest, results = conformance.run_suite(tmp_path / "fm-verify-fixtures-0.1.0")
+    assert not manifest and results and all(r.ok for r in results)
