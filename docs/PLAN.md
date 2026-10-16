@@ -36,6 +36,7 @@ ledger, capture, capital, or the website.
 | V-18 | Release manifests at tags: compare `release_manifest` descriptors with a checkout of the tag (`--repo OWNER/NAME@TAG=PATH`) | this pull request |
 | V-19 | When did this file exist: every anchor naming a content hash, earliest first, each verified (`fm-verify anchors DIR --prove FILE`, `--prove-sha256`) | this pull request |
 | V-20 | A Ledger anchor through the library entry point (`kind: ledger-anchor`, files as base64), run under Pyodide in CI | this pull request |
+| V-21 | `ledger-event/v0.1` (proposed on the Ledger's branch): `capture.resync`, paste of unknown source, sign meaning and signer name hash; unknown versions indeterminate; disclosure checks quotations, declarations and names. To recheck when it merges | this pull request |
 | V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
 
 ## Not available yet

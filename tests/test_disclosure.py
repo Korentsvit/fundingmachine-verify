@@ -45,4 +45,23 @@ def test_the_ledger_sessions_journal_replays():
     journal = json.loads((base / "basic.journal.json").read_text())
     v = ledger_text.verify(events, journal)
     assert v.outcome is Outcome.VALID, v.to_text()
-    assert v.checks[1].data == {"content": 11, "removed": 2, "doc": 20, "views": 20, "statements": 2, "characters": 172}
+    assert v.checks[1].data == {"content": 11, "removed": 2, "doc": 20, "views": 20, "statements": 2, "characters": 172,
+                                "quotes": 2, "declarations": 1, "signer_names": 0}
+
+
+def test_the_ledger_sessions_v01_journal():
+    """Its v0.1 journal replays its resumed chain: the resync's texts, the
+    declaration, the quotation and the signer's name (FM_LEDGER_REPO)."""
+    import os
+
+    base = Path(os.environ.get("FM_LEDGER_REPO") or "") / "fixtures" / "ledger-event" / "v0.1" / "valid"
+    if not os.environ.get("FM_LEDGER_REPO") or not (base / "resync.journal.json").is_file():
+        pytest.skip("set FM_LEDGER_REPO to a checkout holding ledger-event/v0.1 fixtures")
+    chain = json.loads((base / "resync.chain.json").read_text())
+    journal = json.loads((base / "resync.journal.json").read_text())
+    v = ledger_text.verify(chain["events"], journal)
+    assert v.outcome.value == "valid", v.to_text()
+    data = next(c for c in v.checks if c.id == "disclosure.replay").data
+    assert data["signer_names"] == 1 and data["declarations"] == 1 and data["quotes"] == 1
+    journal["signer_name"] = journal["signer_name"] + "x"
+    assert ledger_text.verify(chain["events"], journal).outcome.value == "invalid"

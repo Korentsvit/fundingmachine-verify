@@ -82,3 +82,30 @@ def test_the_ledger_sessions_chain_fixtures():
     assert v.outcome is Outcome.VALID
     assert {c.id for c in v.checks if c.status.value == "pass"} >= {"certificate.chain", "certificate.authorship_map",
                                                                      "certificate.chain_statements"}
+
+
+@pytest.mark.skipif(not LEDGER, reason="set FM_LEDGER_REPO to a checkout of fundingmachine-ledger to cross-check its fixtures")
+def test_the_ledger_sessions_v01_fixtures():
+    """ledger-event/v0.1, where the checkout holds it (proposed on the Ledger's
+    branch of 16 October 2026): its resumed chain gives its event hashes, and
+    each invalid chain the position and code it expects."""
+    base = Path(LEDGER) / "fixtures" / "ledger-event" / "v0.1"
+    if not base.is_dir():
+        pytest.skip("this checkout has no ledger-event/v0.1 fixtures")
+    for f in sorted((base / "valid").glob("*.chain.json")):
+        d = json.loads(f.read_text())
+        r = ledger_events.validate_chain(d["events"])
+        assert r.ok and r.state.hashes == d["expect"]["event_hashes"], f.name
+    invalid = sorted((base / "invalid").glob("*.json"))
+    assert invalid
+    for f in invalid:
+        d = json.loads(f.read_text())
+        r = ledger_events.validate_chain(d["events"])
+        assert (r.ok, r.index, r.code) == (False, d["expect"]["index"], d["expect"]["code"]), f.name
+
+
+def test_unknown_contract_version_is_indeterminate():
+    d = json.loads((FIX / "chain" / "v01-unknown-contract" / "events.json").read_text())
+    v = ledger_events.verify(d["events"])
+    assert v.outcome is Outcome.INDETERMINATE and "does not read" in v.statement
+    assert [c.status.value for c in v.checks] == ["not_checked"]

@@ -71,6 +71,9 @@ class Writer:
         self.sessions: dict[str, tuple[str, Ed25519PrivateKey]] = {}
         self.minute = 0
         self.texts: dict[int, str] = {}  # seq -> the text an event inserted (never leaves a tenant)
+        self.extra: dict[int, dict] = {}  # seq -> more journal fields: resync texts, quotations, declarations
+        self.contract = "ledger-event/v0"  # a writer may move to v0.1 mid-document
+        self.signer_name: str | None = None
 
     def keyed(self, text: str) -> str:
         return hmac.new(self.doc_key, text.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -86,7 +89,7 @@ class Writer:
              fidelity: str = "live") -> dict:
         sid, key = self.sessions[session]
         self.minute += 1
-        ev = {"contract": "ledger-event/v0", "event_id": uuid_from(f"{self.name} event {len(self.events) + 1}"), "type": type_,
+        ev = {"contract": self.contract, "event_id": uuid_from(f"{self.name} event {len(self.events) + 1}"), "type": type_,
               "doc_id": self.doc_id, "tenant_id": self.tenant, "session_id": sid, "seq": len(self.events) + 1,
               "ts": f"2026-10-16T08:{self.minute // 60:02d}:{self.minute % 60:02d}.000Z" if self.minute < 3600 else "2026-10-16T08:59:59.000Z",
               "actor": actor, "range": range_, "content_hash": self.keyed(content) if content is not None else None,
@@ -137,10 +140,11 @@ class Writer:
         return self.emit(session, "edit.replace", self.person, {"statement_id": sid, "start": start, "end": end}, text,
                          {"length": len(text), "removed_hash": self.keyed(removed)})
 
-    def paste(self, session: str, sid: str, at: int, text: str, fidelity: str = "live") -> dict:
+    def paste(self, session: str, sid: str, at: int, text: str, fidelity: str = "live", source_kind: str = "web") -> dict:
         self._set(sid, at, at, text)
+        ref = None if source_kind == "unknown" else self.keyed("https://example.org/page")
         return self.emit(session, "import.paste", self.person, {"statement_id": sid, "start": at, "end": at}, text,
-                         {"length": len(text), "removed_hash": None, "source": {"kind": "web", "ref_hash": self.keyed("https://example.org/page")}},
+                         {"length": len(text), "removed_hash": None, "source": {"kind": source_kind, "ref_hash": ref}},
                          fidelity)
 
     def generate(self, session: str, sid: str, at: int, text: str) -> dict:
@@ -191,10 +195,55 @@ class Writer:
         return self.emit(session, "evidence.unbind", self.person, None, None,
                          {"binding_id": uuid_from(f"{self.name} binding {binding}"), "reason": "superseded"})
 
-    def sign(self, session: str, exported: bytes, media_type: str = "text/plain") -> dict:
-        return self.emit(session, "sign", self.person, None, None,
-                         {"exported": {"sha256": hashlib.sha256(exported).hexdigest(), "media_type": media_type, "byte_length": len(exported)},
-                          "declaration_hash": self.keyed("I declare this is how the document was written.")})
+    DECLARATION = "I declare this is how the document was written."
+
+    def sign(self, session: str, exported: bytes, media_type: str = "text/plain", meaning: str | None = None,
+             signer_name: str | None = None) -> dict:
+        payload = {"exported": {"sha256": hashlib.sha256(exported).hexdigest(), "media_type": media_type, "byte_length": len(exported)},
+                   "declaration_hash": self.keyed(self.DECLARATION)}
+        if meaning is not None:
+            payload["meaning"] = meaning
+        if signer_name is not None:
+            payload["signer_name_hash"] = self.keyed(signer_name)
+            self.signer_name = signer_name
+        ev = self.emit(session, "sign", self.person, None, None, payload)
+        self.extra[ev["seq"]] = {"quote_text": self.DECLARATION}
+        return ev
+
+    def resync(self, session: str, removed: tuple = (), changed: tuple = (), added: tuple = ()) -> dict:
+        """ledger-event/v0.1: changes made while capture was off, applied
+        removed, then changed (sid, start, end, text), then added (sid,
+        after, section, ref, text), each in order."""
+        payload: dict = {"removed": [], "changed": [], "added": []}
+        removed_texts, texts = [], []
+        for sid in removed:
+            s = self.stmt(sid)
+            removed_texts.append(s["text"])
+            payload["removed"].append({"statement_id": sid, "removed_hash": self.keyed(s["text"])})
+            self.statements.remove(s)
+        for sid, start, end, text in changed:
+            old = self._set(sid, start, end, text)
+            payload["changed"].append({"statement_id": sid, "start": start, "end": end, "removed_hash": self.keyed(old) if end > start else None,
+                                       "length": len(text), "content_hash": self.keyed(text) if text else None})
+            texts.append(text)
+        for sid, after, section, ref, text in added:
+            at = 0 if after is None else self.statements.index(self.stmt(after)) + 1
+            self.statements.insert(at, {"statement_id": sid, "section_id": section, "text": text})
+            payload["added"].append({"statement_id": sid, "after": after, "section_id": section, "section_ref": ref,
+                                     "length": len(text), "content_hash": self.keyed(text) if text else None})
+            texts.append(text)
+        ev = self.emit(session, "capture.resync", self.person, None, None, payload, "reconstructed")
+        self.extra[ev["seq"]] = {"resync_text": {"removed": removed_texts, "changed_and_added": texts}}
+        return ev
+
+    def journal(self) -> dict:
+        """The tenant's journal: the document key and every text behind a keyed hash."""
+        seqs = sorted(set(self.texts) | set(self.extra))
+        out = {"doc_key_hex": self.doc_key.hex(),
+               "steps": [{"seq": n, **({"content_text": self.texts[n]} if n in self.texts else {}), **self.extra.get(n, {})} for n in seqs]}
+        if self.signer_name is not None:
+            out["signer_name"] = self.signer_name
+        return out
 
 
 EXPORTED = b"FundingMachine verifier fixture: an exported document, as signed.\n"
@@ -225,6 +274,33 @@ def basic_chain() -> Writer:
     w.merge("s2", "st-1", "st-2")
     w.insert("s2", "st-1", 0, "In short: ")
     w.sign("s2", EXPORTED)
+    return w
+
+
+def v01_chain(resync_first: bool = True, empty_document: bool = False) -> Writer:
+    """Begun under v0, resumed under v0.1 after changes made while capture
+    was off: a capture.resync (a statement removed, one changed, one added),
+    a paste of unknown source, and a sign with its meaning and the keyed hash
+    of the signer's printed name (a fictional name)."""
+    w = Writer("fm-verify chain v0.1")
+    w.open("s1", ("st-1", "approach", "call:example/approach"))
+    w.insert("s1", "st-1", 0, "We will measure the effect on twelve sites.")
+    w.split("s1", "st-1", 43, "st-2")
+    w.insert("s1", "st-2", 0, "The design is a stepped wedge.")
+    w.bind("s1", "st-2", 0, 10, "b1")
+    w.close("s1")
+    w.contract = "ledger-event/v0.1"
+    w.open("s2")
+    if not resync_first:
+        w.insert("s2", "st-1", 0, "Plan: ")
+    if empty_document:
+        w.resync("s2", removed=("st-1", "st-2"))
+        return w
+    w.resync("s2", removed=("st-2",), changed=(("st-1", 43, 43, " Each site enrols forty people."),),
+             added=(("st-3", "st-1", "team", "call:example/team", "The lead has run two such trials."),))
+    w.paste("s2", "st-3", 0, "Note: ", source_kind="unknown")
+    w.sign("s2", EXPORTED, meaning="authorship", signer_name="Alex Example")
+    w.close("s2")
     return w
 
 
@@ -336,6 +412,52 @@ def build(fix: Path) -> Writer:
     t[1] = dict(t[1], payload=dict(t[1]["payload"], text="We will measure the effect on twelve sites."))
     case("text-in-payload", t, {"description": "An event carrying the text itself: text never leaves the tenant", "outcome": "invalid",
                                 "index": 1, "code": "schema"})
+
+    # ledger-event/v0.1.
+    def v01_case(name: str, wr: Writer, expected: dict, evs: list | None = None) -> None:
+        evs = evs if evs is not None else wr.events
+        if expected["outcome"] == "invalid":
+            expected = {**expected, "failing": ["chain.rules"]}
+        d = out / name
+        d.mkdir()
+        (d / "events.json").write_text(json.dumps({"contract": "ledger-event/v0.1", "events": evs}, indent=1) + "\n", encoding="utf-8")
+        (d / "expected.json").write_text(json.dumps(expected, indent=1) + "\n", encoding="utf-8")
+
+    v1 = v01_chain()
+    v01_case("v01-resync-valid", v1, {"description": ("Begun under v0, resumed under v0.1: a capture.resync records what changed "
+                                                      "while capture was off; a paste of unknown source; a sign with its meaning and "
+                                                      "the keyed hash of the signer's name"),
+                                      "outcome": "valid", "head": event_hash(v1.events[-1]), "events": len(v1.events)})
+    late = v01_chain(resync_first=False)
+    v01_case("v01-resync-not-first", late, {"description": "A capture.resync after another event of its session",
+                                            "outcome": "invalid", "code": "resync_not_first",
+                                            "index": next(i for i, e in enumerate(late.events) if e["type"] == "capture.resync")})
+    emptied = v01_chain(empty_document=True)
+    v01_case("v01-resync-empties-document", emptied, {"description": "A capture.resync that removes every statement",
+                                                      "outcome": "invalid", "index": len(emptied.events) - 1, "code": "document_empty"})
+    later = copy.deepcopy(v1.events)
+    v1_keys = {sid: key for sid, key in v1.sessions.values()}
+    later[-1] = resign(dict(later[-1], contract="ledger-event/v0.2"), v1_keys[later[-1]["session_id"]])
+    v01_case("v01-unknown-contract", v1, {"description": ("The last event names ledger-event/v0.2, a version this verifier does not "
+                                                          "read: indeterminate, not invalid"),
+                                          "outcome": "indeterminate", "index": len(later) - 1, "code": "schema"}, evs=later)
+
+    def v01_disclosure(name: str, disc: dict, expected: dict) -> None:
+        v01_case(name, v1, expected)
+        (out / name / "disclosure.json").write_text(json.dumps(disc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        exp = json.loads((out / name / "expected.json").read_text())
+        exp["disclosure"] = "disclosure.json"
+        exp["failing"] = expected.get("failing", [])
+        (out / name / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+
+    v01_disclosure("disclosure-v01-valid", v1.journal(),
+                   {"description": ("The journal of the v0.1 chain: the resync's texts, the declaration and the signer's name "
+                                    "reproduce every keyed hash"), "outcome": "valid"})
+    renamed = copy.deepcopy(v1.journal())
+    renamed["signer_name"] = "Alex Exemple"
+    v01_disclosure("disclosure-v01-wrong-signer-name", renamed,
+                   {"description": "The journal names the signer differently from the name the sign event's hash covers",
+                    "outcome": "invalid", "failing": ["disclosure.replay"]})
     return w
 
 

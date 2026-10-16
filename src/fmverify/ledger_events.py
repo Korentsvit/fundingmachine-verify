@@ -1,10 +1,17 @@
-"""Provenance Ledger event chains (ledger-event/v0) and authorship maps
-(authorship-map/v0), checked from the chain alone.
+"""Provenance Ledger event chains (ledger-event/v0 and v0.1) and authorship
+maps (authorship-map/v0), checked from the chain alone.
 
 Written from the Provenance Ledger session's docs/EVENT_CONTRACT.md,
 docs/AUTHORSHIP_MAP.md and its JSON Schemas (read 16 October 2026), not from
 its code. The schema's constraints are encoded here by hand, so this module
 needs no schema file and no JSON Schema library.
+
+v0.1 is an addition, proposed on 16 October 2026 (the Ledger's branch, not
+yet its main): ``capture.resync`` for changes made while capture was off,
+``import.paste`` from an ``unknown`` source, and a ``sign`` with ``meaning``
+and ``signer_name_hash``; the reserved actor ``person:unattributed`` never
+signs. A chain may mix versions; each event is checked against its own
+version, and its signature names that version.
 
 ``validate_chain`` applies the contract's chain rules in the contract's
 order and stops at the first failure, with the contract's code.
@@ -26,6 +33,11 @@ from .base58 import EncodingError, b64url_decode
 from .hashes import sha256
 
 CONTRACT = "ledger-event/v0"
+CONTRACT_V01 = "ledger-event/v0.1"
+CONTRACTS = (CONTRACT, CONTRACT_V01)
+UNATTRIBUTED = "person:unattributed"
+MEANINGS = ("authorship", "review", "approval", "responsibility")
+MAX_RESYNC_ENTRIES = 10000
 ZERO = "0" * 64
 MAXINT = 9007199254740991
 TYPES = ["session.open", "session.close", "edit.insert", "edit.delete", "edit.replace", "edit.move", "import.paste",
@@ -57,6 +69,11 @@ _RE = {
 
 class SchemaError(ValueError):
     pass
+
+
+class UnknownContract(SchemaError):
+    """An event names a contract version this verifier does not read: the
+    chain cannot be checked past it, which is not a contradiction."""
 
 
 def _fail(where: str, why: str):
@@ -95,7 +112,7 @@ def _text(v: Any, lo: int, hi: int, where: str) -> None:
         _fail(where, f"must be a string of {lo} to {hi} characters")
 
 
-def _payload(t: str, p: Any, seq: int) -> None:
+def _payload(t: str, p: Any, seq: int, v01: bool = False) -> None:
     w = f"payload ({t})"
     if t == "session.open":
         _obj(p, w, ("client", "client_key"), ("genesis",))
@@ -137,9 +154,12 @@ def _payload(t: str, p: Any, seq: int) -> None:
         _int(p["length"], 1, f"{w}.length")
         _opt(p["removed_hash"], "hash", f"{w}.removed_hash")
         _obj(p["source"], f"{w}.source", ("kind", "ref_hash"))
-        if p["source"]["kind"] not in ("clipboard", "file", "web", "other_document", "preexisting"):
+        kinds = ("clipboard", "file", "web", "other_document", "preexisting") + (("unknown",) if v01 else ())
+        if p["source"]["kind"] not in kinds:
             _fail(f"{w}.source.kind", "is not a kind the contract names")
         _opt(p["source"]["ref_hash"], "hash", f"{w}.source.ref_hash")
+        if p["source"]["kind"] == "unknown" and p["source"]["ref_hash"] is not None:
+            _fail(f"{w}.source.ref_hash", "must be null when the source is unknown")
     elif t in ("tool.generate", "tool.edit"):
         _obj(p, w, ("length", "removed_hash", "prompt_hash", "accepted_by"))
         _int(p["length"], 1 if t == "tool.generate" else 0, f"{w}.length")
@@ -183,8 +203,38 @@ def _payload(t: str, p: Any, seq: int) -> None:
     elif t == "statement.merge":
         _obj(p, w, ("merged_statement_id",))
         _str(p["merged_statement_id"], "local_id", f"{w}.merged_statement_id")
+    elif t == "capture.resync":
+        _obj(p, w, ("removed", "changed", "added"))
+        for part in ("removed", "changed", "added"):
+            if not isinstance(p[part], list) or len(p[part]) > MAX_RESYNC_ENTRIES:
+                _fail(f"{w}.{part}", f"is not a list of at most {MAX_RESYNC_ENTRIES} entries")
+        if not (p["removed"] or p["changed"] or p["added"]):
+            _fail(w, "a capture.resync records at least one change")
+        for j, x in enumerate(p["removed"]):
+            _obj(x, f"{w}.removed[{j}]", ("statement_id", "removed_hash"))
+            _str(x["statement_id"], "local_id", f"{w}.removed[{j}].statement_id")
+            _str(x["removed_hash"], "hash", f"{w}.removed[{j}].removed_hash")
+        for j, x in enumerate(p["changed"]):
+            _obj(x, f"{w}.changed[{j}]", ("statement_id", "start", "end", "removed_hash", "length", "content_hash"))
+            _str(x["statement_id"], "local_id", f"{w}.changed[{j}].statement_id")
+            for k in ("start", "end", "length"):
+                _int(x[k], 0, f"{w}.changed[{j}].{k}")
+            _opt(x["removed_hash"], "hash", f"{w}.changed[{j}].removed_hash")
+            _opt(x["content_hash"], "hash", f"{w}.changed[{j}].content_hash")
+        for j, x in enumerate(p["added"]):
+            _obj(x, f"{w}.added[{j}]", ("statement_id", "after", "section_id", "section_ref", "length", "content_hash"))
+            _str(x["statement_id"], "local_id", f"{w}.added[{j}].statement_id")
+            _opt(x["after"], "local_id", f"{w}.added[{j}].after")
+            _str(x["section_id"], "local_id", f"{w}.added[{j}].section_id")
+            _opt(x["section_ref"], "section_ref", f"{w}.added[{j}].section_ref")
+            _int(x["length"], 0, f"{w}.added[{j}].length")
+            _opt(x["content_hash"], "hash", f"{w}.added[{j}].content_hash")
     elif t == "sign":
-        _obj(p, w, ("exported", "declaration_hash"))
+        _obj(p, w, ("exported", "declaration_hash"), ("meaning", "signer_name_hash") if v01 else ())
+        if "meaning" in p and p["meaning"] not in MEANINGS:
+            _fail(f"{w}.meaning", "is not a meaning the contract names")
+        if "signer_name_hash" in p:
+            _str(p["signer_name_hash"], "hash", f"{w}.signer_name_hash")
         ex = _obj(p["exported"], f"{w}.exported", ("sha256", "media_type", "byte_length"))
         _str(ex["sha256"], "hash", f"{w}.exported.sha256")
         if not isinstance(ex["media_type"], str) or len(ex["media_type"]) > 128:
@@ -202,6 +252,7 @@ _SHAPE = {
     "tool.generate": ("tool", True, True), "tool.edit": ("tool", True, None),
     "evidence.bind": ("human", True, True), "evidence.unbind": ("human", False, False),
     "statement.split": (None, True, False), "statement.merge": (None, True, False), "sign": ("human", False, False),
+    "capture.resync": ("human", False, False),
 }
 FIELDS = ("contract", "event_id", "type", "doc_id", "tenant_id", "session_id", "seq", "ts", "actor", "range",
           "content_hash", "doc_hash", "prev_hash", "capture_fidelity", "payload", "client_sig")
@@ -210,12 +261,13 @@ FIELDS = ("contract", "event_id", "type", "doc_id", "tenant_id", "session_id", "
 def check_schema(ev: Any) -> None:
     """Raise SchemaError where the event breaks the contract's schema."""
     _obj(ev, "event", FIELDS)
-    if ev["contract"] != CONTRACT:
-        _fail("contract", f"is not {CONTRACT}")
+    if ev["contract"] not in CONTRACTS:
+        raise UnknownContract("contract", f"{ev['contract']!r} is not a contract version this verifier reads ({', '.join(CONTRACTS)})")
+    v01 = ev["contract"] == CONTRACT_V01
     for k in ("event_id", "doc_id", "session_id"):
         _str(ev[k], "uuid", k)
-    if ev["type"] not in TYPES:
-        _fail("type", "is not an event type the contract names")
+    if ev["type"] not in TYPES + (["capture.resync"] if v01 else []):
+        _fail("type", f"is not an event type {ev['contract']} names")
     _str(ev["tenant_id"], "tenant", "tenant_id")
     _int(ev["seq"], 1, "seq")
     _str(ev["ts"], "ts", "ts")
@@ -266,7 +318,11 @@ def check_schema(ev: Any) -> None:
         _fail("content_hash", f"{ev['type']} needs a content hash")
     if needs_content is False and ev["content_hash"] is not None:
         _fail("content_hash", f"{ev['type']} carries no content hash")
-    _payload(ev["type"], ev["payload"], ev["seq"])
+    if ev["type"] == "capture.resync" and ev["capture_fidelity"] != "reconstructed":
+        _fail("capture_fidelity", "a capture.resync is reconstructed")
+    if v01 and ev["type"] == "sign" and actor["id"] == UNATTRIBUTED:
+        _fail("actor.id", f"{UNATTRIBUTED} stands for no one and never signs")
+    _payload(ev["type"], ev["payload"], ev["seq"], v01)
 
 
 def event_hash(ev: dict) -> str:
@@ -314,6 +370,7 @@ class ChainResult:
     seq: int | None = None
     code: str | None = None
     message: str | None = None
+    unknown_contract: bool = False
 
     @property
     def head(self) -> str | None:
@@ -371,6 +428,8 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         raise ChainError("session_closed", "the session is closed")
     if t == "session.open" and "genesis" in p and seq != 1:
         raise ChainError("genesis_not_first", "only seq 1 carries genesis")
+    if t == "capture.resync" and getattr(st, "_last", None) != ("session.open", sid):
+        raise ChainError("resync_not_first", "a capture.resync must directly follow its session's session.open")
 
     # Statements and ranges.
     target = None
@@ -420,6 +479,7 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
 
     # Apply.
     st._event_ids = getattr(st, "_event_ids", set()) | {ev["event_id"]}
+    st._last = (t, sid)
     fid = ev["capture_fidelity"]
     if t == "session.open":
         st.sessions[sid] = {"public_key": public, "key_id": key_id, "client": p["client"], "opened_seq": seq, "closed_seq": None}
@@ -466,7 +526,58 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         for b, owner in st.bindings.items():
             if owner == m.statement_id:
                 st.bindings[b] = s.statement_id
+    elif t == "capture.resync":
+        _resync(st, p, seq, fid)
     st.hashes.append(ehash)
+
+
+def _resync(st: State, p: dict, seq: int, fid: str) -> None:
+    """docs/EVENT_CONTRACT.md, v0.1: the entries are checked and applied one
+    by one, removed, then changed, then added, each in array order, so an
+    offset or an ``after`` is read in the document as the entries before it
+    left it; each entry against the chain rules in their order."""
+    for x in p["removed"]:
+        i = st.find(x["statement_id"])
+        if i is None:
+            raise ChainError("statement_unknown", f"statement {x['statement_id']} does not exist")
+        st.deleted += len(st.statements[i].chars)
+        del st.statements[i]
+        for b in [b for b, owner in st.bindings.items() if owner == x["statement_id"]]:
+            del st.bindings[b]  # a binding ends with its statement
+    for x in p["changed"]:
+        i = st.find(x["statement_id"])
+        if i is None:
+            raise ChainError("statement_unknown", f"statement {x['statement_id']} does not exist")
+        chars, start, end = st.statements[i].chars, x["start"], x["end"]
+        if start > end or end > len(chars):
+            raise ChainError("range_out_of_bounds", f"[{start}, {end}) is outside a statement of {len(chars)}")
+        if (x["removed_hash"] is None) != (start == end):
+            raise ChainError("removed_hash_mismatch", "removed_hash must be null exactly when the span is empty")
+        if (x["content_hash"] is None) != (x["length"] == 0):
+            raise ChainError("content_hash_mismatch", "content_hash must be null exactly when length is 0")
+        del chars[start:end]
+        st.deleted += end - start
+        chars[start:start] = [("imported", fid, seq)] * x["length"]
+        st.inserted["imported"] += x["length"]
+    for x in p["added"]:
+        at = 0
+        if x["after"] is not None:
+            j = st.find(x["after"])
+            if j is None:
+                raise ChainError("statement_unknown", f"statement {x['after']} does not exist")
+            at = j + 1
+        if x["statement_id"] in st.used_ids:
+            raise ChainError("statement_id_reused", f"statement id {x['statement_id']} was used before")
+        if (x["content_hash"] is None) != (x["length"] == 0):
+            raise ChainError("content_hash_mismatch", "content_hash must be null exactly when length is 0")
+        if x["section_id"] in st.sections and st.sections[x["section_id"]] != x["section_ref"]:
+            raise ChainError("section_ref_conflict", f"section {x['section_id']} already has section_ref {st.sections[x['section_id']]}")
+        st.sections.setdefault(x["section_id"], x["section_ref"])
+        st.statements.insert(at, Statement(x["statement_id"], x["section_id"], [("imported", fid, seq)] * x["length"]))
+        st.used_ids.add(x["statement_id"])
+        st.inserted["imported"] += x["length"]
+    if not st.statements:
+        raise ChainError("document_empty", "a capture.resync may not leave the document without a statement")
 
 
 def validate_chain(events: list) -> ChainResult:
@@ -477,7 +588,8 @@ def validate_chain(events: list) -> ChainResult:
         try:
             check_schema(ev)
         except SchemaError as exc:
-            return ChainResult(False, i, st, i, ev.get("seq") if isinstance(ev, dict) else None, "schema", str(exc))
+            return ChainResult(False, i, st, i, ev.get("seq") if isinstance(ev, dict) else None, "schema", str(exc),
+                               unknown_contract=isinstance(exc, UnknownContract))
         try:
             _apply(st, ev, i, prev)
         except ChainError as exc:
@@ -553,10 +665,18 @@ def _verify_chain(events: list, subject: str | None = None, checked_at: str | No
     result = validate_chain(events)
     first = events[0] if events and isinstance(events[0], dict) else {}
     subject = subject or f"event chain of document {first.get('doc_id')} (tenant {first.get('tenant_id')})"
+    versions = sorted({e.get("contract") for e in events[: result.count] if isinstance(e, dict)} & set(CONTRACTS))
+    named = " and ".join(versions) or CONTRACT
     if result.ok:
-        checks = [Check("chain.rules", Status.PASS, f"all {result.count} events follow the ledger-event/v0 chain rules",
+        checks = [Check("chain.rules", Status.PASS, f"all {result.count} events follow the {named} chain rules",
                         reasons=[f"head {result.head}", f"{len(result.state.sessions)} sessions"],
-                        data={"code": None, "index": None, "head": result.head, "events": result.count})]
+                        data={"code": None, "index": None, "head": result.head, "events": result.count, "versions": versions})]
+    elif result.unknown_contract:
+        checks = [Check("chain.rules", Status.NOT_CHECKED,
+                        f"event {result.index} (seq {result.seq}) names a contract version this verifier does not read; "
+                        f"the {result.index} events before it follow the chain rules",
+                        reasons=[result.message or result.code, "a later verifier may read it: this is not a contradiction"],
+                        data={"code": result.code, "index": result.index, "unknown_contract": True})]
     else:
         checks = [Check("chain.rules", Status.FAIL, f"event {result.index} (seq {result.seq}) breaks the rule '{result.code}'",
                         reasons=[result.message or result.code], data={"code": result.code, "index": result.index})]
@@ -565,8 +685,9 @@ def _verify_chain(events: list, subject: str | None = None, checked_at: str | No
               "anything about the text: the chain holds keyed hashes, checkable only with the document key and the text",
               "that the document was not written with AI assistance outside this environment"]
     statements = {
-        Outcome.VALID: f"The {result.count} events form a ledger-event/v0 chain that follows every chain rule, ending in {result.head}.",
+        Outcome.VALID: f"The {result.count} events form a {named} chain that follows every chain rule, ending in {result.head}.",
         Outcome.INVALID: f"The chain breaks the rule '{result.code}' at event {result.index} (seq {result.seq}).",
-        Outcome.INDETERMINATE: "The chain could not be checked.",
+        Outcome.INDETERMINATE: (f"The chain could not be checked past event {result.index}: it names a contract version "
+                                "this verifier does not read." if result.unknown_contract else "The chain could not be checked."),
     }
     return make_verdict("event-chain", subject, checks, statements, limits, checked_at)

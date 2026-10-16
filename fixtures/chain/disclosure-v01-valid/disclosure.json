@@ -1,0 +1,34 @@
+{
+ "doc_key_hex": "782d648f5bab52e00fa7221669f2539751380322c72c97974150e0a4a93cb97d",
+ "steps": [
+  {
+   "seq": 2,
+   "content_text": "We will measure the effect on twelve sites."
+  },
+  {
+   "seq": 4,
+   "content_text": "The design is a stepped wedge."
+  },
+  {
+   "seq": 8,
+   "resync_text": {
+    "removed": [
+     "The design is a stepped wedge."
+    ],
+    "changed_and_added": [
+     " Each site enrols forty people.",
+     "The lead has run two such trials."
+    ]
+   }
+  },
+  {
+   "seq": 9,
+   "content_text": "Note: "
+  },
+  {
+   "seq": 10,
+   "quote_text": "I declare this is how the document was written."
+  }
+ ],
+ "signer_name": "Alex Example"
+}

@@ -1,0 +1,9 @@
+{
+ "description": "A capture.resync that removes every statement",
+ "outcome": "invalid",
+ "index": 7,
+ "code": "document_empty",
+ "failing": [
+  "chain.rules"
+ ]
+}

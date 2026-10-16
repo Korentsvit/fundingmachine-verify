@@ -1,0 +1,6 @@
+{
+ "description": "Begun under v0, resumed under v0.1: a capture.resync records what changed while capture was off; a paste of unknown source; a sign with its meaning and the keyed hash of the signer's name",
+ "outcome": "valid",
+ "head": "fddbab239e52b37588d30b57bf68fce79bee08eb15b30bfcb93a19d53f0392d3",
+ "events": 11
+}

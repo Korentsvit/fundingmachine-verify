@@ -10,7 +10,7 @@ verification result is a convenience on top of it.
 | What | Command |
 | --- | --- |
 | A Provenance Ledger certificate (`ledger-certificate/v0`), JSON or PDF form: all seven steps of the Ledger's `docs/CERTIFICATE.md` (the eddsa-jcs-2022 proof, the scope statement, the exported file, the signed hourly root, the sign event's inclusion, the anchor, and with the events the chain and the authorship map) | `fm-verify certificate` |
-| A document's event chain (`ledger-event/v0`): every chain rule in the contract's order, with its failure codes; with a disclosed document key and text, every keyed hash replayed | `fm-verify chain` |
+| A document's event chain (`ledger-event/v0`, and its proposed addition v0.1): every chain rule in the contract's order, with its failure codes; with a disclosed document key and text, every keyed hash replayed | `fm-verify chain` |
 | A tenant's hourly root records (`ledger-root/v0`) as a chain of their own: a dropped, swapped or altered hour shows | `fm-verify roots` |
 | A Provenance Ledger anchor (`docs/ANCHORING.md`): descriptor leaves, `root.preimage`, its OpenTimestamps proof and RFC 3161 tokens, and a checkout compared; or a batch in this verifier's own format | `fm-verify anchors` |
 | An OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` |
@@ -139,7 +139,11 @@ FundingMachine's private repositories is in them.
   with the client keys (valid: only an anchor can bound a chain's time);
   re-ordered, plainly and re-signed; an event dropped; after close; the wrong
   key; text in a payload; and a disclosed key and text (valid, one word
-  changed, the wrong key).
+  changed, the wrong key). Under the proposed v0.1: a chain resumed with a
+  `capture.resync`, valid; the resync not first in its session; a resync
+  emptying the document; an event naming a version this verifier does not
+  read (indeterminate); and the chain's journal, valid and with the signer's
+  name changed.
 * `roots/*`: hourly root records: valid, an hour dropped, two swapped, one
   altered, another key, a later stretch alone.
 * `ledger-anchors/*`: anchors in the Ledger's layout (`anchor-manifest/v0`)

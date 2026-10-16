@@ -27,6 +27,13 @@ the event chain). It does not, and cannot:
   every rule and records any history: text a tool wrote elsewhere, typed in
   by hand, is "typed by a person in this environment". `capture_fidelity`
   is the client's own statement of how it observed each change.
+* **A version the verifier does not read stops the check.** An event naming
+  a contract version it does not know ends the chain check there, and the
+  verdict is indeterminate: nothing after that event was checked, and
+  nothing contradicts it either (fixture `chain/v01-unknown-contract`).
+* **Changes made while capture was off are counted as imported** (v0.1,
+  `capture.resync`): the chain records that the document changed and by how
+  much, never who changed it.
 * **Times in the chain are the client's claims.** A chain moved in time and
   re-signed with the client keys is valid (fixture
   `chain/back-dated-consistently`). Only an anchor of the hour's root bounds

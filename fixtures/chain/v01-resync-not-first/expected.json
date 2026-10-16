@@ -1,0 +1,9 @@
+{
+ "description": "A capture.resync after another event of its session",
+ "outcome": "invalid",
+ "code": "resync_not_first",
+ "index": 8,
+ "failing": [
+  "chain.rules"
+ ]
+}

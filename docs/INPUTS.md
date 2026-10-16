@@ -49,6 +49,16 @@ fundingmachine-ledger, and read by this verifier from those documents:
 
 * `ledger-certificate/v0` (`docs/CERTIFICATE.md`): `fm-verify certificate`,
   all seven steps (step 7 with `--events`), JSON or PDF form.
+* `ledger-event/v0` (`docs/EVENT_CONTRACT.md`): `fm-verify chain`, every chain
+  rule in the contract's order with its code. Its addition `ledger-event/v0.1`
+  (proposed 16 October 2026 on the Ledger's branch, not yet on its main) is
+  read too: `capture.resync` with `resync_not_first` and `document_empty`, a
+  paste of `unknown` source, a `sign` with `meaning` and `signer_name_hash`,
+  and the reserved actor `person:unattributed`, which never signs. A chain
+  may mix versions; each event is checked against its own. An event naming
+  another version stops the check, indeterminate. With `--disclosure`, the
+  journal's resync texts, quotations, declaration and signer's name are
+  checked against their hashes as well.
 * Artefact anchoring (`docs/ANCHORING.md`): `fm-verify anchors DIR` reads an
   anchor directory (`manifest.json`, `root.preimage`, `root.preimage.ots`,
   `root.preimage.<authority>.tsr`). Leaves are the RFC 8785 JSON of each
