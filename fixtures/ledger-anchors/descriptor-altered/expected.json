@@ -7,7 +7,8 @@
   }
  ],
  "roots": [
-  "../../rfc3161/pki/root.pem"
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
  ],
  "description": "A descriptor's hash changed after anchoring",
  "outcome": "invalid",

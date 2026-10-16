@@ -87,7 +87,43 @@ the event chain). It does not, and cannot:
 * **Revocation is seen only through CRLs the reader supplies.** No CRL is
   fetched and no OCSP responder asked. Without a fresh CRL, a key compromise
   the authority has announced is invisible (fixtures `rfc3161/crl-*`).
+* **A trust bundle trusts every authority in it.** Passing the system's
+  bundle (as the how-to guide suggests) accepts a token from any
+  time-stamping authority chaining to any root there, through
+  cross-certificates too: Sectigo's chain reaches USERTrust RSA through its
+  time-stamping root's cross-certificate. The verdict names the signer and
+  the root reached; for a Ledger anchor it also compares the signer with the
+  authority the manifest names, and warns when two tokens share an
+  organisation or root.
+* **Roots shipped beside an anchor are not trust.** The Ledger commits
+  copies of DigiCert's and USERTrust's roots under `anchors/tsa/`. They come
+  from FundingMachine; pass roots from your own system instead. Their
+  fingerprints in the Ledger's `docs/ANCHORING.md` match the ones the tests
+  pin: DigiCert Trusted Root G4 `552f7bdc...0ac89988`, USERTrust RSA
+  `e793c9b0...c3d4cbd2`.
 * **Policy identifiers are reported, not interpreted.**
+
+## Provenance Ledger anchors
+
+* **An anchor covers what its manifest lists, no more.** A source the job
+  could not read is named in the manifest and warned about; a file the job
+  was never configured to read is not in the anchor, and nothing here can
+  tell that it should have been.
+* **The manifest's own claims are compared, not trusted.** Each token's
+  genTime, serial and policy as the manifest states them are checked against
+  the token. The `created` time and the `sources` report are the job's own
+  statements: only the proofs bound when the root existed.
+* **The links between anchors are not proven.** Each manifest names the one
+  before it, and `--all` checks those links and `index.jsonl`; but neither
+  is covered by any proof, because an anchor's root covers only its leaves.
+  An anchor removed, with the next manifest's link and the index rewritten,
+  leaves every remaining anchor valid. Only a copy of the anchors or the
+  index a reader kept earlier shows the removal. The branch is append-only
+  by the Ledger's own rule; that rule is not something this verifier can
+  check.
+* **A checkout comparison shows today's content, not history.** A changed
+  file is a warning: the anchor still proves the content as it was. A
+  fragment removed by the daily assembly is matched only by an exact hash.
 
 ## The implementation
 

@@ -36,7 +36,7 @@ def test_manifest_descriptors_found_by_shape():
 def test_cli(capsys):
     base = ["anchors", str(CASE), "--network", "regtest",
             "--headers-chain", str(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"),
-            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem")]
+            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--roots", str(FIX / "ledger-anchors" / "pki" / "second-root.pem")]
     assert main(base + ["--repo", f"example/repository={FIX / 'ledger-anchors' / 'repo'}"]) == 0
     out = capsys.readouterr().out
     assert "The 5 files and entries the manifest lists are the leaves of root" in out
@@ -51,7 +51,7 @@ def test_missing_preimage_is_not_this_layout(tmp_path):
 def test_all_anchors_under_a_directory(capsys):
     base = ["anchors", str(FIX / "ledger-anchors"), "--all", "--network", "regtest",
             "--headers-chain", str(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"),
-            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--json"]
+            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--roots", str(FIX / "ledger-anchors" / "pki" / "second-root.pem"), "--json"]
     assert main(base) == 1  # the set includes the deliberately broken cases
     import json as _json
 
@@ -258,7 +258,7 @@ def test_checkout_of_a_tag(tmp_path):
 def test_cli_prove(capsys, tmp_path):
     base = ["anchors", str(FIX / "ledger-anchors" / "set-valid"), "--network", "regtest",
             "--headers-chain", str(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"),
-            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--json"]
+            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--roots", str(FIX / "ledger-anchors" / "pki" / "second-root.pem"), "--json"]
     held = FIX / "ledger-anchors" / "repo" / "docs" / "STANDING_RULINGS.md"
     assert main(base + ["--prove", str(held)]) == 0
     doc = json.loads(capsys.readouterr().out)

@@ -1,0 +1,18 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
+ ],
+ "description": "The manifest names DigiCert for a token another authority signed: a warning",
+ "outcome": "valid",
+ "warning": [
+  "ledger_anchor.authorities"
+ ]
+}

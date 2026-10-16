@@ -281,9 +281,11 @@ def build_ledger_anchors() -> None:
 
     gen = _dt.datetime(2026, 10, 17, 8, 4, 12, tzinfo=_dt.timezone.utc)
     rsa_k, rsa_cert, ica = tsa_fixtures.test_authority()
-    ec_k, ec_cert, _ = tsa_fixtures.test_authority_p256()
+    ec_k, ec_cert, second_root = tsa_fixtures.test_authority_second()
+    (out / "pki").mkdir(parents=True)
+    (out / "pki" / "second-root.pem").write_bytes(tsa_fixtures.pem(second_root))
     tsr_a = tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], preimage, serial=4001, sig="rsa", gen_time=gen)
-    tsr_b = tsa_fixtures.token(ec_k, ec_cert, [ec_cert, ica], preimage, serial=4002, sig="ecdsa", gen_time=gen)
+    tsr_b = tsa_fixtures.token(ec_k, ec_cert, [ec_cert], preimage, serial=4002, sig="ecdsa", gen_time=gen)
 
     from fmverify import rfc3161 as _rfc3161
 
@@ -303,7 +305,7 @@ def build_ledger_anchors() -> None:
     proofs = {"preimage": "root.preimage",
               "opentimestamps": {"file": "root.preimage.ots", "accepted_by": ["https://a.calendar.example", "https://b.calendar.example"],
                                  "failed": []},
-              "rfc3161": [token_entry("Test RSA", "test-rsa", tsr_a), token_entry("Test P-256", "test-p256", tsr_b)]}
+              "rfc3161": [token_entry("FM Verify Test TSA RSA", "test-rsa", tsr_a), token_entry("FM Verify Second Test TSA", "test-p256", tsr_b)]}
 
     def manifest(descs: list[dict], order: str = "sorted", created: str = "2026-10-17T08:04:11.000Z", previous: dict | None = None,
                  sources: list | None = None, prf: dict | None = None) -> dict:
@@ -317,7 +319,7 @@ def build_ledger_anchors() -> None:
                 "proofs": prf if prf is not None else proofs}
 
     common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin", "start": 0}],
-              "roots": ["../../rfc3161/pki/root.pem"]}
+              "roots": ["../../rfc3161/pki/root.pem", "../pki/second-root.pem"]}
 
     def case(name: str, expected: dict, man: dict | None = None, pre: bytes = preimage, ots_bytes: bytes | None = good_ots,
              tokens: dict | None = None) -> None:
@@ -367,6 +369,16 @@ def build_ledger_anchors() -> None:
     extra["note"] = "a field the schema does not have"
     case("schema-violation", {"description": "A manifest with a field anchor-manifest/v0 does not have", "outcome": "invalid",
                               "failing": ["ledger_anchor.manifest_schema"]}, man=extra)
+    misnamed = json.loads(json.dumps(proofs))
+    misnamed["rfc3161"][0]["authority"] = "DigiCert"
+    case("authority-misnamed", {"description": "The manifest names DigiCert for a token another authority signed: a warning",
+                                "outcome": "valid", "warning": ["ledger_anchor.authorities"]}, man=manifest(descriptors, prf=misnamed))
+    p256_k, p256_cert, _ = tsa_fixtures.test_authority_p256()
+    same_org = tsa_fixtures.token(p256_k, p256_cert, [p256_cert, ica], preimage, serial=4005, sig="ecdsa", gen_time=gen)
+    not_independent = {**proofs, "rfc3161": [proofs["rfc3161"][0], token_entry("FM Verify Test TSA P-256", "test-p256", same_org)]}
+    case("authorities-not-independent", {"description": "Both tokens from one organisation under one root: valid, with a warning",
+                                         "outcome": "valid", "warning": ["ledger_anchor.independence"]},
+         man=manifest(descriptors, prf=not_independent), tokens={"test-rsa": tsr_a, "test-p256": same_org})
     unread = {**source, "repo": "example/private", "read": False, "reason": "no read token", "head": None,
               "release_assets": {"read": False, "reason": "no read token", "count": 0}}
     case("source-not-read", {"description": "One of two sources could not be read: valid for what it covers, with a warning",
@@ -385,9 +397,10 @@ def build_ledger_anchors() -> None:
     second_root = sha256(second_pre)
     gen2 = gen + _dt.timedelta(hours=1)
     tsr_a2 = tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], second_pre, serial=4003, sig="rsa", gen_time=gen2)
-    tsr_b2 = tsa_fixtures.token(ec_k, ec_cert, [ec_cert, ica], second_pre, serial=4004, sig="ecdsa", gen_time=gen2)
+    tsr_b2 = tsa_fixtures.token(ec_k, ec_cert, [ec_cert], second_pre, serial=4004, sig="ecdsa", gen_time=gen2)
     pending = ots.DetachedTimestamp(SHA256, ots.Timestamp(second_root, [ots.Attestation(ots.TAG_PENDING, ots._varbytes(b"https://a.calendar.example"))]))
-    proofs2 = {**proofs, "rfc3161": [token_entry("Test RSA", "test-rsa", tsr_a2), token_entry("Test P-256", "test-p256", tsr_b2)]}
+    proofs2 = {**proofs, "rfc3161": [token_entry("FM Verify Test TSA RSA", "test-rsa", tsr_a2),
+                                     token_entry("FM Verify Second Test TSA", "test-p256", tsr_b2)]}
     first_rel, second_rel = "2026/10/17/080411Z", "2026/10/17/090411Z"
     m1 = manifest(descriptors)
     m2 = manifest(second_descs, created="2026-10-17T09:04:11.000Z", previous={"path": first_rel, "root": m1["root"]}, prf=proofs2)

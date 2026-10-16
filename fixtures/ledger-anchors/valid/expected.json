@@ -7,7 +7,8 @@
   }
  ],
  "roots": [
-  "../../rfc3161/pki/root.pem"
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
  ],
  "description": "Five leaves (three files, two log entries) from one repository, an OpenTimestamps proof and two authorities' tokens",
  "repos": {

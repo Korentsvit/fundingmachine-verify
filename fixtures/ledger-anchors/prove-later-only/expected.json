@@ -7,7 +7,8 @@
   }
  ],
  "roots": [
-  "../../rfc3161/pki/root.pem"
+  "../../rfc3161/pki/root.pem",
+  "../pki/second-root.pem"
  ],
  "anchors": "../set-valid",
  "prove_sha256": "2d6ab384f020d69f4c17df191a93aeb10fe8f03bb4b3ac5f9294d334fc975bba",

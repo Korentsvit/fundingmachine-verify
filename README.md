@@ -199,9 +199,10 @@ not take this code's word:
   DigiCert and Sectigo responses and OpenTimestamps proof verify here; this
   verifier's schema check gives the published `anchor-manifest/v0` schema's
   answer on every mutation tested; and `tools/ledger_crosscheck/anchors.mts`
-  runs its anchor verifier over these anchor fixtures. It agreed on 12 of 17
-  cases. The other five differ by design and are named in
-  `docs/decisions.d/2026-10-16-verify-anchor-manifest.md`;
+  runs its anchor verifier over these anchor fixtures: it reaches the same
+  outcome on 15 of 19. The four that differ do so by design, and are named in
+  `docs/decisions.d/2026-10-16-verify-anchor-manifest.md`, as is one case
+  where only this verifier warns;
 * the library runs under Pyodide in CI, as a browser would run it.
 
 Those tools are test-time only; the verifier never imports them.

@@ -21,6 +21,7 @@ const base = join(process.argv[2], "ledger-anchors");
 for (const name of readdirSync(base).sort()) {
   const dir = join(base, name);
   if (!existsSync(join(dir, "expected.json"))) continue;
+  if (!existsSync(join(dir, "root.preimage")) && !existsSync(join(dir, "index.jsonl"))) continue; // a --prove case, not an anchor
   const expected = JSON.parse(readFileSync(join(dir, "expected.json"), "utf8")).outcome;
   let ok: boolean;
   let problems: string[];

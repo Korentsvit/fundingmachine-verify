@@ -236,6 +236,55 @@ def _token_statements(d: Path, manifest: dict) -> tuple[list[str], list[str], li
     return problems, named, missing
 
 
+def _norm(s: str) -> str:
+    return "".join(ch for ch in s.casefold() if ch.isalnum())
+
+
+def _authority_checks(manifest: dict, subs: Sequence[tuple[str, str, Verdict]]) -> list[Check]:
+    """The authority a v0 manifest names for each token, against the
+    certificate that signed it; and whether the tokens come from different
+    organisations under different roots, as docs/ANCHORING.md intends ("a
+    second, independent company and root"; Entrust's endpoint was not chosen
+    because its token was signed by Sectigo's signer)."""
+    by_file = {cid[len("ledger_anchor.rfc3161."):]: v for cid, _, v in subs if cid.startswith("ledger_anchor.rfc3161.")}
+    proofs = manifest.get("proofs") if isinstance(manifest.get("proofs"), dict) else {}
+    named, signed = [], []
+    for t in proofs.get("rfc3161") or []:
+        if not isinstance(t, dict) or not isinstance(t.get("file"), str) or t["file"] not in by_file:
+            continue
+        v = by_file[t["file"]]
+        sc = next((c for c in v.checks if c.id == "rfc3161.signer_cert" and c.status is Status.PASS), None)
+        if sc is None:
+            continue
+        chain = next((c for c in v.checks if c.id == "rfc3161.chain" and c.status is Status.PASS), None)
+        subject, org = sc.data.get("subject", ""), sc.data.get("organization")
+        signed.append((t["file"], org or subject, chain.data.get("root_sha256") if chain else None))
+        auth = t.get("authority")
+        if isinstance(auth, str) and _norm(auth) and _norm(auth) not in _norm(subject):
+            named.append(f"{t['file']}: the manifest names {auth}; the token was signed by {subject}")
+    out = []
+    if named:
+        out.append(Check("ledger_anchor.authorities", Status.WARN, "a token was not signed by the authority the manifest names",
+                         reasons=named, required=False))
+    elif signed:
+        out.append(Check("ledger_anchor.authorities", Status.PASS,
+                         f"each of the {len(signed)} tokens was signed by a certificate naming the authority the manifest gives"))
+    if len(signed) >= 2:
+        orgs = [_norm(o) for _, o, _ in signed]
+        roots = [r for _, _, r in signed if r]
+        shared = len(set(orgs)) < len(orgs) or len(set(roots)) < len(roots)
+        listing = [f"{f}: {o}" + (f", root {r}" if r else "") for f, o, r in signed]
+        if shared:
+            out.append(Check("ledger_anchor.independence", Status.WARN,
+                             "two tokens come from the same organisation or root: they are not independent of each other",
+                             reasons=listing, required=False))
+        else:
+            out.append(Check("ledger_anchor.independence", Status.PASS,
+                             f"the {len(signed)} tokens come from different organisations"
+                             + (" under different roots" if len(roots) == len(signed) else ""), reasons=listing))
+    return out
+
+
 def _sources_check(manifest: dict) -> Check:
     srcs = [s for s in manifest.get("sources") or [] if isinstance(s, dict)]
     unread = [f"{s.get('repo')}: not read ({s.get('reason') or 'no reason given'})" for s in srcs if s.get("read") is False]
@@ -406,6 +455,8 @@ def verify_dir(
         elif named:
             checks.append(Check("ledger_anchor.statements", Status.PASS,
                                 f"the manifest's genTime, serial and policy for each of its {len(named)} RFC 3161 tokens are the tokens' own"))
+    if v0:
+        checks.extend(_authority_checks(manifest, subs))
     kinds_valid = {v.kind for _, _, v in subs if v.outcome is Outcome.VALID}
     tsa_valid = sum(1 for _, _, v in subs if v.kind == "rfc3161" and v.outcome is Outcome.VALID)
     if subs and ("opentimestamps" not in kinds_valid or tsa_valid < 2):
@@ -612,6 +663,8 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
                      reasons=unlisted[:20], data=data)
     return Check("anchor_set.index", Status.PASS,
                  f"index.jsonl lists all {len(lines)} anchors in time order, and each manifest links to the anchor before it",
+                 reasons=["the links and the index are the manifests' own statements: no anchor's proofs cover them, "
+                          "so an anchor removed with its successor's link rewritten would not show here"],
                  data=data)
 
 

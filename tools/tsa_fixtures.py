@@ -115,18 +115,21 @@ def ed_key(seed: str) -> ed25519.Ed25519PrivateKey:
     return ed25519.Ed25519PrivateKey.from_private_bytes(hashlib.sha256(seed.encode()).digest())
 
 
-def name(cn: str) -> x509.Name:
+TEST_ORG = "FundingMachine verifier test PKI"
+
+
+def name(cn: str, org: str = TEST_ORG) -> x509.Name:
     return x509.Name([x509.NameAttribute(NameOID.COUNTRY_NAME, "GB"),
-                      x509.NameAttribute(NameOID.ORGANIZATION_NAME, "FundingMachine verifier test PKI"),
+                      x509.NameAttribute(NameOID.ORGANIZATION_NAME, org),
                       x509.NameAttribute(NameOID.COMMON_NAME, cn)])
 
 
 def cert(subject_cn: str, key, issuer_cn: str, issuer_key, serial: int, *, ca: bool, pathlen: int | None = None,
          eku: list | None = (ExtendedKeyUsageOID.TIME_STAMPING,), eku_critical: bool = True,
-         not_before: dt.datetime = NOT_BEFORE, not_after: dt.datetime | None = None) -> x509.Certificate:
+         not_before: dt.datetime = NOT_BEFORE, not_after: dt.datetime | None = None, org: str = TEST_ORG) -> x509.Certificate:
     pub = key.public_key()
     b = (x509.CertificateBuilder()
-         .subject_name(name(subject_cn)).issuer_name(name(issuer_cn)).public_key(pub)
+         .subject_name(name(subject_cn, org)).issuer_name(name(issuer_cn, org)).public_key(pub)
          .serial_number(serial).not_valid_before(not_before)
          .not_valid_after(not_after or (NOT_AFTER_CA if ca else NOT_AFTER_TSA))
          .add_extension(x509.SubjectKeyIdentifier.from_public_key(pub), critical=False)
@@ -254,6 +257,19 @@ def test_authority_p256() -> tuple:
     ica = cert("FM Verify Test Issuing CA", ica_k, "FM Verify Test Root CA", root_k, 2, ca=True, pathlen=0)
     tsa = cert("FM Verify Test TSA P-256", tsa_k, "FM Verify Test Issuing CA", ica_k, 102, ca=False)
     return tsa_k, tsa, ica
+
+
+SECOND_ORG = "FundingMachine verifier second test PKI"
+
+
+def test_authority_second() -> tuple:
+    """A second test authority, independent of the first: its own
+    organisation and root (P-256 throughout), for anchors that carry two
+    authorities' tokens. Returns its key, its certificate and its root."""
+    root_k, tsa_k = ec_key("fm-verify second test root CA"), ec_key("fm-verify second test TSA")
+    root = cert("FM Verify Second Test Root CA", root_k, "FM Verify Second Test Root CA", root_k, 1, ca=True, org=SECOND_ORG)
+    tsa = cert("FM Verify Second Test TSA", tsa_k, "FM Verify Second Test Root CA", root_k, 201, ca=False, org=SECOND_ORG)
+    return tsa_k, tsa, root
 
 
 def build(fix: Path) -> None:

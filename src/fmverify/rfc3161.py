@@ -461,6 +461,7 @@ def _verify(
         return make_verdict("rfc3161", subject, checks, _statements(tst, None, None, when, acc), ANCHOR_LIMITS, checked_at)
     checks.append(Check("rfc3161.signer_cert", Status.PASS, f"signed by {pki.describe(signer)}",
                         data={"subject": signer.subject.rfc4514_string(), "sha256": pki.fingerprint(signer),
+                              "organization": next((a.value for a in signer.subject.get_attributes_for_oid(x509.NameOID.ORGANIZATION_NAME)), None),
                               "in_token": any(pki.fingerprint(c) == pki.fingerprint(signer) for c in tok.certificates)}))
     checks.append(_ess_check(si, signer))
     ok, how = verify_signature(signer, si)
