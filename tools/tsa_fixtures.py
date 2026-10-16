@@ -264,9 +264,11 @@ SECOND_ORG = "FundingMachine verifier second test PKI"
 
 def test_authority_second() -> tuple:
     """A second test authority, independent of the first: its own
-    organisation and root (P-256 throughout), for anchors that carry two
-    authorities' tokens. Returns its key, its certificate and its root."""
-    root_k, tsa_k = ec_key("fm-verify second test root CA"), ec_key("fm-verify second test TSA")
+    organisation and root, for anchors that carry two authorities' tokens.
+    The root's key is RSA so its certificate signatures are deterministic
+    (cryptography's ECDSA is not); the authority signs with P-256 (RFC 6979
+    in token()). Returns its key, its certificate and its root."""
+    root_k, tsa_k = rsa_key("fm-verify second test root CA"), ec_key("fm-verify second test TSA")
     root = cert("FM Verify Second Test Root CA", root_k, "FM Verify Second Test Root CA", root_k, 1, ca=True, org=SECOND_ORG)
     tsa = cert("FM Verify Second Test TSA", tsa_k, "FM Verify Second Test Root CA", root_k, 201, ca=False, org=SECOND_ORG)
     return tsa_k, tsa, root
