@@ -11,9 +11,11 @@ text = verify_json(request_text)  # JSON text in, JSON text out
 input is in the request, binary data as base64, certificates as PEM text. It
 never raises for a malformed request; the answer then carries `error`.
 A hosted page can call it server-side, or in the browser under Pyodide (the
-package is pure Python apart from `cryptography`, which Pyodide ships; not
-yet exercised there by the test suite, queued as V-6b). The command line
-remains the proof.
+package is pure Python apart from `cryptography`, which Pyodide ships). CI
+runs `tools/pyodide/check.mjs`, which loads the package into Pyodide 0.27.7
+(Python 3.12, cryptography 42.0.5, the oldest version the package accepts)
+and checks six fixture requests, a certificate with its HTML page among
+them. The command line remains the proof.
 
 ## Request
 

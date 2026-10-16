@@ -21,7 +21,7 @@ ledger, capture, capital, or the website.
 | V-4 | Read the first real `anchors/` proofs in fundingmachine-core and fundingmachine-web as soon as they land; record any format gap as a named finding | queued, waits on the Ledger session |
 | V-5 | Revocation evidence for authority chains: CRLs supplied by the caller, checked at the time-stamp; stated as not checked when absent | this pull request |
 | V-6 | Library entry point: one JSON-in, JSON-out function for the hosted page; pure Python apart from `cryptography`, so it can also run in the browser under Pyodide (`docs/API.md`) | this pull request |
-| V-6b | Run the API under Pyodide in CI, so the browser claim is tested rather than stated | queued |
+| V-6b | Run the API under Pyodide in CI, so the browser claim is tested rather than stated | this pull request |
 | V-7 | Certificate v0 against the Ledger session's `docs/CERTIFICATE.md` (published 16 October): steps 1 to 6 (proof, scope statement, file, root record, inclusion, anchor) | this pull request |
 | V-7b | Certificate step 7: the `ledger-event/v0` chain rules and the authorship map recomputed and hashed to `map_sha256`; `fm-verify chain`; chain fixtures (valid, tampered, back-dated, re-ordered) | this pull request |
 | V-7c | The PDF form: extract the embedded `certificate.json` and verify it | queued |

@@ -39,3 +39,20 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -e ".[dev,interop]"
       - run: python -m pytest -q tests/test_interop.py -rs
+
+  pyodide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run the API under Pyodide, as a browser would
+        run: |
+          mkdir -p "$RUNNER_TEMP/pyodide"
+          cd "$RUNNER_TEMP/pyodide"
+          npm init -y > /dev/null
+          npm install --silent pyodide@0.27.7
+          cp "$GITHUB_WORKSPACE/tools/pyodide/check.mjs" .
+          node check.mjs "$GITHUB_WORKSPACE"
