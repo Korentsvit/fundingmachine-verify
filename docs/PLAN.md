@@ -33,6 +33,7 @@ ledger, capture, capital, or the website.
 | V-12 | Disclosure: with the document key and the inserted texts, replay a chain and check every keyed hash (`fm-verify chain --disclosure`) | this pull request |
 | V-13 | A tenant's hourly root records as a chain of their own (`prev_root` linkage, signatures): a dropped hour shows (`fm-verify roots`) | this pull request |
 | V-14 | The `anchors` branch's `index.jsonl`: every anchor listed, roots unique, times in order | queued, with the Ledger's job |
+| V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
 
 ## Not available yet
 

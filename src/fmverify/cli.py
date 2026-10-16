@@ -379,6 +379,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    import warnings
+
+    # Trust bundles shipped by operating systems hold a few certificates the
+    # cryptography library warns about (a non-positive serial); the warning
+    # says nothing about the input being verified.
+    warnings.filterwarnings("ignore", message="Parsed a serial number which wasn't positive")
     args = build_parser().parse_args(argv)
     try:
         verdict = args.func(args)

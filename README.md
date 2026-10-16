@@ -18,6 +18,9 @@ verification result is a convenience on top of it.
 | A Merkle inclusion proof (RFC 9162, or an explicit path) | `fm-verify merkle` |
 | Every published fixture, against its expected verdict | `fm-verify conformance` |
 
+A step-by-step guide for a reader holding a certificate:
+[docs/HOW_TO_VERIFY.md](docs/HOW_TO_VERIFY.md).
+
 Programs and pages call one function, `fmverify.api.verify`: JSON in,
 verdict out, no disk or network access; it runs in a browser under Pyodide
 ([docs/API.md](docs/API.md)). The input formats are in
