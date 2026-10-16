@@ -72,7 +72,12 @@ fundingmachine-ledger, and read by this verifier from those documents:
   looked for in `docs/DECISIONS_LOG.md` as fundingmachine-core's daily
   assembly leaves it: its rows appended, with the pull request number written
   over "this pull request". Only an exact SHA-256 match counts, and the
-  verdict names the lines.
+  verdict names the lines. `--repo OWNER/NAME@TAG=PATH` compares the
+  descriptors read at a tag (release manifests in the tagged tree) with a
+  checkout of that tag, for example one made with
+  `git worktree add ../core-R1 R1`; a release asset (`release-asset:NAME`) is
+  looked for by name in the same directory. A descriptor path that is
+  absolute or climbs out of the checkout is not read.
 
 ## Anchor batches (`fm-verify anchors`)
 

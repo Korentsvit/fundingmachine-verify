@@ -415,8 +415,15 @@ def verify_dir(
                             required=False))
 
     # Checkouts.
-    for repo, path in (repos or {}).items():
-        mine = [x for x in descriptors if x.get("repo") == repo and x.get("kind") not in NOT_IN_CHECKOUT]
+    for spec, path in (repos or {}).items():
+        # OWNER/NAME: a checkout of the default branch, for every descriptor read there;
+        # OWNER/NAME@REF: a checkout of a tag, for the descriptors read at that tag
+        # (release manifests in the tagged tree; release assets, by name, in the same directory).
+        repo, _, ref = spec.partition("@")
+        if ref:
+            mine = [x for x in descriptors if x.get("repo") == repo and x.get("ref") == ref]
+        else:
+            mine = [x for x in descriptors if x.get("repo") == repo and x.get("kind") not in NOT_IN_CHECKOUT]
         same, changed, absent, assembled = [], [], [], []
         base = Path(path)
         logs: dict[str, list[str]] = {}
@@ -435,7 +442,13 @@ def verify_dir(
                 else:
                     absent.append(f"{x['path']} (an entry)")
                 continue
-            p = base / x["path"]
+            rel = str(x.get("path", ""))
+            rel = rel[len("release-asset:"):] if rel.startswith("release-asset:") else rel
+            parts = PurePosixPath(rel).parts
+            if not parts or PurePosixPath(rel).is_absolute() or ".." in parts:
+                absent.append(f"{x.get('path')!r} (not a path inside the checkout; not read)")
+                continue
+            p = base.joinpath(*parts)
             if p.is_file():
                 (same if sha256(p.read_bytes()).hex() == x["sha256"] else changed).append(x["path"])
                 continue
@@ -450,13 +463,13 @@ def verify_dir(
                 absent.append(x["path"])
         data = {"matching": same, "assembled": assembled, "changed": changed, "absent": absent}
         if changed:
-            checks.append(Check(f"ledger_anchor.checkout.{repo}", Status.WARN,
+            checks.append(Check(f"ledger_anchor.checkout.{spec}", Status.WARN,
                                 f"{len(changed)} of {len(mine)} anchored files in {base} differ from what was anchored",
                                 reasons=changed[:20] + assembled[:20]
                                 + ["an anchor covers the content as it was; a later edit is a new leaf in a later anchor"],
                                 data=data))
         else:
-            checks.append(Check(f"ledger_anchor.checkout.{repo}", Status.PASS,
+            checks.append(Check(f"ledger_anchor.checkout.{spec}", Status.PASS,
                                 f"{len(same)} of {len(mine)} anchored items found unchanged in {base}"
                                 + (f"; {len(assembled)} fragments found assembled into the decisions log" if assembled else "")
                                 + (f"; {len(absent)} not present" if absent else ""),

@@ -223,3 +223,33 @@ def test_ledger_probe_proofs():
                               roots=roots[other]).outcome is Outcome.INVALID
     v = ots.verify((probe.parent / "probe.bin.ots").read_bytes(), file_bytes=data)
     assert v.outcome is Outcome.INDETERMINATE and any(c.id == "ots.pending" for c in v.checks)
+
+
+def test_checkout_of_a_tag(tmp_path):
+    """--repo OWNER/NAME@TAG=PATH compares the descriptors read at that tag;
+    a release asset is looked for by name; a path climbing out is not read."""
+    tag_tree = tmp_path / "core-R1"
+    (tag_tree / "dataset" / "releases" / "R1").mkdir(parents=True)
+    manifest_bytes = b'{"release": "R1"}\n'
+    (tag_tree / "dataset" / "releases" / "R1" / "manifest.json").write_bytes(manifest_bytes)
+    (tag_tree / "assets-manifest.json").write_bytes(b"asset\n")
+    (tmp_path / "secret").write_bytes(b"not for reading\n")
+
+    def desc(kind, path, ref, data):
+        return {"kind": kind, "path": path, "ref": ref, "repo": "o/core", "sha256": sha256(data).hex()}
+
+    descs = [desc("release_manifest", "dataset/releases/R1/manifest.json", "R1", manifest_bytes),
+             desc("release_asset_manifest", "release-asset:assets-manifest.json", "R1", b"asset\n"),
+             desc("release_manifest", "../secret", "R1", b"not for reading\n"),
+             desc("standing_rulings", "docs/STANDING_RULINGS.md", "main", b"rulings\n")]
+    leaves = ledger_anchors.sorted_leaves(descs)
+    d = tmp_path / "anchor"
+    d.mkdir()
+    (d / "root.preimage").write_bytes(ledger_anchors.preimage_for(leaves))
+    (d / "manifest.json").write_text(json.dumps({"leaves": [{"descriptor": json.loads(x)} for x in leaves]}))
+    v = ledger_anchors.verify_dir(d, repos={"o/core@R1": tag_tree, "o/core": tag_tree})
+    tagged = next(c for c in v.checks if c.id == "ledger_anchor.checkout.o/core@R1")
+    assert sorted(tagged.data["matching"]) == ["dataset/releases/R1/manifest.json", "release-asset:assets-manifest.json"]
+    assert tagged.data["absent"] == ["'../secret' (not a path inside the checkout; not read)"]
+    default = next(c for c in v.checks if c.id == "ledger_anchor.checkout.o/core")
+    assert default.data["absent"] == ["docs/STANDING_RULINGS.md"] and default.data["matching"] == []

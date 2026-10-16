@@ -145,7 +145,7 @@ def cmd_anchors(args: argparse.Namespace) -> Verdict:
         for spec in args.repo or []:
             name, sep, path = spec.partition("=")
             if not sep or not name or not path:
-                raise UsageError(f"--repo {spec!r}: expected OWNER/NAME=PATH")
+                raise UsageError(f"--repo {spec!r}: expected OWNER/NAME=PATH or OWNER/NAME@TAG=PATH")
             repos[name] = path
         run = ledger_anchors.verify_all if args.all else ledger_anchors.verify_dir
         return run(args.batch, repos=repos, header_sources=header_sources(args),
@@ -322,8 +322,9 @@ def build_parser() -> argparse.ArgumentParser:
                                  "or a batch directory in this verifier's own format (batch.json)")
     a.add_argument("--all", action="store_true",
                    help="verify every anchor directory (with root.preimage) under the path given, and summarise")
-    a.add_argument("--repo", action="append", metavar="OWNER/NAME=PATH",
-                   help="Ledger layout: a checkout of a repository the descriptors name, to compare (repeatable)")
+    a.add_argument("--repo", action="append", metavar="OWNER/NAME[@TAG]=PATH",
+                   help=("Ledger layout: a checkout of a repository the descriptors name, to compare (repeatable); "
+                         "with @TAG, a checkout of that tag, for the release manifests anchored at it"))
     a.add_argument("--repo-root", help="a checkout to compare every listed file with")
     a.add_argument("--file", action="append", help="a file you hold, named by its listed path (repeatable); a mismatch is a failure")
     a.add_argument("--strict-files", action="store_true", help="with --repo-root, treat any changed file as a failure")
