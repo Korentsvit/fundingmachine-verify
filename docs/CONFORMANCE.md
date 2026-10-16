@@ -42,6 +42,7 @@ fixtures/
 | `repo_root`, `files` | for anchor batches: a checkout to compare, and files a reader holds (relative to `repo_root`) |
 | `events` | for certificates: the event chain file, for step 7 |
 | `index`, `code` | for chains: the position of the first bad event and the contract's failure code |
+| `disclosure` | for chains: a disclosure file (document key and inserted texts) to replay |
 
 Check ids are this verifier's; another implementation is asked to match
 `outcome`, and may map its own reasons to `failing` as it sees fit.

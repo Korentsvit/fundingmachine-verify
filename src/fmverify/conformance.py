@@ -89,7 +89,13 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
                                     header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls,
                                     events=events)
     elif kind == "chain":
-        v = ledger_events.verify(json.loads((case / "events.json").read_text(encoding="utf-8"))["events"])
+        events = json.loads((case / "events.json").read_text(encoding="utf-8"))["events"]
+        if "disclosure" in exp:
+            from . import ledger_text
+
+            v = ledger_text.verify(events, json.loads((case / exp["disclosure"]).read_text(encoding="utf-8")))
+        else:
+            v = ledger_events.verify(events)
     else:
         raise ValueError(f"unknown kind {kind}")
     return exp, v
@@ -97,7 +103,7 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
 
 def compare(exp: dict, v: Verdict) -> list[str]:
     problems = []
-    if "code" in exp:
+    if "code" in exp and "disclosure" not in exp:
         got = next((c.data.get("code") for c in v.checks if c.id == "chain.rules"), None)
         index = next((c.data.get("index") for c in v.checks if c.id == "chain.rules"), None)
         if (got, index) != (exp["code"], exp.get("index")):

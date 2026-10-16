@@ -1,0 +1,5 @@
+{
+ "description": "The document key and the inserted texts, disclosed: every keyed hash in the chain is reproduced",
+ "outcome": "valid",
+ "disclosure": "disclosure.json"
+}

@@ -70,6 +70,7 @@ class Writer:
         self.statements: list[dict] = []  # {"statement_id", "section_id", "text"}
         self.sessions: dict[str, tuple[str, Ed25519PrivateKey]] = {}
         self.minute = 0
+        self.texts: dict[int, str] = {}  # seq -> the text an event inserted (never leaves a tenant)
 
     def keyed(self, text: str) -> str:
         return hmac.new(self.doc_key, text.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -93,6 +94,8 @@ class Writer:
               "capture_fidelity": fidelity, "payload": payload}
         ev = sign_event(ev, key)
         self.events.append(ev)
+        if type_ in ("edit.insert", "edit.replace", "import.paste", "tool.generate", "tool.edit"):
+            self.texts[ev["seq"]] = content if content is not None else ""
         return ev
 
     # Actors.
@@ -306,6 +309,28 @@ def build(fix: Path) -> Writer:
     t[1] = resign(t[1], keys[events[15]["session_id"]])
     case("signed-with-another-sessions-key", t, {"description": "An event signed with the second session's key", "outcome": "invalid",
                                                   "index": 1, "code": "key_mismatch"})
+
+    disclosure = {"doc_key_hex": w.doc_key.hex(), "steps": [{"seq": s, "content_text": t} for s, t in sorted(w.texts.items())]}
+
+    def disclosure_case(name: str, disc: dict, expected: dict) -> None:
+        case(name, events, expected)
+        (out / name / "disclosure.json").write_text(json.dumps(disc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        exp = json.loads((out / name / "expected.json").read_text())
+        exp["disclosure"] = "disclosure.json"
+        if exp["outcome"] == "invalid":
+            exp["failing"] = expected.get("failing", [])
+        (out / name / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+
+    disclosure_case("disclosure-valid", disclosure,
+                    {"description": "The document key and the inserted texts, disclosed: every keyed hash in the chain is reproduced",
+                     "outcome": "valid"})
+    altered = copy.deepcopy(disclosure)
+    altered["steps"][0]["content_text"] = altered["steps"][0]["content_text"].replace("twelve", "eleven")
+    disclosure_case("disclosure-altered-text", altered,
+                    {"description": "One disclosed text differs by a word from what the chain recorded", "outcome": "invalid",
+                     "failing": ["disclosure.replay"]})
+    disclosure_case("disclosure-wrong-key", dict(disclosure, doc_key_hex="11" * 32),
+                    {"description": "A key other than the one committed at genesis", "outcome": "invalid", "failing": ["disclosure.key"]})
 
     t = copy.deepcopy(events)
     t[1] = dict(t[1], payload=dict(t[1]["payload"], text="We will measure the effect on twelve sites."))

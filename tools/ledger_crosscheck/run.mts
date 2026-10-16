@@ -21,6 +21,7 @@ const fix = process.argv[2];
 for (const name of readdirSync(join(fix, "chain")).sort()) {
   const events = JSON.parse(readFileSync(join(fix, "chain", name, "events.json"), "utf8")).events;
   const exp = JSON.parse(readFileSync(join(fix, "chain", name, "expected.json"), "utf8"));
+  if (exp.disclosure) continue; // these cases are about disclosed text; their chains are the valid one
   const r = verifyChain(events);
   const ledgerSays = r.ok ? ["valid", null, null] : ["invalid", r.error.index, r.error.code];
   const expected = [exp.outcome, exp.index ?? null, exp.code ?? null];

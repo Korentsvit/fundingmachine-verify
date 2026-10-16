@@ -156,6 +156,12 @@ def _run(req: dict):
         events = req.get("events")
         if not isinstance(events, list):
             raise RequestError("events must be a list of ledger-event/v0 events")
+        if "disclosure" in req:
+            from . import ledger_text
+
+            if not isinstance(req["disclosure"], dict):
+                raise RequestError("disclosure must be an object with doc_key_hex and steps")
+            return ledger_text.verify(events, req["disclosure"], subject=label)
         return ledger_events.verify(events, subject=label)
     raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, certificate, chain")
 

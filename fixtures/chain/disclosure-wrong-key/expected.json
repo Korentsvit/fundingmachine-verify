@@ -1,0 +1,8 @@
+{
+ "description": "A key other than the one committed at genesis",
+ "outcome": "invalid",
+ "failing": [
+  "disclosure.key"
+ ],
+ "disclosure": "disclosure.json"
+}

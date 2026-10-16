@@ -185,9 +185,18 @@ def _events(path: str) -> list:
 
 
 def cmd_chain(args: argparse.Namespace) -> Verdict:
-    from . import ledger_events
+    from . import ledger_events, ledger_text
 
-    return ledger_events.verify(_events(args.events))
+    events = _events(args.events)
+    if args.disclosure:
+        try:
+            disclosure = json.loads(_read(args.disclosure).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise UsageError(f"--disclosure {args.disclosure} is not JSON: {exc}") from exc
+        if not isinstance(disclosure, dict) or "doc_key_hex" not in disclosure:
+            raise UsageError("--disclosure must hold doc_key_hex and steps")
+        return ledger_text.verify(events, disclosure)
+    return ledger_events.verify(events)
 
 
 def _header_options(p: argparse.ArgumentParser) -> None:
@@ -298,6 +307,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     ch = sub.add_parser("chain", help="a Provenance Ledger event chain (ledger-event/v0)")
     ch.add_argument("events", help="the events, a JSON array or {\"events\": [...]}")
+    ch.add_argument("--disclosure", metavar="FILE",
+                    help="the document key and inserted texts ({\"doc_key_hex\", \"steps\": [{\"seq\", \"content_text\"}]}): "
+                         "replays the chain and checks every keyed hash; the text is never printed")
     ch.add_argument("--json", action="store_true")
     ch.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ch.set_defaults(func=cmd_chain)

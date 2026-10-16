@@ -46,7 +46,7 @@ By kind:
 | `merkle` | `proof` (the JSON object of `docs/INPUTS.md`); `leaf` (base64) unless the proof carries `leaf` (hex); `root` (hex), optional |
 | `anchors` | `batch` (the parsed `batch.json`); `anchor_files` (file name to base64); `files` (listed path to base64 of a file the reader holds), optional |
 | `certificate` | `certificate` (the certificate's JSON object); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 events), optional, for step 7 |
-| `chain` | `events` (a list of ledger-event/v0 events) |
+| `chain` | `events` (a list of ledger-event/v0 events); `disclosure` (`{"doc_key_hex", "steps": [{"seq", "content_text"}]}`), optional: replays the chain and checks every keyed hash; the text is never echoed |
 
 ## Answer
 

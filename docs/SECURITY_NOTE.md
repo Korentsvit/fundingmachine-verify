@@ -31,10 +31,13 @@ the event chain). It does not, and cannot:
   re-signed with the client keys is valid (fixture
   `chain/back-dated-consistently`). Only an anchor of the hour's root bounds
   when the chain existed.
-* **Keyed hashes are not checked.** Without the document key and the text,
-  the verifier cannot check `content_hash`, `doc_hash` or `removed_hash`,
-  nor that an event's `length` matches its text. A tenant can disclose both
-  to an auditor; checking them is future work.
+* **Keyed hashes are checked only on disclosure.** Without the document key
+  and the text, the verifier cannot check `content_hash`, `doc_hash` or
+  `removed_hash`, nor that an event's `length` matches its text. A tenant can
+  disclose both to an auditor: `fm-verify chain --disclosure` replays the
+  chain and checks every one (fixtures `chain/disclosure-*`). Prompt,
+  paste-source and declaration hashes need texts beyond that disclosure and
+  stay unchecked.
 * **Imported means imported.** Text pasted from anywhere, including from a
   tool outside the environment, is `imported`; the map cannot say where it
   was written.
