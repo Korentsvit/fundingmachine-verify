@@ -28,6 +28,7 @@ fixtures/
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
   merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root")
   ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
+  ledger-anchors/set-*/      an anchors directory: index.jsonl and anchors under YYYY/MM/DD/HHMMSSZ/, expected.json
 ```
 
 ## expected.json
@@ -47,6 +48,8 @@ fixtures/
 | `events` | for certificates: the event chain file, for step 7 |
 | `index`, `code` | for chains: the position of the first bad event and the contract's failure code |
 | `disclosure` | for chains: a disclosure file (document key and inserted texts) to replay |
+| `repos` | for Ledger anchors: checkouts to compare, `{"OWNER/NAME": path}` |
+| `all` | for Ledger anchors: the case is a whole anchors directory, verified as a set (`fm-verify anchors DIR --all`) |
 
 Check ids are this verifier's; another implementation is asked to match
 `outcome`, and may map its own reasons to `failing` as it sees fit.
@@ -65,6 +68,12 @@ Check ids are this verifier's; another implementation is asked to match
 * Anchor batches: valid; a changed checkout; a changed file a reader holds;
   re-ordered and dropped files; a pending proof; a back-dated token; a
   proof over another root.
+* Provenance Ledger anchors (`anchor-manifest/v0`): valid; checkouts later
+  changed or with the fragment assembled into the log; a descriptor altered
+  or dropped; a leaf hash wrong; leaves out of order; the manifest misstating
+  a token; a schema violation; a source not read; one token missing; an
+  unknown contract; no contract; proofs over another root; and sets with
+  `index.jsonl` (valid, a broken link, an anchor not listed).
 
 * Certificates (`ledger-certificate/v0`): valid, anchored or not, with and
   without the chain; changed after signing; another key; and an issuer

@@ -139,9 +139,12 @@ FundingMachine's private repositories is in them.
   changed, the wrong key).
 * `roots/*`: hourly root records: valid, an hour dropped, two swapped, one
   altered, another key, a later stretch alone.
-* `ledger-anchors/*`: anchors in the Ledger's layout over a synthetic
-  repository: valid; a later checkout (a warning); a descriptor altered or
-  dropped; one authority only (a warning); proofs over another root.
+* `ledger-anchors/*`: anchors in the Ledger's layout (`anchor-manifest/v0`)
+  over a synthetic repository: valid; a later checkout and one after the
+  daily assembly (warnings); a descriptor altered or dropped; a leaf hash
+  wrong; leaves out of order; a token misstated; a schema violation; a source
+  not read and one token missing (warnings); an unknown contract; and anchor
+  sets with `index.jsonl`: valid, a broken link, an anchor not listed.
 * `anchors/*`: batches in this verifier's own format over a synthetic
   repository: valid, changed checkout, changed file, re-ordered, dropped,
   pending proof, back-dated token, proof over another root.
@@ -189,6 +192,13 @@ not take this code's word:
   not copied here); and the reverse, `tools/ledger_crosscheck/run.mts` runs
   its validator over these fixtures: on 16 October 2026 it agreed on all 11
   chains, all 17 certificate proofs and the authorship map hash;
+* the Ledger's anchoring work (its branch of 16 October 2026): its recorded
+  DigiCert and Sectigo responses and OpenTimestamps proof verify here; this
+  verifier's schema check gives the published `anchor-manifest/v0` schema's
+  answer on every mutation tested; and `tools/ledger_crosscheck/anchors.mts`
+  runs its anchor verifier over these anchor fixtures. It agreed on 12 of 17
+  cases. The other five differ by design and are named in
+  `docs/decisions.d/2026-10-16-verify-anchor-manifest.md`;
 * the library runs under Pyodide in CI, as a browser would run it.
 
 Those tools are test-time only; the verifier never imports them.

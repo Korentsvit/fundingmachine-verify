@@ -285,10 +285,36 @@ def build_ledger_anchors() -> None:
     tsr_a = tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], preimage, serial=4001, sig="rsa", gen_time=gen)
     tsr_b = tsa_fixtures.token(ec_k, ec_cert, [ec_cert, ica], preimage, serial=4002, sig="ecdsa", gen_time=gen)
 
-    def manifest(descs: list[dict]) -> dict:
+    from fmverify import rfc3161 as _rfc3161
+
+    def token_entry(authority: str, slug: str, data: bytes) -> dict:
+        # As the Ledger's src/anchor/tsa.ts states them: genTime to the millisecond,
+        # the serial as the hex of the DER integer's bytes, the policy in dotted form.
+        tst = _rfc3161.parse_token(data).tst
+        n = tst.serial
+        raw = n.to_bytes(n.bit_length() // 8 + 1, "big")
+        return {"authority": authority, "url": f"http://tsa.example/{slug}", "file": f"root.preimage.{slug}.tsr",
+                "gen_time": tst.gen_time.strftime("%Y-%m-%dT%H:%M:%S.") + f"{tst.gen_time.microsecond // 1000:03d}Z",
+                "serial": raw.hex(), "policy": tst.policy}
+
+    source = {"repo": repo, "read": True, "reason": None, "default_branch": "main",
+              "head": hashlib.sha1(b"synthetic head").hexdigest(), "tags": [], "absent": [],
+              "release_assets": {"read": True, "reason": None, "count": 0}}
+    proofs = {"preimage": "root.preimage",
+              "opentimestamps": {"file": "root.preimage.ots", "accepted_by": ["https://a.calendar.example", "https://b.calendar.example"],
+                                 "failed": []},
+              "rfc3161": [token_entry("Test RSA", "test-rsa", tsr_a), token_entry("Test P-256", "test-p256", tsr_b)]}
+
+    def manifest(descs: list[dict], order: str = "sorted", created: str = "2026-10-17T08:04:11.000Z", previous: dict | None = None,
+                 sources: list | None = None, prf: dict | None = None) -> dict:
+        """anchor-manifest/v0, as the Ledger's src/anchor/anchor.ts writes it."""
         ls = ledger_anchors.sorted_leaves(descs)
-        return {"contract": "anchor-manifest/v0", "root": merkle.tree_hash(ls).hex(), "size": len(ls),
-                "leaves": [{"descriptor": json.loads(x), "leaf_hash": merkle.leaf_hash(x).hex()} for x in ls]}
+        if order == "reversed":
+            ls = ls[::-1]
+        return {"contract": "anchor-manifest/v0", "created": created, "root": merkle.tree_hash(ls).hex(), "size": len(ls),
+                "leaves": [{"leaf_hash": merkle.leaf_hash(x).hex(), "descriptor": json.loads(x)} for x in ls],
+                "sources": sources if sources is not None else [source], "previous": previous,
+                "proofs": prf if prf is not None else proofs}
 
     common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin", "start": 0}],
               "roots": ["../../rfc3161/pki/root.pem"]}
@@ -318,13 +344,78 @@ def build_ledger_anchors() -> None:
                                 "failing": ["ledger_anchor.leaves"]}, man=manifest(altered))
     case("descriptor-dropped", {"description": "A descriptor removed after anchoring", "outcome": "invalid",
                                 "failing": ["ledger_anchor.leaves"]}, man=manifest(descriptors[:-1]))
-    case("one-authority", {"description": "Only one authority's token: valid, with a warning", "outcome": "valid",
-                           "warning": ["ledger_anchor.policy"]}, tokens={"test-rsa": tsr_a})
+    case("one-authority", {"description": "Only one of the two tokens the manifest names is in the directory: valid, with warnings",
+                           "outcome": "valid", "warning": ["ledger_anchor.files", "ledger_anchor.policy"]}, tokens={"test-rsa": tsr_a})
     other_pre = ledger_anchors.preimage_for(ledger_anchors.sorted_leaves(descriptors[:-1]))
     case("proofs-over-another-root", {"description": "The proofs cover another root's preimage", "outcome": "invalid",
                                       "failing": ["ledger_anchor.leaves", "ledger_anchor.ots",
                                                   "ledger_anchor.rfc3161.root.preimage.test-p256.tsr",
                                                   "ledger_anchor.rfc3161.root.preimage.test-rsa.tsr"]}, pre=other_pre)
+    wrong_hash = manifest(descriptors)
+    wrong_hash["leaves"][1]["leaf_hash"] = sha256(b"not this leaf").hex()
+    case("leaf-hash-wrong", {"description": "A leaf hash in the manifest is not the hash of its descriptor", "outcome": "invalid",
+                             "failing": ["ledger_anchor.leaves"]}, man=wrong_hash)
+    case("leaves-unsorted", {"description": ("The leaves listed out of the documented order: in that order they give another root "
+                                             "(a failure), and the order itself is a warning"), "outcome": "invalid",
+                             "failing": ["ledger_anchor.leaves"], "warning": ["ledger_anchor.order"]},
+         man=manifest(descriptors, order="reversed"))
+    misstated = json.loads(json.dumps(proofs))
+    misstated["rfc3161"][0]["gen_time"] = "2026-10-17T07:04:12.000Z"
+    case("manifest-misstates-token", {"description": "The manifest states a genTime an hour before the token's own", "outcome": "invalid",
+                                      "failing": ["ledger_anchor.statements"]}, man=manifest(descriptors, prf=misstated))
+    extra = manifest(descriptors)
+    extra["note"] = "a field the schema does not have"
+    case("schema-violation", {"description": "A manifest with a field anchor-manifest/v0 does not have", "outcome": "invalid",
+                              "failing": ["ledger_anchor.manifest_schema"]}, man=extra)
+    unread = {**source, "repo": "example/private", "read": False, "reason": "no read token", "head": None,
+              "release_assets": {"read": False, "reason": "no read token", "count": 0}}
+    case("source-not-read", {"description": "One of two sources could not be read: valid for what it covers, with a warning",
+                             "outcome": "valid", "warning": ["ledger_anchor.sources"]}, man=manifest(descriptors, sources=[source, unread]))
+    later = manifest(descriptors)
+    later["contract"] = "anchor-manifest/v1"
+    case("unknown-contract", {"description": "A manifest contract this verifier does not read: indeterminate", "outcome": "indeterminate"},
+         man=later)
+    case("unversioned", {"description": "A manifest with no contract: descriptors found by their documented shape", "outcome": "valid"},
+         man={"leaves": [{"descriptor": json.loads(x)} for x in ledger_anchors.sorted_leaves(descriptors)]})
+
+    # Sets: an anchors directory with index.jsonl and two anchors, the second linked to the first.
+    second_descs = descriptors + [desc("decisions_fragment", "docs/decisions.d/2026-10-17-example.md", sha256(b"| 2026-10-17 | later |\n"))]
+    second_leaves = ledger_anchors.sorted_leaves(second_descs)
+    second_pre = ledger_anchors.preimage_for(second_leaves)
+    second_root = sha256(second_pre)
+    gen2 = gen + _dt.timedelta(hours=1)
+    tsr_a2 = tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], second_pre, serial=4003, sig="rsa", gen_time=gen2)
+    tsr_b2 = tsa_fixtures.token(ec_k, ec_cert, [ec_cert, ica], second_pre, serial=4004, sig="ecdsa", gen_time=gen2)
+    pending = ots.DetachedTimestamp(SHA256, ots.Timestamp(second_root, [ots.Attestation(ots.TAG_PENDING, ots._varbytes(b"https://a.calendar.example"))]))
+    proofs2 = {**proofs, "rfc3161": [token_entry("Test RSA", "test-rsa", tsr_a2), token_entry("Test P-256", "test-p256", tsr_b2)]}
+    first_rel, second_rel = "2026/10/17/080411Z", "2026/10/17/090411Z"
+    m1 = manifest(descriptors)
+    m2 = manifest(second_descs, created="2026-10-17T09:04:11.000Z", previous={"path": first_rel, "root": m1["root"]}, prf=proofs2)
+
+    def anchor_set(name: str, expected: dict, second: dict, lines: list[dict]) -> None:
+        d = out / name
+        for rel, man, pre, ots_b, toks in ((first_rel, m1, preimage, good_ots, {"test-rsa": tsr_a, "test-p256": tsr_b}),
+                                           (second_rel, second, second_pre, pending.serialize(), {"test-rsa": tsr_a2, "test-p256": tsr_b2})):
+            a = d.joinpath(*rel.split("/"))
+            a.mkdir(parents=True)
+            (a / "manifest.json").write_text(json.dumps(man, indent=2) + "\n", encoding="utf-8")
+            (a / "root.preimage").write_bytes(pre)
+            (a / "root.preimage.ots").write_bytes(ots_b)
+            for tname, data in toks.items():
+                (a / f"root.preimage.{tname}.tsr").write_bytes(data)
+        (d / "index.jsonl").write_text("".join(json.dumps(x, separators=(",", ":")) + "\n" for x in lines), encoding="utf-8")
+        (d / "expected.json").write_text(json.dumps({**common, "all": True, **expected}, indent=1) + "\n",
+                                         encoding="utf-8")
+
+    line1 = {"created": m1["created"], "root": m1["root"], "size": m1["size"], "path": first_rel}
+    line2 = {"created": m2["created"], "root": m2["root"], "size": m2["size"], "path": second_rel}
+    anchor_set("set-valid", {"description": ("Two anchors an hour apart, listed in index.jsonl, the second linked to the first; "
+                                             "its OpenTimestamps proof still pending"), "outcome": "valid"}, m2, [line1, line2])
+    broken = {**m2, "previous": {"path": first_rel, "root": sha256(b"another root").hex()}}
+    anchor_set("set-broken-link", {"description": "The second anchor links to a root the first does not have", "outcome": "invalid",
+                                   "failing": ["anchor_set.index"]}, broken, [line1, line2])
+    anchor_set("set-unlisted", {"description": "index.jsonl lists only the first anchor: a warning", "outcome": "valid",
+                                "warning": ["anchor_set.index"]}, m2, [line1])
 
 
 def build_merkle() -> None:

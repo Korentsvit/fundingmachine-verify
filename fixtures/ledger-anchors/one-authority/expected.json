@@ -9,9 +9,10 @@
  "roots": [
   "../../rfc3161/pki/root.pem"
  ],
- "description": "Only one authority's token: valid, with a warning",
+ "description": "Only one of the two tokens the manifest names is in the directory: valid, with warnings",
  "outcome": "valid",
  "warning": [
+  "ledger_anchor.files",
   "ledger_anchor.policy"
  ]
 }

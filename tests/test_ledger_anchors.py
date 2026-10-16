@@ -60,7 +60,7 @@ def test_all_anchors_under_a_directory(capsys):
     by_case = {c["id"].split(".", 1)[1]: c["status"] for c in doc["checks"]}
     assert by_case["valid"] == "pass" and by_case["descriptor-altered"] == "fail"
     n = len(ledger_anchors.find_anchor_dirs(FIX / "ledger-anchors"))
-    assert n == 7 and f"of {n} anchors" in doc["statement"]
+    assert n >= 14 and f"of {n} anchors" in doc["statement"]
     assert ledger_anchors.find_anchor_dirs(FIX / "anchors") == []
 
 
@@ -111,3 +111,115 @@ def test_long_log_is_quick():
     ledger_anchors.entry_runs(log)
     ledger_anchors.assembled_runs(log)
     assert time.perf_counter() - t < 20
+
+
+def test_entry_with_trailing_white_space():
+    """The Ledger's collector trims each entry line's end before hashing."""
+    lines = ["| 2026-10-16 | layer | A ruling | Why | #4 |   "]
+    assert ledger_anchors.entry_runs(lines)[sha256(lines[0].rstrip().encode()).hex()] == (1, 1)
+
+
+def _valid_manifest():
+    return json.loads((CASE / "manifest.json").read_text())
+
+
+def _mutations():
+    """Each yields a manifest one step away from the valid fixture's."""
+    m = _valid_manifest()
+    for key in list(m):
+        yield f"drop {key}", {k: v for k, v in m.items() if k != key}
+    yield "extra field", {**m, "note": "x"}
+    yield "contract v1", {**m, "contract": "anchor-manifest/v1"}
+    yield "created without ms", {**m, "created": "2026-10-17T08:04:11Z"}
+    yield "root upper case", {**m, "root": m["root"].upper()}
+    yield "size zero", {**m, "size": 0}
+    yield "size true", {**m, "size": True}
+    yield "size string", {**m, "size": "5"}
+    yield "no leaves", {**m, "leaves": []}
+    leaf = m["leaves"][0]
+    yield "leaf extra", {**m, "leaves": [{**leaf, "x": 1}] + m["leaves"][1:]}
+    yield "leaf hash short", {**m, "leaves": [{**leaf, "leaf_hash": "ab"}] + m["leaves"][1:]}
+    for k, bad in (("kind", "other"), ("repo", "no-slash"), ("path", ""), ("ref", ""), ("sha256", "z" * 64)):
+        yield f"descriptor {k}", {**m, "leaves": [{**leaf, "descriptor": {**leaf["descriptor"], k: bad}}] + m["leaves"][1:]}
+    yield "descriptor missing ref", {**m, "leaves": [{**leaf, "descriptor": {k: v for k, v in leaf["descriptor"].items() if k != "ref"}}]}
+    src = m["sources"][0]
+    for k, bad in (("read", "yes"), ("reason", 1), ("head", "abc"), ("tags", [{"name": "v1", "commit": "x"}]), ("absent", [1]),
+                   ("release_assets", {"read": True, "reason": None, "count": -1}), ("release_assets", {"read": True, "reason": None})):
+        yield f"source {k}", {**m, "sources": [{**src, k: bad}]}
+    yield "source head null", {**m, "sources": [{**src, "head": None}]}
+    yield "source with a tag", {**m, "sources": [{**src, "tags": [{"name": "v1", "commit": "a" * 40}]}]}
+    yield "previous set", {**m, "previous": {"path": "2026/10/17/070000Z", "root": "a" * 64}}
+    yield "previous bad root", {**m, "previous": {"path": "p", "root": "x"}}
+    pr = m["proofs"]
+    yield "preimage name", {**m, "proofs": {**pr, "preimage": "other"}}
+    yield "one calendar", {**m, "proofs": {**pr, "opentimestamps": {**pr["opentimestamps"], "accepted_by": ["a"]}}}
+    yield "failed calendar", {**m, "proofs": {**pr, "opentimestamps": {**pr["opentimestamps"], "failed": [{"calendar": "c", "error": "e"}]}}}
+    yield "one token", {**m, "proofs": {**pr, "rfc3161": pr["rfc3161"][:1]}}
+    tok = pr["rfc3161"][0]
+    for k, bad in (("serial", "0FA1"), ("gen_time", "2026-10-17T08:04:12Z"), ("policy", 1)):
+        yield f"token {k}", {**m, "proofs": {**pr, "rfc3161": [{**tok, k: bad}] + pr["rfc3161"][1:]}}
+
+
+def test_manifest_schema_check_agrees_with_published_schema():
+    """v0_problems against the Ledger's schemas/anchor-manifest-v0.schema.json
+    (when FM_LEDGER_REPO holds it): the same verdict on every mutation."""
+    import os
+
+    jsonschema = pytest.importorskip("jsonschema")
+    base = os.environ.get("FM_LEDGER_REPO")
+    schema_path = Path(base or "") / "schemas" / "anchor-manifest-v0.schema.json"
+    if not base or not schema_path.is_file():
+        pytest.skip("set FM_LEDGER_REPO to a checkout holding schemas/anchor-manifest-v0.schema.json")
+    validator = jsonschema.Draft202012Validator(json.loads(schema_path.read_text()))
+    assert validator.is_valid(_valid_manifest()) and not ledger_anchors.v0_problems(_valid_manifest())
+    for what, m in _mutations():
+        assert validator.is_valid(m) == (not ledger_anchors.v0_problems(m)), what
+
+
+def test_manifest_schema_check_on_mutations():
+    """Without the published schema: every mutation that breaks a stated
+    constraint is caught, and the allowed ones pass."""
+    allowed = {"source head null", "source with a tag", "previous set", "failed calendar"}
+    for what, m in _mutations():
+        assert (not ledger_anchors.v0_problems(m)) == (what in allowed), what
+
+
+def test_index_path_outside_is_refused(tmp_path):
+    import shutil
+
+    shutil.copytree(FIX / "ledger-anchors" / "set-valid", tmp_path / "set")
+    idx = tmp_path / "set" / "index.jsonl"
+    lines = idx.read_text().splitlines()
+    first = json.loads(lines[0])
+    lines[0] = json.dumps({**first, "path": "../../" + first["path"]})
+    idx.write_text("\n".join(lines) + "\n")
+    c = ledger_anchors.check_index(tmp_path / "set", ledger_anchors.find_anchor_dirs(tmp_path / "set"))
+    assert c.status.value == "fail" and any("not a relative path inside" in r for r in c.reasons)
+
+
+def test_ledger_probe_proofs():
+    """The Ledger's recorded responses (fixtures/anchor/ in its repository,
+    when FM_LEDGER_REPO holds them): DigiCert's and Sectigo's tokens over
+    probe.bin verify against the roots it ships in anchors/tsa/, and its
+    OpenTimestamps proof is well formed and pending."""
+    import os
+
+    from fmverify import ots, pki, rfc3161
+    from fmverify.verdict import Outcome
+
+    base = Path(os.environ.get("FM_LEDGER_REPO") or "")
+    probe = base / "fixtures" / "anchor" / "probe.bin"
+    if not os.environ.get("FM_LEDGER_REPO") or not probe.is_file():
+        pytest.skip("set FM_LEDGER_REPO to a checkout holding fixtures/anchor/")
+    data = probe.read_bytes()
+    roots = {name: pki.load_certificates((base / "anchors" / "tsa" / f"{name}.pem").read_bytes()) for name in ("digicert", "sectigo")}
+    assert pki.fingerprint(roots["digicert"][0]) == "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988"
+    assert pki.fingerprint(roots["sectigo"][0]) == "e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2"
+    for name in ("digicert", "sectigo"):
+        v = rfc3161.verify((probe.parent / f"probe.bin.{name}.tsr").read_bytes(), file_bytes=data, roots=roots[name])
+        assert v.outcome is Outcome.VALID, v.to_text()
+        other = "sectigo" if name == "digicert" else "digicert"
+        assert rfc3161.verify((probe.parent / f"probe.bin.{name}.tsr").read_bytes(), file_bytes=data,
+                              roots=roots[other]).outcome is Outcome.INVALID
+    v = ots.verify((probe.parent / "probe.bin.ots").read_bytes(), file_bytes=data)
+    assert v.outcome is Outcome.INDETERMINATE and any(c.id == "ots.pending" for c in v.checks)

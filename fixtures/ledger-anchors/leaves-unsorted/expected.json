@@ -1,0 +1,20 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "The leaves listed out of the documented order: in that order they give another root (a failure), and the order itself is a warning",
+ "outcome": "invalid",
+ "failing": [
+  "ledger_anchor.leaves"
+ ],
+ "warning": [
+  "ledger_anchor.order"
+ ]
+}

@@ -25,14 +25,15 @@ ledger, capture, capital, or the website.
 | V-7 | Certificate v0 against the Ledger session's `docs/CERTIFICATE.md` (published 16 October): steps 1 to 6 (proof, scope statement, file, root record, inclusion, anchor) | this pull request |
 | V-7b | Certificate step 7: the `ledger-event/v0` chain rules and the authorship map recomputed and hashed to `map_sha256`; `fm-verify chain`; chain fixtures (valid, tampered, back-dated, re-ordered) | this pull request |
 | V-7c | The PDF form: extract the embedded `certificate.json` and verify it | this pull request |
-| V-3b | The Ledger session's anchor layout (`docs/ANCHORING.md`: RFC 8785 descriptor leaves, `root.preimage`, proofs over it), read from the document: this pull request. To finish when the job lands on 17 October: the manifest's `anchor-manifest/v0` schema, the `anchors` branch's `index.jsonl`, and the authorities' chains under `anchors/tsa/` | in progress |
+| V-3b | The Ledger session's anchor layout (`docs/ANCHORING.md`: RFC 8785 descriptor leaves, `root.preimage`, proofs over it) and its `anchor-manifest/v0` schema, read from its anchoring branch of 16 October; its recorded DigiCert, Sectigo and OpenTimestamps responses verify here, and its anchor verifier was run over these fixtures. To recheck when the job merges: any change to the schema | this pull request |
 | V-8 | Static HTML report: authorship map and evidence coverage, no script at all (`--html`, and `render: html` in the API) | this pull request |
 | V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use (`docs/CONFORMANCE.md`). Runner, and fixtures for anchors, certificates and chains: this pull request. To finish: a versioned release of the fixtures and the runner's instructions for other implementations | in progress |
 | V-10 | Security note: what the verifier cannot detect (`docs/SECURITY_NOTE.md`, first version in this pull request; final by 14 November) | in progress |
 | V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file (`--bitcoind`) | this pull request |
 | V-12 | Disclosure: with the document key and the inserted texts, replay a chain and check every keyed hash (`fm-verify chain --disclosure`) | this pull request |
 | V-13 | A tenant's hourly root records as a chain of their own (`prev_root` linkage, signatures): a dropped hour shows (`fm-verify roots`) | this pull request |
-| V-14 | The `anchors` branch's `index.jsonl`: every anchor listed, roots unique, times in order | queued, with the Ledger's job |
+| V-14 | The `anchors` branch's `index.jsonl`: every line names an anchor with its time, root and size, times increase, each manifest links to the line before, every anchor directory listed (`--all`) | this pull request |
+| V-18 | Release manifests at tags: compare `release_manifest` descriptors with a checkout of the tag (`--repo OWNER/NAME@TAG=PATH`) | queued |
 | V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
 
 ## Not available yet

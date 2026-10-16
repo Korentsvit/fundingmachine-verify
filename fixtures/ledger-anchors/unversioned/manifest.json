@@ -1,0 +1,49 @@
+{
+ "leaves": [
+  {
+   "descriptor": {
+    "kind": "decisions_entry",
+    "path": "docs/DECISIONS_LOG.md",
+    "ref": "main",
+    "repo": "example/repository",
+    "sha256": "8bd5b3a1dde1932da06c6183bd54314aef48cac7bf2d067f575cb8f358550035"
+   }
+  },
+  {
+   "descriptor": {
+    "kind": "decisions_entry",
+    "path": "docs/DECISIONS_LOG.md",
+    "ref": "main",
+    "repo": "example/repository",
+    "sha256": "9d7ab747250e6ad6d07b98d6596162be713f3f4ef3216c6e128665485ddc824e"
+   }
+  },
+  {
+   "descriptor": {
+    "kind": "decisions_fragment",
+    "path": "docs/decisions.d/2026-10-16-example.md",
+    "ref": "main",
+    "repo": "example/repository",
+    "sha256": "1199f8a6e12fc811a087d17a1037589b637da1bb0edc31b02b15680402f077fe"
+   }
+  },
+  {
+   "descriptor": {
+    "kind": "decisions_log",
+    "path": "docs/DECISIONS_LOG.md",
+    "ref": "main",
+    "repo": "example/repository",
+    "sha256": "074e9a80290268f6adf8f21822b340f6b5d3e278891e473ba1a5695fc213018a"
+   }
+  },
+  {
+   "descriptor": {
+    "kind": "standing_rulings",
+    "path": "docs/STANDING_RULINGS.md",
+    "ref": "main",
+    "repo": "example/repository",
+    "sha256": "5337466aecdf21b638c637395cbb8965cba0efe97e3313bc1da9a1dbe3c72d82"
+   }
+  }
+ ]
+}

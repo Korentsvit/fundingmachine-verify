@@ -1,0 +1,18 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/ledger-anchor-headers-0-4.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "all": true,
+ "description": "The second anchor links to a root the first does not have",
+ "outcome": "invalid",
+ "failing": [
+  "anchor_set.index"
+ ]
+}

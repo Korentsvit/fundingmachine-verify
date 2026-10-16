@@ -53,10 +53,19 @@ fundingmachine-ledger, and read by this verifier from those documents:
   anchor directory (`manifest.json`, `root.preimage`, `root.preimage.ots`,
   `root.preimage.<authority>.tsr`). Leaves are the RFC 8785 JSON of each
   descriptor `{kind, path, ref, repo, sha256}`, sorted in UTF-16 code unit
-  order; the anchored digest is the SHA-256 of `root.preimage`. Until the
-  manifest's schema (`anchor-manifest/v0`, with the Ledger's job on
-  17 October) is published, descriptors are found in the manifest by their
-  documented shape, and the verdict says the schema was not checked.
+  order; the anchored digest is the SHA-256 of `root.preimage`. A manifest
+  declaring `anchor-manifest/v0` is checked against that schema field by
+  field (written out in `ledger_anchors.v0_problems`; the tests compare it
+  with the Ledger's `schemas/anchor-manifest-v0.schema.json` on every
+  mutation): the leaves in the order listed, each `leaf_hash`, `size` and
+  `root`; `root.preimage` as the root node; the leaves' documented order (a
+  warning if not); the genTime, serial and policy it states for each token,
+  against the token; the sources it could not read (a warning); and its
+  `previous` link. Another contract is not read (indeterminate); a manifest
+  with no contract has its descriptors found by their documented shape.
+  `--all` on an anchors directory also checks `index.jsonl`: every line names
+  an anchor here with its time, root and size, times increase, each manifest
+  links to the line before, and every anchor directory is listed.
   `--repo OWNER/NAME=PATH` compares a checkout: files by hash, and log
   entries by the hash of every run of up to 40 consecutive lines of the log
   (an entry is "its line or lines"). A fragment no longer in the checkout is
