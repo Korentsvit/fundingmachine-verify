@@ -9,6 +9,7 @@ network unless ``--explorer`` is given.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -140,17 +141,31 @@ def cmd_rfc3161(args: argparse.Namespace) -> Verdict:
 def cmd_anchors(args: argparse.Namespace) -> Verdict:
     from . import anchors, ledger_anchors
 
-    if args.all or ledger_anchors.is_layout(args.batch):
+    if args.all or args.prove or args.prove_sha256 or ledger_anchors.is_layout(args.batch):
         repos = {}
         for spec in args.repo or []:
             name, sep, path = spec.partition("=")
             if not sep or not name or not path:
                 raise UsageError(f"--repo {spec!r}: expected OWNER/NAME=PATH or OWNER/NAME@TAG=PATH")
             repos[name] = path
+        common = dict(repos=repos, header_sources=header_sources(args), network=NETWORKS[args.network],
+                      roots=_certs(args.roots, "--roots"), extra_certs=_certs(args.chain, "--chain"), crls=_crls(args.crl))
+        if args.prove or args.prove_sha256:
+            if args.prove and args.prove_sha256:
+                raise UsageError("give --prove or --prove-sha256, not both")
+            if args.prove:
+                try:
+                    digest = hashlib.sha256(Path(args.prove).read_bytes()).hexdigest()
+                except OSError as exc:
+                    raise UsageError(f"cannot read {args.prove}: {exc.strerror}") from exc
+                subject = f"{args.prove} (SHA-256 {digest})"
+            else:
+                digest, subject = args.prove_sha256.lower(), None
+                if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                    raise UsageError("--prove-sha256: expected 64 hex characters")
+            return ledger_anchors.prove(args.batch, digest, subject=subject, **common)
         run = ledger_anchors.verify_all if args.all else ledger_anchors.verify_dir
-        return run(args.batch, repos=repos, header_sources=header_sources(args),
-                   network=NETWORKS[args.network], roots=_certs(args.roots, "--roots"),
-                   extra_certs=_certs(args.chain, "--chain"), crls=_crls(args.crl))
+        return run(args.batch, **common)
 
     if args.emit_proof:
         try:
@@ -329,6 +344,10 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--file", action="append", help="a file you hold, named by its listed path (repeatable); a mismatch is a failure")
     a.add_argument("--strict-files", action="store_true", help="with --repo-root, treat any changed file as a failure")
     a.add_argument("--emit-proof", metavar="PATH", help="print the RFC 9162 inclusion proof for one listed path, and stop")
+    a.add_argument("--prove", metavar="FILE",
+                   help="Ledger layout: every anchor under the path that names this file's content, earliest first, each verified")
+    a.add_argument("--prove-sha256", metavar="HEX",
+                   help="as --prove, for a SHA-256 you hold (a decisions entry's hash covers its text without the final newline)")
     _header_options(a)
     a.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
     a.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")

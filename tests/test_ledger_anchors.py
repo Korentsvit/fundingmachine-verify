@@ -253,3 +253,20 @@ def test_checkout_of_a_tag(tmp_path):
     assert tagged.data["absent"] == ["'../secret' (not a path inside the checkout; not read)"]
     default = next(c for c in v.checks if c.id == "ledger_anchor.checkout.o/core")
     assert default.data["absent"] == ["docs/STANDING_RULINGS.md"] and default.data["matching"] == []
+
+
+def test_cli_prove(capsys, tmp_path):
+    base = ["anchors", str(FIX / "ledger-anchors" / "set-valid"), "--network", "regtest",
+            "--headers-chain", str(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"),
+            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--json"]
+    held = FIX / "ledger-anchors" / "repo" / "docs" / "STANDING_RULINGS.md"
+    assert main(base + ["--prove", str(held)]) == 0
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["kind"] == "anchor-proof" and "earliest that holds is 2026/10/17/080411Z" in doc["statement"]
+    assert doc["subject"].startswith(str(held))
+    other = tmp_path / "other.txt"
+    other.write_bytes(b"never anchored\n")
+    assert main(base + ["--prove", str(other)]) == 2
+    capsys.readouterr()
+    assert main(base + ["--prove", str(held), "--prove-sha256", "a" * 64]) == 64
+    assert main(base + ["--prove-sha256", "xyz"]) == 64

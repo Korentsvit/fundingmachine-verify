@@ -102,7 +102,27 @@ keyed hash in the chain can be replayed; the text is never printed:
 fm-verify chain events.json --disclosure journal.json
 ```
 
-## 6. Read the verdict
+## 6. When did a published file exist?
+
+FundingMachine anchors its standing rulings, decisions logs, every decisions
+entry and its release manifests (the Ledger's `docs/ANCHORING.md`). The
+Ledger keeps the anchors in an `anchors/` directory on a branch of its own
+repository. With a copy of that directory, give the verifier the directory
+and the file you hold:
+
+```sh
+fm-verify anchors anchors/ --prove STANDING_RULINGS.md \
+    --bitcoind http://127.0.0.1:8332 --bitcoind-cookie ~/.bitcoin/.cookie \
+    --roots /etc/ssl/certs/ca-certificates.crt
+```
+
+It finds every anchor whose leaves name that content, verifies each, and
+states the earliest that holds. A single decisions entry is anchored by the
+SHA-256 of its text without the final newline: pass that with
+`--prove-sha256`. The roots in the branch's `anchors/tsa/` are
+FundingMachine's copies; use your own system's bundle, as above.
+
+## 7. Read the verdict
 
 * `VALID` (exit 0): the statement holds, given what the verdict lists as
   relied on.

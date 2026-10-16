@@ -649,3 +649,90 @@ def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Ver
                                 f"{outcomes[Outcome.INDETERMINATE]} could not be checked."),
     }
     return make_verdict("anchor-set", f"anchors under {root}", checks, statements, ANCHOR_LIMITS, checked_at)
+
+
+def _anchor_order(base: Path, dirs: Sequence[Path]) -> list[tuple[str, Path, str | None]]:
+    """Anchors in time order: index.jsonl's order where it lists them, then by
+    the manifest's ``created``, then by path."""
+    created: dict[Path, str | None] = {}
+    for d in dirs:
+        try:
+            m = jcs.loads((d / "manifest.json").read_text(encoding="utf-8"))
+            created[d] = m.get("created") if isinstance(m, dict) and isinstance(m.get("created"), str) else None
+        except (OSError, jcs.JcsError, UnicodeDecodeError):
+            created[d] = None
+    position: dict[Path, int] = {}
+    try:
+        for i, line in enumerate(read_index(base / "index.jsonl")):
+            if isinstance(line, dict) and isinstance(line.get("path"), str):
+                parts = PurePosixPath(line["path"]).parts
+                if parts and ".." not in parts and not PurePosixPath(line["path"]).is_absolute():
+                    position.setdefault(base.joinpath(*parts).resolve(), i)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        pass
+    ordered = sorted(dirs, key=lambda d: (position.get(d.resolve(), len(position)), created[d] or "", d.as_posix()))
+    return [(d.relative_to(base).as_posix() or ".", d, created[d]) for d in ordered]
+
+
+def _named(d: Path, digest: str) -> list[dict]:
+    try:
+        m = jcs.loads((d / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, jcs.JcsError, UnicodeDecodeError):
+        return []
+    if isinstance(m, dict) and m.get("contract") == MANIFEST_CONTRACT:
+        descs = [x["descriptor"] for x in m.get("leaves") or [] if isinstance(x, dict) and isinstance(x.get("descriptor"), dict)]
+    elif isinstance(m, dict) and "contract" in m:
+        return []
+    else:
+        descs = _descriptors(m)
+    return [x for x in descs if x.get("sha256") == digest]
+
+
+@guarded("anchor-proof", "prove.search", "anchors for one content hash")
+def prove(root: str | Path, digest: str, subject: str | None = None, checked_at: str | None = None, **kwargs) -> Verdict:
+    """Which anchors under ``root`` name content with this SHA-256 (hex),
+    earliest first, each verified; the statement rests on the earliest that
+    holds. As the Ledger's ``anchor prove``, but checked here."""
+    base = Path(root)
+    digest = digest.lower()
+    if not _HEX64.fullmatch(digest):
+        raise ValueError("the content hash is not 64 hex characters")
+    subject = subject or f"content with SHA-256 {digest}"
+    order = _anchor_order(base, find_anchor_dirs(base))
+    hits = [(rel, d, created, named) for rel, d, created in order for named in [_named(d, digest)] if named]
+    checks = [Check("prove.search", Status.PASS if hits else Status.NOT_CHECKED,
+                    f"{len(order)} anchors under {root} searched; {len(hits)} name this content",
+                    reasons=[] if hits else ["no anchor here lists a descriptor with this SHA-256"])]
+    results = [(rel, created, named, verify_dir(d, checked_at=checked_at, **kwargs)) for rel, d, created, named in hits]
+    earliest = next((r for r in results if r[3].outcome is Outcome.VALID), None)
+
+    def where(named: list[dict]) -> str:
+        return "; ".join(f"{x.get('kind')} {x.get('repo')}:{x.get('path')} at {x.get('ref')}" for x in named)
+
+    for rel, created, named, v in results:
+        summary = f"{rel}" + (f" (created {created})" if created else "") + f": {v.outcome.value}; names it as {where(named)}"
+        reasons = [f"{c.id}: {c.summary}" for c in v.checks if c.status in (Status.FAIL, Status.WARN)
+                   or (c.status is Status.NOT_CHECKED and c.required)]
+        data = {"descriptors": named, "verdict": v.to_dict()}
+        if v.outcome is Outcome.VALID:
+            first = earliest is not None and rel == earliest[0]
+            checks.append(Check(f"prove.{rel}", Status.PASS, summary + (" (the earliest that holds)" if first else ""), reasons=reasons,
+                                relies_on=v.relies_on if first else [], data=data))
+        elif v.outcome is Outcome.INVALID:
+            checks.append(Check(f"prove.{rel}", Status.FAIL if earliest is None else Status.WARN, summary, reasons=reasons,
+                                required=earliest is None, data=data))
+        else:
+            checks.append(Check(f"prove.{rel}", Status.NOT_CHECKED, summary, reasons=reasons, required=earliest is None, data=data))
+    if earliest is not None:
+        rel, created, named, v = earliest
+        valid = (f"The content with SHA-256 {digest} is named in {len(hits)} anchor{'s' if len(hits) != 1 else ''}; the earliest "
+                 f"that holds is {rel}, as {where(named)}. {v.statement}")
+    else:
+        valid = ""
+    statements = {
+        Outcome.VALID: valid,
+        Outcome.INVALID: "No anchor naming this content holds, and at least one fails: see the failing checks.",
+        Outcome.INDETERMINATE: ("No anchor here names this content." if not hits else
+                                "Anchors name this content, but none could be shown to hold: see the checks not run."),
+    }
+    return make_verdict("anchor-proof", subject, checks, statements, ANCHOR_LIMITS, checked_at)

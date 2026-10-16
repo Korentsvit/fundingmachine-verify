@@ -86,6 +86,9 @@ fm-verify roots records.json --key did:key:z6Mk...
 # Every anchor on the Ledger's anchors branch, summarised
 fm-verify anchors anchors/ --all --headers-chain blockchain_headers --roots /etc/ssl/certs/ca-certificates.crt
 
+# When did this file exist? Every anchor naming its content, earliest first, each verified
+fm-verify anchors anchors/ --prove docs/STANDING_RULINGS.md --headers-chain blockchain_headers --roots /etc/ssl/certs/ca-certificates.crt
+
 # A Ledger anchor directory, compared with checkouts of the repositories it names
 fm-verify anchors anchors/2026/10/17/080412Z --repo Korentsvit/fundingmachine-core=../fundingmachine-core \
     --headers-chain blockchain_headers --roots digicert-root.pem --roots sectigo-root.pem

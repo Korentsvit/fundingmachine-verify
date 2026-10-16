@@ -417,6 +417,20 @@ def build_ledger_anchors() -> None:
     anchor_set("set-unlisted", {"description": "index.jsonl lists only the first anchor: a warning", "outcome": "valid",
                                 "warning": ["anchor_set.index"]}, m2, [line1])
 
+    def prove_case(name: str, content: bytes, expected: dict) -> None:
+        d = out / name
+        d.mkdir(parents=True)
+        (d / "expected.json").write_text(json.dumps({**common, "anchors": "../set-valid", "prove_sha256": sha256(content).hex(), **expected},
+                                                    indent=1) + "\n", encoding="utf-8")
+
+    prove_case("prove-earliest", LEDGER_REPO["docs/decisions.d/2026-10-16-example.md"],
+               {"description": "A fragment named in both anchors of set-valid: the earliest, 080411Z, holds", "outcome": "valid"})
+    prove_case("prove-later-only", b"| 2026-10-17 | later |\n",
+               {"description": "Content named only in the second anchor, whose OpenTimestamps proof is pending: its tokens hold",
+                "outcome": "valid"})
+    prove_case("prove-nowhere", b"never anchored\n",
+               {"description": "Content no anchor names: indeterminate", "outcome": "indeterminate"})
+
 
 def build_merkle() -> None:
     """Inclusion proofs: RFC 9162 and the explicit scheme, and their failures."""
