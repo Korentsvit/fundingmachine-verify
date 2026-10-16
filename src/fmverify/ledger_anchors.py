@@ -27,6 +27,7 @@ and each anchor's link to the one before.
 from __future__ import annotations
 
 import datetime as _dt
+import functools
 import hashlib
 import json
 import re
@@ -505,7 +506,7 @@ def verify_files(
 
         for x in mine:
             if x["kind"] == "decisions_entry":
-                at = entry_runs(log_lines(x["path"])).get(x["sha256"])
+                at = _entry_runs_cached(tuple(log_lines(x["path"]))).get(x["sha256"])
                 if at:
                     same.append(f"{x['path']} (an entry, {_lines(at)})")
                 else:
@@ -523,7 +524,7 @@ def verify_files(
                 continue
             at = None
             if x["kind"] == "decisions_fragment":
-                at = assembled_runs(log_lines("docs/DECISIONS_LOG.md")).get(x["sha256"])
+                at = _assembled_runs_cached(tuple(log_lines("docs/DECISIONS_LOG.md"))).get(x["sha256"])
             if at:
                 (a, b), number = at
                 assembled.append(f"{x['path']} (assembled: {_lines((a, b))} of docs/DECISIONS_LOG.md"
@@ -572,6 +573,16 @@ def _runs(texts: list[str], end: str = "") -> dict[str, tuple[int, int]]:
             d.update(end.encode("utf-8"))
             found.setdefault(d.hexdigest(), (i + 1, j + 1))
     return found
+
+
+@functools.lru_cache(maxsize=8)
+def _entry_runs_cached(lines: tuple[str, ...]) -> dict[str, tuple[int, int]]:
+    return entry_runs(list(lines))
+
+
+@functools.lru_cache(maxsize=8)
+def _assembled_runs_cached(lines: tuple[str, ...]) -> dict[str, tuple[tuple[int, int], str | None]]:
+    return assembled_runs(list(lines))
 
 
 def entry_runs(lines: list[str]) -> dict[str, tuple[int, int]]:

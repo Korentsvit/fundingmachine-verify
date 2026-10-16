@@ -40,8 +40,9 @@ ledger, capture, capital, or the website.
 
 ## Not available yet
 
-* Knowledge-goblin is not among the repositories this account can reach
-  from this session; its anchors will be read once it is.
+* Knowledge-goblin is attached to this session read-only since
+  16 October; its decisions log and published manifests were rehearsed
+  against, and its anchors will be read when the Ledger's job writes them.
 * The Provenance Ledger session published its contracts v0 on 16 October
   2026 (events, authorship map, certificate, hourly roots, anchoring). Its
   artefact anchors start on the `anchors` branch with the anchor-everything
