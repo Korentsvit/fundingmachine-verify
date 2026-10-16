@@ -5,8 +5,10 @@ Two schemes:
 * ``rfc9162-sha256``: the tree of RFC 9162 (Certificate Transparency 2.0),
   section 2.1: leaf hash SHA-256(0x00 || leaf), node hash
   SHA-256(0x01 || left || right), and the inclusion proof algorithm of
-  section 2.1.3.2, which binds the leaf's index and the tree's size. This is
-  the scheme the verifier recommends.
+  section 2.1.3.2. It fixes the leaf's index only against a tree size held
+  with the root (as a signed tree head carries): a path of the same shape
+  verifies under another size, so without one the position is the proof's
+  own claim. This is the scheme the verifier recommends.
 * ``explicit-sha256``: a path of (side, hash) steps with the leaf and node
   prefixes stated in the proof. Accepted for formats that do not carry an
   index and size; the verdict warns when the prefixes give no domain
