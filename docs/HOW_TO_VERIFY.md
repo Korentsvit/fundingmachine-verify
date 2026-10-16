@@ -47,8 +47,14 @@ proof and RFC 3161 tokens. To check them you supply evidence of your own.
 
 * your own Bitcoin Core node: `--bitcoind http://127.0.0.1:8332 --bitcoind-cookie ~/.bitcoin/.cookie`
   (the strongest; credentials are never printed);
-* Electrum's headers file, `blockchain_headers` in Electrum's data directory:
-  `--headers-chain ~/.electrum/blockchain_headers`;
+* a window of consecutive headers around the block, exported from a node
+  and checked by Bitcoin's header rules from its first header (the verdict
+  states that headers before it were not checked):
+
+  ```sh
+  for h in $(seq 839990 840009); do bitcoin-cli getblockheader "$(bitcoin-cli getblockhash $h)" false; done | xxd -r -p > window.bin
+  fm-verify ... --headers-chain window.bin@839990
+  ```
 * the header of the block the proof names, written as one line `HEIGHT HEX`
   in a file, after comparing it between two explorers you choose:
   `--headers headers.txt`;
@@ -75,7 +81,7 @@ Together:
 
 ```sh
 fm-verify certificate certificate.pdf --file proposal.pdf \
-    --headers-chain ~/.electrum/blockchain_headers \
+    --bitcoind http://127.0.0.1:8332 --bitcoind-cookie ~/.bitcoin/.cookie \
     --roots /etc/ssl/certs/ca-certificates.crt --html report.html
 ```
 
