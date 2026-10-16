@@ -1,0 +1,9 @@
+{
+ "description": "One event re-signed with a time before its predecessor",
+ "outcome": "invalid",
+ "index": 6,
+ "code": "ts_backwards",
+ "failing": [
+  "chain.rules"
+ ]
+}

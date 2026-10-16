@@ -1,0 +1,6 @@
+{
+ "description": "Every event moved a day earlier and re-signed with the client keys: the chain alone cannot tell; only an anchor bounds its time",
+ "outcome": "valid",
+ "head": "e34e1d62cb814fe2b828c82270b5f7722cce1aeb338b7dc0ab665eca0710f919",
+ "events": 20
+}

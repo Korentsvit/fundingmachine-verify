@@ -17,7 +17,7 @@ import binascii
 import json
 from typing import Any
 
-from . import __version__, anchors, certificate, merkle, ots, pki, rfc3161
+from . import __version__, anchors, certificate, ledger_events, merkle, ots, pki, rfc3161
 from .bitcoin import NETWORKS, HeaderChain, HeaderError, HeaderSet, HeaderSource
 from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, make_verdict
 
@@ -145,10 +145,19 @@ def _run(req: dict):
         if not isinstance(cert, dict):
             raise RequestError("certificate must be the certificate's JSON object")
         file_bytes = _b64(req["file"], "file") if "file" in req else None
+        events = req.get("events")
+        if events is not None and not isinstance(events, list):
+            raise RequestError("events must be a list of ledger-event/v0 events")
         return certificate.verify(json.dumps(cert).encode("utf-8"), exported_file=file_bytes, header_sources=_sources(req),
                                   network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
-                                  extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")), subject=label)
-    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, certificate")
+                                  extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")), subject=label,
+                                  events=events)
+    if kind == "chain":
+        events = req.get("events")
+        if not isinstance(events, list):
+            raise RequestError("events must be a list of ledger-event/v0 events")
+        return ledger_events.verify(events, subject=label)
+    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, certificate, chain")
 
 
 def verify(request: dict) -> dict:

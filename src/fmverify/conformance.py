@@ -4,7 +4,7 @@ verdict with what the case expects.
     fm-verify conformance [FIXTURES_DIR]
 
 Each case is a directory holding ``expected.json``: the kind (from the
-directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``), the inputs, the
+directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``, ``chain``), the inputs, the
 outcome the verifier must reach, the checks that must fail (``failing``,
 exactly) and those that must warn (``warning``, at least). The fixture
 manifest ``SHA256SUMS`` is checked first, so a run says whether the fixtures
@@ -19,11 +19,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import anchors, certificate, ots, pki, rfc3161
+from . import anchors, certificate, ledger_events, ots, pki, rfc3161
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "anchors", "certificate")
+KINDS = ("ots", "rfc3161", "anchors", "certificate", "chain")
 
 
 @dataclass
@@ -81,8 +81,12 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
         v = anchors.verify_batch(case, repo_root=repo, files=files, header_sources=_sources(case, exp), network=net,
                                  roots=roots, extra_certs=chain, crls=crls)
     elif kind == "certificate":
+        events = json.loads((case / exp["events"]).read_text(encoding="utf-8"))["events"] if "events" in exp else None
         v = certificate.verify_file(case / "certificate.json", case / exp["file"] if "file" in exp else None,
-                                    header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls)
+                                    header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls,
+                                    events=events)
+    elif kind == "chain":
+        v = ledger_events.verify(json.loads((case / "events.json").read_text(encoding="utf-8"))["events"])
     else:
         raise ValueError(f"unknown kind {kind}")
     return exp, v
@@ -90,6 +94,11 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
 
 def compare(exp: dict, v: Verdict) -> list[str]:
     problems = []
+    if "code" in exp:
+        got = next((c.data.get("code") for c in v.checks if c.id == "chain.rules"), None)
+        index = next((c.data.get("index") for c in v.checks if c.id == "chain.rules"), None)
+        if (got, index) != (exp["code"], exp.get("index")):
+            problems.append(f"chain stops at index {index} with {got}, expected index {exp.get('index')} with {exp['code']}")
     if v.outcome.value != exp["outcome"]:
         problems.append(f"outcome {v.outcome.value}, expected {exp['outcome']}")
     failing = [c.id for c in v.checks if c.status is Status.FAIL]

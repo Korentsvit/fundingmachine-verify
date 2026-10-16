@@ -22,6 +22,8 @@ fixtures/
   rfc3161/pki/, rfc3161/crl/ the test PKI's certificates and revocation lists
   anchors/<case>/            batch.json, root.ots, root.test-tsa.tsr, expected.json
   anchors/repo/, repo-changed/  the synthetic repository the batches list, as anchored and as later changed
+  certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
+  chain/<case>/              events.json ({"contract", "events"}), expected.json
 ```
 
 ## expected.json
@@ -38,6 +40,8 @@ fixtures/
 | `headers_chain` | contiguous header files: `{"path", "start"}` |
 | `roots`, `chain`, `crls` | PEM files: trusted roots, extra certificates, revocation lists |
 | `repo_root`, `files` | for anchor batches: a checkout to compare, and files a reader holds (relative to `repo_root`) |
+| `events` | for certificates: the event chain file, for step 7 |
+| `index`, `code` | for chains: the position of the first bad event and the contract's failure code |
 
 Check ids are this verifier's; another implementation is asked to match
 `outcome`, and may map its own reasons to `failing` as it sees fit.
@@ -57,6 +61,10 @@ Check ids are this verifier's; another implementation is asked to match
   re-ordered and dropped files; a pending proof; a back-dated token; a
   proof over another root.
 
-Due by 14 November 2026: certificate v0 chains (valid, tampered, back-dated,
-re-ordered), once the Provenance Ledger session publishes the certificate
-format.
+* Certificates (`ledger-certificate/v0`): valid, anchored or not, with and
+  without the chain; changed after signing; another key; and an issuer
+  signing falsehoods, from the scope statement to the authorship totals.
+* Event chains (`ledger-event/v0`): valid, tampered, back-dated (one event,
+  and the whole chain consistently, which the chain alone cannot detect),
+  re-ordered (plainly, and re-signed), dropped, after close, wrong key, text
+  in a payload.

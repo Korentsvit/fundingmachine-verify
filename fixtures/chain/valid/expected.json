@@ -1,0 +1,6 @@
+{
+ "description": "Two sessions, every event type, ending in a sign event",
+ "outcome": "valid",
+ "head": "b1028806da5ed14955c93550c1933ceb3b8a800a263ac88dbd3e0ea59e385927",
+ "events": 20
+}

@@ -1,0 +1,9 @@
+{
+ "description": "One event removed",
+ "outcome": "invalid",
+ "index": 9,
+ "code": "seq_gap",
+ "failing": [
+  "chain.rules"
+ ]
+}

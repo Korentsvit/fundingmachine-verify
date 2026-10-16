@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from fmverify import ots  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools"))
+import chain_fixtures  # noqa: E402
 import tsa_fixtures  # noqa: E402
 from fmverify.bitcoin import parse_header  # noqa: E402
 
@@ -213,18 +214,19 @@ def build_anchors() -> None:
            "failing": ["anchors.ots.root.ots"]})
 
 
-def build_certificates() -> None:
+def build_certificates(writer) -> None:
     """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
-    session's published documents with this repository's own test keys."""
+    session's published documents with this repository's own test keys, over
+    the fixture chain of tools/chain_fixtures.py."""
     import base64
     import copy
     import datetime as _dt
 
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-    from fmverify import jcs, merkle
+    from fmverify import jcs, ledger_events, merkle
     from fmverify.base58 import b58encode, ed25519_did_key
-    from fmverify.certificate import FIDELITIES, ORIGINS, SCOPE_STATEMENT, percentages
+    from fmverify.certificate import ORIGINS, SCOPE_STATEMENT, percentages
 
     out = FIX / "certificate"
     if out.exists():
@@ -245,9 +247,14 @@ def build_certificates() -> None:
     tenant, other = key("fm-verify test tenant key"), key("fm-verify test other key")
     did = ed25519_did_key(raw(tenant))
 
-    # The hour: 20 accepted events; the sign event is the 19th.
-    events = [sha256(b"fm-verify fixture event %d" % i) for i in range(20)]
-    signed_index = 18
+    # The hour: the fixture chain's events, accepted in order; the sign event is the last.
+    chain_events = writer.events
+    events = [bytes.fromhex(chain_fixtures.event_hash(e)) for e in chain_events]
+    signed_index = len(events) - 1
+    result = ledger_events.validate_chain(chain_events)
+    assert result.ok, result.message
+    amap = ledger_events.authorship_map(result.state, len(chain_events), result.head)
+    sign_ev, genesis = chain_events[-1], chain_events[0]["payload"]["genesis"]
 
     def record_for(k, root_bytes: bytes, tenant_id: str = "fixture", signer=None) -> dict:
         rec = {"contract": "ledger-root/v0", "tenant_id": tenant_id,
@@ -289,39 +296,28 @@ def build_certificates() -> None:
                 "rfc3161": [{"authority": "FM Verify Test TSA RSA", "url": "http://tsa.example.org", "token_b64": base64.b64encode(token).decode(),
                              "gen_time": gen_time_text}]}
 
-    exported = b"FundingMachine verifier fixture: an exported document, as signed.\n"
-    counts = {"human_typed": 120, "imported": 30, "tool_generated": 25, "tool_edited": 9}
-    fidelity = {"live": 118, "snapshot_diff": 30, "tool_report": 36, "reconstructed": 0, "declared": 0}
-    sec_a = {"human_typed": 70, "imported": 30, "tool_generated": 25, "tool_edited": 9}
-    sec_b = {"human_typed": 50, "imported": 0, "tool_generated": 0, "tool_edited": 0}
-
-    def block(c: dict, keys: list[str]) -> dict:
-        total = sum(c.values())
-        return {"total": total, "counts": dict(c), "percent": percentages(c, keys, total)}
-
+    exported = chain_fixtures.EXPORTED
+    Writer_tool = chain_fixtures.Writer.tool
+    st = result.state
+    bound = {e["payload"]["binding_id"]: e for e in chain_events if e["type"] == "evidence.bind"}
     subject = {
         "type": "DocumentWritingRecord", "contract": "ledger-certificate/v0", "scope_statement": SCOPE_STATEMENT,
-        "tenant_id": "fixture", "doc_id": "0b7d1c52-5f1e-4c47-9a0e-6d1f6d3f2a10",
-        "document": {"exported_sha256": sha256(exported).hex(), "media_type": "text/plain", "byte_length": len(exported),
-                     "doc_hash": sha256(b"keyed document hash stand-in").hex(), "key_commitment": sha256(b"document key stand-in").hex()},
-        "signed": {"seq": signed_index + 1, "event_hash": events[signed_index].hex(), "ts": "2026-10-16T08:41:12.000Z",
-                   "actor_id": "person:0f1x", "declaration_hash": sha256(b"declaration stand-in").hex()},
-        "chain": {"first_event_hash": events[0].hex(), "events": signed_index + 1,
-                  "sessions": [{"session_id": "5f9d1d0e-7a7b-4c2e-8d1e-3b1c2a4f5e60", "key_id": sha256(b"session key").hex(),
-                                "public_key": b64url(sha256(b"session public key")), "client": {"name": "fixture-writer", "version": "0.1.0"},
-                                "opened_seq": 1, "closed_seq": None}]},
-        "authorship": {"contract": "authorship-map/v0", "map_sha256": sha256(b"authorship map stand-in").hex(), "unit": "unicode_code_point",
-                       "document": block(counts, ORIGINS),
-                       "sections": [{"section_id": "approach", "section_ref": "call:example/approach", "statements": 2, **block(sec_a, ORIGINS)},
-                                    {"section_id": "team", "section_ref": None, "statements": 1, **block(sec_b, ORIGINS)}],
-                       "fidelity": block(fidelity, FIDELITIES),
-                       "activity": {"inserted": {"human_typed": 131, "imported": 30, "tool_generated": 40, "tool_edited": 9}, "deleted": 26}},
-        "tools": [{"tool_name": "Example Assistant", "model_id": None}],
-        "evidence": {"statements": 3, "statements_with_evidence": 1,
-                     "bindings": [{"binding_id": "2d8f4c1e-9b3a-4f6d-8e2c-1a5b7c9d0e3f", "statement_id": "st-2", "bound_seq": 11,
-                                   "source": {"ref": "url:https://example.org/source", "visibility": "public"},
-                                   "date": {"kind": "retrieved", "value": "2026-10-15"}, "licence": "CC-BY-4.0",
-                                   "page_hash": sha256(b"page").hex(), "quoted_span": {"quote_hash": sha256(b"quote").hex(), "locator": "paragraph 2"}}]},
+        "tenant_id": st.tenant_id, "doc_id": st.doc_id,
+        "document": {"exported_sha256": sign_ev["payload"]["exported"]["sha256"], "media_type": sign_ev["payload"]["exported"]["media_type"],
+                     "byte_length": sign_ev["payload"]["exported"]["byte_length"], "doc_hash": sign_ev["doc_hash"],
+                     "key_commitment": genesis["key_commitment"]},
+        "signed": {"seq": sign_ev["seq"], "event_hash": events[signed_index].hex(), "ts": sign_ev["ts"],
+                   "actor_id": sign_ev["actor"]["id"], "declaration_hash": sign_ev["payload"]["declaration_hash"]},
+        "chain": {"first_event_hash": events[0].hex(), "events": len(chain_events),
+                  "sessions": [{"session_id": sid, "key_id": v["key_id"], "public_key": v["public_key"], "client": v["client"],
+                                "opened_seq": v["opened_seq"], "closed_seq": v["closed_seq"]} for sid, v in st.sessions.items()]},
+        "authorship": {"contract": "authorship-map/v0", "map_sha256": sha256(jcs.dumps(amap)).hex(), "unit": "unicode_code_point",
+                       **{k: amap[k] for k in ("document", "sections", "fidelity", "activity")}},
+        "tools": [{"tool_name": Writer_tool["tool_name"], "model_id": Writer_tool["model_id"]}],
+        "evidence": {"statements": len(st.statements), "statements_with_evidence": len(set(st.bindings.values())),
+                     "bindings": [{"binding_id": b, "statement_id": owner, "bound_seq": bound[b]["seq"],
+                                   **{k: bound[b]["payload"][k] for k in ("source", "date", "licence", "page_hash", "quoted_span")}}
+                                  for b, owner in sorted(st.bindings.items(), key=lambda kv: bound[kv[0]]["seq"])]},
         "ledger_root": {"record": record, "leaf_index": signed_index,
                         "audit_path": [h.hex() for h in merkle.inclusion_path(events, signed_index)], "anchor": anchor_block(tsr(anchor_root))},
     }
@@ -340,11 +336,14 @@ def build_certificates() -> None:
     common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/certificate-headers-0-5.bin", "start": 0}],
               "roots": ["../../rfc3161/pki/root.pem"]}
 
-    def case(name: str, cred: dict, expected: dict, file_bytes: bytes | None = exported) -> None:
+    def case(name: str, cred: dict, expected: dict, file_bytes: bytes | None = exported, events_doc: list | None = None) -> None:
         d = out / name
         d.mkdir()
         (d / "certificate.json").write_text(json.dumps(cred, indent=1) + "\n", encoding="utf-8")
         exp = {**common, **expected}
+        if events_doc is not None:
+            (d / "events.json").write_text(json.dumps({"contract": "ledger-event/v0", "events": events_doc}, indent=1) + "\n", encoding="utf-8")
+            exp["events"] = "events.json"
         if file_bytes is not None:
             (d / "exported.txt").write_bytes(file_bytes)
             exp["file"] = "exported.txt"
@@ -361,6 +360,27 @@ def build_certificates() -> None:
         return subj
 
     case("valid-anchored", issue(subject), {"description": "Anchored certificate, the exported file presented", "outcome": "valid"})
+    case("valid-with-chain", issue(subject), {"description": "Anchored certificate, the exported file and the event chain presented: all seven steps run",
+                                              "outcome": "valid"}, events_doc=chain_events)
+    inflated = copy.deepcopy(amap)
+    moved = inflated["document"]["counts"]["tool_generated"]
+    inflated["document"]["counts"]["human_typed"] += moved
+    inflated["document"]["counts"]["tool_generated"] = 0
+    inflated["document"]["percent"] = percentages(inflated["document"]["counts"], ORIGINS, inflated["document"]["total"])
+    case("authorship-overstated", issue(variant(authorship={**subject["authorship"], "document": inflated["document"],
+                                                            "map_sha256": sha256(jcs.dumps(inflated)).hex()})),
+         {"description": "The issuer signed a document total crediting the tool's text to the person; only the chain shows it",
+          "outcome": "invalid", "failing": ["certificate.authorship_map"]}, events_doc=chain_events)
+    case("tools-omitted", issue(variant(tools=[])),
+         {"description": "The issuer signed a certificate naming no tool, where the chain records one", "outcome": "invalid",
+          "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
+    other_chain = chain_fixtures.Writer("fm-verify other chain")
+    other_chain.open("s1", ("st-1", "approach", None))
+    other_chain.insert("s1", "st-1", 0, "A different document.")
+    other_chain.sign("s1", exported)
+    case("chain-of-another-document", issue(subject),
+         {"description": "The events presented are another document's", "outcome": "invalid", "failing": ["certificate.chain"]},
+         events_doc=other_chain.events)
     case("valid-not-anchored", issue(variant(ledger_root__anchor=None)),
          {"description": "Issued before the hour was anchored: steps 4 and 5 run, step 6 cannot", "outcome": "valid"})
     case("wrong-file", issue(subject), {"description": "The file presented is not the exported document", "outcome": "invalid",
@@ -521,7 +541,8 @@ def main() -> None:
 
     tsa_fixtures.build(FIX)
     build_anchors()
-    build_certificates()
+    writer = chain_fixtures.build(FIX)
+    build_certificates(writer)
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

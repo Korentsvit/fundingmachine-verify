@@ -13,7 +13,11 @@ never claims more than the steps it ran:
 5. the sign event's inclusion in that root (RFC 9162);
 6. the anchor: the record's inclusion in the anchored root, each RFC 3161
    token, and the OpenTimestamps proof;
-7. the event chain and the authorship map: not run by this version.
+7. with the events given: the chain follows the event contract, ends in the
+   sign event, starts at the certificate's first event, and gives the
+   certificate's authorship map (map_sha256 and figures). The certificate's
+   other statements about the chain (sessions, tools, evidence, the sign
+   event's file and declaration) are compared with the chain as well.
 
 Two checks are added: the authorship percentages must follow from the counts
 by the document's rounding rule, and fields this verifier does not
@@ -203,7 +207,10 @@ def verify(
     crls=(),
     subject: str | None = None,
     checked_at: str | None = None,
+    events: list | None = None,
 ) -> Verdict:
+    """``events`` is the document's event chain (ledger-event/v0), at least up
+    to the sign event; with it, step 7 runs."""
     checks: list[Check] = []
     bad = {o: "The certificate does not hold: see the failing checks." for o in Outcome}
     try:
@@ -310,9 +317,12 @@ def verify(
             anchored_statement = _check_anchor(anchor, record, checks, header_sources, network, roots, extra_certs, crls, checked_at)
 
     # 7. The chain.
-    checks.append(Check("certificate.chain", Status.NOT_CHECKED, "the event chain and the authorship map were not checked",
-                        reasons=["step 7 needs the events up to the sign event; this version of the verifier does not run it"],
-                        required=False))
+    if events is None:
+        checks.append(Check("certificate.chain", Status.NOT_CHECKED, "the event chain and the authorship map were not checked",
+                            reasons=["step 7 needs the document's events up to the sign event; pass them with --events"],
+                            required=False))
+    else:
+        checks.extend(_check_chain(subj, events))
 
     signed = subj.get("signed") or {}
     file_part = (" The exported file presented is the one it covers." if exported_file is not None
@@ -325,11 +335,106 @@ def verify(
         Outcome.VALID: (f"{cred.get('issuer', {}).get('id')} signed this record of how document {subj.get('doc_id')} "
                         f"(exported SHA-256 {doc.get('exported_sha256')}) was written in this environment, signed at event "
                         f"{signed.get('seq')} ({signed.get('event_hash')}) on {signed.get('ts')}.{root_part}{file_part} "
-                        "The event chain itself was not checked."),
+                        + ("The event chain itself was not checked." if events is None else
+                           "The event chain up to the sign event follows the event contract and gives the certificate's authorship map.")),
         Outcome.INVALID: "The certificate does not hold: see the failing checks.",
         Outcome.INDETERMINATE: "The certificate could not be fully checked: see the checks not run.",
     }
     return make_verdict("certificate", subject, checks, statements, LIMITS, checked_at)
+
+
+def _check_chain(subj: dict, events: list) -> list[Check]:
+    """Step 7, and the certificate's other statements about the chain."""
+    from . import ledger_events
+
+    signed = subj.get("signed") or {}
+    seq = signed.get("seq")
+    upto = [e for e in events if isinstance(e, dict) and isinstance(e.get("seq"), int) and e["seq"] <= (seq or 0)]
+    result = ledger_events.validate_chain(upto)
+    if not result.ok:
+        return [Check("certificate.chain", Status.FAIL, f"the event chain breaks the event contract at seq {result.seq}: {result.code}",
+                      reasons=[result.message or result.code])]
+    st = result.state
+    problems = []
+    if result.count != seq:
+        problems.append(f"the events given reach seq {result.count}, the sign event is seq {seq}")
+    if result.head != signed.get("event_hash"):
+        problems.append(f"the chain's head at seq {seq} is {result.head}, the certificate's sign event is {signed.get('event_hash')}")
+    if st.hashes and st.hashes[0] != (subj.get("chain") or {}).get("first_event_hash"):
+        problems.append("the chain's first event hash differs from the certificate's")
+    if problems:
+        return [Check("certificate.chain", Status.FAIL, "the events given are not the chain the certificate covers", reasons=problems)]
+    checks = [Check("certificate.chain", Status.PASS,
+                    f"the {seq} events up to the sign event follow the event contract, and end in the certificate's sign event",
+                    reasons=[f"head {result.head}", f"first {st.hashes[0]}"])]
+    amap = ledger_events.authorship_map(st, seq, result.head)
+    a = subj.get("authorship") or {}
+    map_hash = sha256(jcs.dumps(amap)).hex()
+    diffs = [k for k in ("document", "sections", "fidelity", "activity") if amap[k] != a.get(k)]
+    if map_hash != a.get("map_sha256") or diffs:
+        checks.append(Check("certificate.authorship_map", Status.FAIL, "the authorship map recomputed from the chain differs from the certificate's",
+                            reasons=([f"recomputed map SHA-256 {map_hash}, certificate {a.get('map_sha256')}"] if map_hash != a.get("map_sha256") else [])
+                            + [f"{k} differs" for k in diffs]))
+    else:
+        checks.append(Check("certificate.authorship_map", Status.PASS,
+                            "the authorship map recomputed from the chain hashes to the certificate's map_sha256, and its figures are the certificate's",
+                            data={"map_sha256": map_hash}))
+    # The certificate's other statements about the chain.
+    sign = upto[-1]
+    genesis = upto[0]["payload"].get("genesis", {})
+    doc = subj.get("document") or {}
+    want = {
+        "tenant_id": st.tenant_id, "doc_id": st.doc_id,
+        "document.exported_sha256": sign["payload"]["exported"]["sha256"],
+        "document.media_type": sign["payload"]["exported"]["media_type"],
+        "document.byte_length": sign["payload"]["exported"]["byte_length"],
+        "document.doc_hash": sign["doc_hash"], "document.key_commitment": genesis.get("key_commitment"),
+        "signed.ts": sign["ts"], "signed.actor_id": sign["actor"]["id"],
+        "signed.declaration_hash": sign["payload"]["declaration_hash"],
+        "chain.events": seq,
+    }
+    got = {
+        "tenant_id": subj.get("tenant_id"), "doc_id": subj.get("doc_id"),
+        "document.exported_sha256": doc.get("exported_sha256"), "document.media_type": doc.get("media_type"),
+        "document.byte_length": doc.get("byte_length"), "document.doc_hash": doc.get("doc_hash"),
+        "document.key_commitment": doc.get("key_commitment"),
+        "signed.ts": signed.get("ts"), "signed.actor_id": signed.get("actor_id"),
+        "signed.declaration_hash": signed.get("declaration_hash"),
+        "chain.events": (subj.get("chain") or {}).get("events"),
+    }
+    mismatches = [f"{k}: certificate {got[k]!r}, chain {want[k]!r}" for k in want if got[k] != want[k]]
+    if sign["type"] != "sign":
+        mismatches.append(f"the event at seq {seq} is {sign['type']}, not sign")
+    sessions = [{"session_id": sid, "key_id": v["key_id"], "public_key": v["public_key"], "client": v["client"],
+                 "opened_seq": v["opened_seq"], "closed_seq": v["closed_seq"]} for sid, v in st.sessions.items()]
+    if sessions != (subj.get("chain") or {}).get("sessions"):
+        mismatches.append("the sessions listed differ from the chain's sessions")
+    tools = []
+    for e in upto:
+        if e["actor"]["kind"] == "tool":
+            t = {"tool_name": e["actor"]["tool_name"], "model_id": e["actor"]["model_id"]}
+            if t not in tools:
+                tools.append(t)
+    if tools != subj.get("tools"):
+        mismatches.append(f"tools: certificate {subj.get('tools')!r}, chain {tools!r}")
+    ev = subj.get("evidence") or {}
+    bound = {e["payload"]["binding_id"]: e for e in upto if e["type"] == "evidence.bind"}
+    bindings = [{"binding_id": b, "statement_id": owner, "bound_seq": bound[b]["seq"],
+                 **{k: bound[b]["payload"][k] for k in ("source", "date", "licence", "page_hash", "quoted_span")}}
+                for b, owner in sorted(st.bindings.items(), key=lambda kv: bound[kv[0]]["seq"])]
+    with_evidence = len({owner for owner in st.bindings.values()})
+    if (ev.get("statements"), ev.get("statements_with_evidence")) != (len(st.statements), with_evidence):
+        mismatches.append(f"evidence counts: certificate {ev.get('statements')}/{ev.get('statements_with_evidence')}, "
+                          f"chain {len(st.statements)}/{with_evidence}")
+    if ev.get("bindings") != bindings:
+        mismatches.append("the evidence bindings listed differ from the bindings active at the sign event")
+    if mismatches:
+        checks.append(Check("certificate.chain_statements", Status.FAIL, "the certificate states things about the chain that the chain does not bear out",
+                            reasons=mismatches))
+    else:
+        checks.append(Check("certificate.chain_statements", Status.PASS,
+                            "the certificate's document, sign event, sessions, tools and evidence are what the chain records"))
+    return checks
 
 
 def _check_anchor(anchor: dict, record: dict, checks: list[Check], header_sources, network, roots, extra_certs, crls,

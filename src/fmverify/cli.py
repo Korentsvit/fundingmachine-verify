@@ -148,8 +148,10 @@ def cmd_anchors(args: argparse.Namespace) -> Verdict:
 def cmd_certificate(args: argparse.Namespace) -> Verdict:
     from . import certificate
 
+    events = _events(args.events) if args.events else None
     return certificate.verify(
         _read(args.certificate),
+        events=events,
         exported_file=_read(args.file) if args.file else None,
         header_sources=header_sources(args),
         network=NETWORKS[args.network],
@@ -157,6 +159,23 @@ def cmd_certificate(args: argparse.Namespace) -> Verdict:
         extra_certs=_certs(args.chain, "--chain"),
         crls=_crls(args.crl),
     )
+
+
+def _events(path: str) -> list:
+    try:
+        doc = json.loads(_read(path).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise UsageError(f"{path} is not JSON: {exc}") from exc
+    events = doc.get("events") if isinstance(doc, dict) else doc
+    if not isinstance(events, list):
+        raise UsageError(f"{path} must hold a JSON array of events, or an object with 'events'")
+    return events
+
+
+def cmd_chain(args: argparse.Namespace) -> Verdict:
+    from . import ledger_events
+
+    return ledger_events.verify(_events(args.events))
 
 
 def _header_options(p: argparse.ArgumentParser) -> None:
@@ -250,12 +269,18 @@ def build_parser() -> argparse.ArgumentParser:
     ce = sub.add_parser("certificate", help="a Provenance Ledger certificate (ledger-certificate/v0, JSON form)")
     ce.add_argument("certificate", help="the certificate JSON")
     ce.add_argument("--file", help="the exported document the certificate covers")
+    ce.add_argument("--events", help="the document's event chain (ledger-event/v0 events, a JSON array or {\"events\": [...]}), for step 7")
     _header_options(ce)
     ce.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
     ce.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
     ce.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     ce.add_argument("--json", action="store_true")
     ce.set_defaults(func=cmd_certificate)
+
+    ch = sub.add_parser("chain", help="a Provenance Ledger event chain (ledger-event/v0)")
+    ch.add_argument("events", help="the events, a JSON array or {\"events\": [...]}")
+    ch.add_argument("--json", action="store_true")
+    ch.set_defaults(func=cmd_chain)
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
     c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")
