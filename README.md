@@ -96,7 +96,7 @@ fm-verify merkle proof.json --leaf-file document.pdf --root 6f1c...
 
 | Source | Checked | Relied on |
 | --- | --- | --- |
-| `--headers-chain FILE[@START]`: 80-byte headers back to back (Electrum's `blockchain_headers` has this layout) | linkage, proof of work, difficulty retargets and median time past, from `START`; from 0, the genesis hash | that the file is on Bitcoin's most-work chain; headers before `START` |
+| `--headers-chain FILE[@START]`: 80-byte headers back to back, from height `START` (`bitcoin-cli getblockheader HASH false` gives one in hex) | linkage, proof of work, difficulty retargets and median time past, from `START`; from 0, the genesis hash | that the file is on Bitcoin's most-work chain; headers before `START` |
 | `--headers FILE`: lines `HEIGHT HEX`, or JSON | each header's proof of work alone, against a floor of 2^70 expected hashes (`--min-work-bits`); links between neighbours in the file | that each header is the block at its height on the most-work chain |
 | `--explorer URL`: an Esplora API | the header hashes to the block id the explorer gave, and meets its proof of work | that the explorer told the truth |
 | `--bitcoind URL`: a Bitcoin Core node you run (credentials from `--bitcoind-cookie` or `FM_BITCOIND_USER` and `FM_BITCOIND_PASSWORD`, never printed) | the header hashes to the block id the node gave, and meets its proof of work | that your node follows the most-work chain, which it does by validating every block |

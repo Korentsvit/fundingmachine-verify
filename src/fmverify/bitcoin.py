@@ -2,8 +2,8 @@
 
 Three sources, each with its reliance stated in every verdict that uses it:
 
-* a contiguous headers file (80-byte headers back to back, as Electrum's
-  ``blockchain_headers`` file holds them), validated by Bitcoin's header
+* a contiguous headers file (80-byte headers back to back, from a stated
+  height), validated by Bitcoin's header
   rules from its first header onward: linkage, proof of work, difficulty
   retargets and median time past. From genesis, the genesis hash is checked
   against the constant below.
