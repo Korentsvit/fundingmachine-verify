@@ -43,9 +43,10 @@ export function problems(record, name) {
 }
 
 // Vercel production builds only the commit that adds a complete record naming its first parent, so production
-// moves to a reviewed tree plus the record and nothing else. Previews always build.
+// moves to a reviewed tree plus the record and nothing else. Preview and development builds always build; an
+// unknown or missing VERCEL_ENV is treated as production, so the gate fails closed.
 export function vercelDecision({ env, parent, changed, records }) {
-  if (env !== "production") return { build: true, why: `${env || "no VERCEL_ENV"}, not production` };
+  if (env === "preview" || env === "development") return { build: true, why: `${env}, not production` };
   if (!parent) return { build: false, why: "no parent commit in this checkout" };
   const added = changed.filter((f) => f.startsWith(`${RECORDS}/`) && f.endsWith(".json"));
   if (added.length === 0 || added.length !== changed.length) {
@@ -118,7 +119,7 @@ function vercel() {
   let parent = "";
   let changed = [];
   const recs = {};
-  if (env === "production") {
+  if (env !== "preview" && env !== "development") {
     const head = process.env.VERCEL_GIT_COMMIT_SHA || git("rev-parse", "HEAD");
     try {
       parent = git("rev-parse", `${head}^1`);
@@ -165,6 +166,7 @@ function selfTest() {
   const vd = (args) => vercelDecision({ env: "production", parent: a, changed: [f], records: { [f]: good }, ...args }).build;
   cases.push(
     ["a preview always builds", vercelDecision({ env: "preview", parent: "", changed: [], records: {} }).build === true],
+    ["a missing VERCEL_ENV is treated as production", vercelDecision({ env: undefined, parent: a, changed: ["README.md"], records: {} }).build === false],
     ["production builds the commit that adds a complete record for its parent", vd({}) === true],
     ["production skips a commit that changes anything else", vd({ changed: [f, "src/index.ts"] }) === false],
     ["production skips a record for another commit", vd({ parent: b }) === false],
