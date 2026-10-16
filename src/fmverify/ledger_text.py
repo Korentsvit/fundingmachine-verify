@@ -9,10 +9,13 @@ The disclosure is the document key and, per event, the text it inserted, in
 the shape of the Ledger session's journal fixtures:
 ``{"doc_key_hex": ..., "signer_name"?: ..., "steps": [{"seq", "content_text", ...}]}``.
 Removed and moved text, and evidence spans, follow from the replayed
-document. Where a step also gives ``removed_text`` or ``doc_view``, they are
-compared too. A ``capture.resync`` (v0.1) takes its texts from the step's
-``resync_text`` (``changed_and_added``, in that order; ``removed``, compared
-when given). A step's ``quote_text`` is checked against an evidence binding's
+document. Where a step also gives them (``content_text`` of a delete, move or
+binding, ``removed_text``, ``doc_view``), they are compared too, and a step's
+``type``, where given, must be its event's. Two steps for one event are a
+failure; text no hash covers (a step for no event, a quotation on a sign
+event without a declaration) is a warning naming it. A ``capture.resync``
+(v0.1) takes its texts from the step's ``resync_text``
+(``changed_and_added``, in that order; ``removed``, compared when given). A step's ``quote_text`` is checked against an evidence binding's
 ``quote_hash`` (plain SHA-256 for a public source, keyed for a tenant's
 private one) or a sign event's ``declaration_hash``; ``signer_name`` against
 a sign event's ``signer_name_hash``.
@@ -35,6 +38,9 @@ def sha256_hex(text: str) -> str:
 from .verdict import Check, Outcome, Status, guarded, make_verdict
 
 INSERTING = {"edit.insert", "edit.replace", "import.paste", "tool.generate", "tool.edit"}
+# The step fields that carry text a hash may cover; removed_text and doc_view
+# are compared with the replay wherever they are given.
+TEXT_FIELDS = ("content_text", "resync_text", "quote_text")
 
 LIMITS = [
     "who typed or generated the text: the replay shows only that this text is what the chain's hashes recorded",
@@ -67,7 +73,20 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
     key = bytes.fromhex(disclosure["doc_key_hex"])
     if len(key) != 32:
         raise ValueError("the document key is not 32 bytes")
-    steps = {s["seq"]: s for s in disclosure.get("steps", [])}
+    raw_steps = disclosure.get("steps", [])
+    if not isinstance(raw_steps, list):
+        raise ValueError("the disclosure's steps are not a list")
+    steps: dict[Any, dict] = {}
+    twice = []
+    for step in raw_steps:
+        if step["seq"] in steps:
+            twice.append(step["seq"])
+        steps[step["seq"]] = step
+    if twice:
+        checks.append(Check("disclosure.steps", Status.FAIL, "the disclosure gives more than one step for an event",
+                            reasons=[f"seq {', '.join(str(x) for x in sorted(set(twice), key=str))}: a reader cannot tell which text "
+                                     "is the one disclosed, and only one could be checked"]))
+        return make_verdict("text-disclosure", subject, checks, bad, LIMITS, checked_at)
     genesis = events[0]["payload"]["genesis"]
     if hashlib.sha256(key).hexdigest() != genesis["key_commitment"]:
         checks.append(Check("disclosure.key", Status.FAIL, "the disclosed key is not the document's key",
@@ -79,6 +98,8 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
     counts = {"content": 0, "removed": 0, "doc": 0, "views": 0, "quotes": 0, "declarations": 0, "signer_names": 0}
     unchecked = {"quotes": 0, "declarations": 0, "signer_names": 0}
 
+    used: set[tuple[Any, str]] = set()  # (seq, field): disclosed text a hash in the chain covers
+
     def find(sid: str) -> dict:
         return next(s for s in view if s["statement_id"] == sid)
 
@@ -86,6 +107,8 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
         for ev in events:
             seq, t, r, p = ev["seq"], ev["type"], ev["range"], ev["payload"]
             step = steps.get(seq, {})
+            if "type" in step and step["type"] != t:
+                raise Mismatch(f"seq {seq}: the disclosure's step is a {step['type']}, the chain's event a {t}")
             if t == "session.open" and "genesis" in p:
                 g = p["genesis"]
                 view.append({"section_id": g["section_id"], "statement_id": g["statement_id"], "text": ""})
@@ -94,6 +117,7 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                 s = find(r["statement_id"])
                 removed = s["text"][r["start"]:r["end"]]
             if t in INSERTING:
+                used.add((seq, "content_text"))
                 new = step.get("content_text")
                 if new is None:
                     if t == "tool.edit" and p["length"] == 0:
@@ -113,6 +137,9 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                 s = find(r["statement_id"])
                 s["text"] = s["text"][:r["start"]] + new + s["text"][r["end"]:]
             elif t in ("edit.delete", "edit.move", "evidence.bind"):
+                used.add((seq, "content_text"))
+                if step.get("content_text") is not None and step["content_text"] != removed:
+                    raise Mismatch(f"seq {seq}: the disclosure's text for this {t} differs from the replayed document")
                 if _h(key, removed) != ev["content_hash"]:
                     raise Mismatch(f"seq {seq}: the {'removed' if t == 'edit.delete' else 'moved' if t == 'edit.move' else 'bound'} "
                                    "text does not give the event's content_hash")
@@ -138,6 +165,7 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                 s["text"] += m["text"]
                 view.remove(m)
             elif t == "capture.resync":
+                used.add((seq, "resync_text"))
                 rt = step.get("resync_text") or {}
                 texts = list(rt.get("changed_and_added") or [])
                 if len(texts) != len(p["changed"]) + len(p["added"]):
@@ -177,6 +205,7 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                     at = 0 if x["after"] is None else view.index(find(x["after"])) + 1
                     view.insert(at, {"section_id": x["section_id"], "statement_id": x["statement_id"], "text": new})
             if t == "evidence.bind":
+                used.add((seq, "quote_text"))
                 q = step.get("quote_text")
                 want = p["quoted_span"]["quote_hash"]
                 if q is None:
@@ -189,6 +218,7 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
             if t == "sign":
                 q = step.get("quote_text")
                 if p["declaration_hash"] is not None:
+                    used.add((seq, "quote_text"))
                     if q is None:
                         unchecked["declarations"] += 1
                     elif _h(key, q) != p["declaration_hash"]:
@@ -196,6 +226,7 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                     else:
                         counts["declarations"] += 1
                 if "signer_name_hash" in p:
+                    used.add((None, "signer_name"))
                     name = disclosure.get("signer_name")
                     if name is None:
                         unchecked["signer_names"] += 1
@@ -232,6 +263,18 @@ def verify(events: list, disclosure: dict, subject: str | None = None, checked_a
                         data=counts | {"statements": len(view), "characters": total}))
     left = [f"{c} {label}" for k, label in (("quotes", "quotation"), ("declarations", "declaration"), ("signer_names", "signer name"))
             for c in [unchecked[k]] if c]
+    seqs = {ev["seq"] for ev in events}
+    unused = []
+    for step in raw_steps:
+        fields = [f for f in TEXT_FIELDS if step.get(f) not in (None, "") and (step["seq"], f) not in used]
+        if fields:
+            unused.append(f"seq {step['seq']} ({', '.join(fields)}" + ("; no event has this seq" if step["seq"] not in seqs else "") + ")")
+    if disclosure.get("signer_name") not in (None, "") and (None, "signer_name") not in used:
+        unused.append("signer_name (no sign event carries a signer_name_hash)")
+    if unused:
+        checks.append(Check("disclosure.unused", Status.WARN,
+                            "the disclosure carries text that no hash in the chain covers: it was not checked and is not part of the record",
+                            reasons=unused))
     checks.append(Check("disclosure.other_hashes", Status.NOT_CHECKED,
                         "prompt and paste-source hashes were not checked: a journal does not hold their texts"
                         + (f"; nor {', '.join(left)} hashes, whose texts this disclosure does not give" if left else ""),

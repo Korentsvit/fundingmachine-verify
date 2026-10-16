@@ -34,6 +34,10 @@ RFC 9162, recommended:
 
 The leaf is the leaf data before leaf hashing; the leaf hash is
 SHA-256(0x00 || leaf) and a node is SHA-256(0x01 || left || right).
+`leaf_index` and `tree_size` are the proof's own statements: a path of the
+same shape verifies under another size (leaf 5 of 7 and of 8), so the
+position is reported as shown only when the size held with the root is
+given too (`--tree-size`, or `tree_size` in the API).
 
 Explicit path, accepted with a warning:
 

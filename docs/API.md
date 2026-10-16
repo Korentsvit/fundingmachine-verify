@@ -43,7 +43,7 @@ By kind:
 | --- | --- |
 | `ots` | `proof` (base64 `.ots`); `file` (base64) or `digest` (hex), optional |
 | `rfc3161` | `token` (base64 `.tsr` or token); `file` or `digest` with `digest_alg` (default `sha256`), optional |
-| `merkle` | `proof` (the JSON object of `docs/INPUTS.md`); `leaf` (base64) unless the proof carries `leaf` (hex); `root` (hex), optional |
+| `merkle` | `proof` (the JSON object of `docs/INPUTS.md`); `leaf` (base64) unless the proof carries `leaf` (hex); `root` (hex), optional; `tree_size`, optional: the size held with that root, without which the leaf's position is reported as the proof states it |
 | `anchors` | `batch` (the parsed `batch.json`); `anchor_files` (file name to base64); `files` (listed path to base64 of a file the reader holds), optional |
 | `ledger-anchor` | `files`: one Provenance Ledger anchor directory as file name to base64 (`manifest.json`, `root.preimage`, `root.preimage.ots`, `root.preimage.<authority>.tsr`); no checkout comparison, which needs a disk |
 | `certificate` | `certificate` (the certificate's JSON object); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 events), optional, for step 7 |

@@ -74,6 +74,20 @@ def test_wrong_size_fails_or_errors():
         assert merkle.verify_inclusion(b"e", proof).outcome is Outcome.INVALID
 
 
+def test_a_size_of_the_same_shape_verifies_so_the_position_is_the_proofs_claim():
+    """Found by tools/tamper_audit.py: leaf 5's path in a tree of 7 also
+    verifies as a tree of 8, so the verdict must not state the position as
+    shown unless the size held with the root is given."""
+    leaves = [b"%d" % i for i in range(7)]
+    proof = _proof(leaves, 5)
+    claimed = dict(proof, tree_size=8)
+    v = merkle.verify_inclusion(b"5", claimed)
+    assert v.outcome is Outcome.VALID and "as the proof states" in v.statement and "leaf 5 of" not in v.statement
+    assert merkle.verify_inclusion(b"5", claimed, expected_size=7).outcome is Outcome.INVALID
+    held = merkle.verify_inclusion(b"5", proof, expected_size=7)
+    assert held.outcome is Outcome.VALID and held.statement.startswith("The leaf is leaf 5 of 7 ")
+
+
 def test_reordered_leaves_change_root():
     leaves = [b"a", b"b", b"c"]
     proof = _proof(leaves, 0)

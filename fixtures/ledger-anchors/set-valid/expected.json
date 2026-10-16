@@ -11,6 +11,9 @@
   "../pki/second-root.pem"
  ],
  "all": true,
- "description": "Two anchors an hour apart, listed in index.jsonl, the second linked to the first; its OpenTimestamps proof still pending",
- "outcome": "valid"
+ "description": "Two anchors an hour apart, listed in index.jsonl, the second linked to the first; its OpenTimestamps proof still pending, so its row is a warning",
+ "outcome": "valid",
+ "warning": [
+  "anchor_set.2026/10/17/090411Z"
+ ]
 }

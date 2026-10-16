@@ -387,9 +387,12 @@ def verify(
                 ))
         elif att.kind == "pending":
             pending.append(att.uri)
-            checks.append(Check("ots.pending", Status.INFO, f"a calendar ({att.uri}) promised a Bitcoin attestation that this proof does not yet hold",
-                                reasons=["this verifier does not contact calendars; upgrade the proof with the OpenTimestamps client to fetch it"],
-                                required=False))
+            checks.append(Check("ots.pending", Status.INFO,
+                                f"a calendar ({att.uri}) promised a Bitcoin attestation for the commitment {leaf.commitment.hex()} "
+                                "that this proof does not yet hold",
+                                reasons=["this verifier does not contact calendars; upgrade the proof with the OpenTimestamps client to fetch it",
+                                         "the path to the commitment is not checked until the attestation arrives"],
+                                required=False, data={"uri": att.uri, "commitment": leaf.commitment.hex()}))
         else:
             checks.append(Check(f"ots.{att.kind}", Status.INFO, f"{att.describe()}: not checked by this verifier, and not relied on", required=False))
 

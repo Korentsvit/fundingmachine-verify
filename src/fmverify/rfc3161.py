@@ -120,6 +120,16 @@ class Token:
     signers: list[SignerInfo]
     status: int | None = None
     status_text: list[str] = field(default_factory=list)
+    digest_algs: list[str] = field(default_factory=list)  # SignedData's digestAlgorithms, which no signature covers
+
+
+def _digest_alg(node: der.Node) -> str:
+    """A hash algorithm identifier: its parameters absent or NULL (RFC 5754
+    section 2), never anything else."""
+    parts = der.expect(node, der.SEQUENCE, "algorithm identifier").children()
+    if not parts or len(parts) > 2 or (len(parts) == 2 and parts[1].raw != b"\x05\x00"):
+        raise TokenError("malformed hash algorithm identifier: its parameters must be absent or NULL")
+    return der.oid(parts[0])
 
 
 def _alg(node: der.Node) -> tuple[str, der.Node | None]:
@@ -139,7 +149,7 @@ def _parse_tstinfo(raw: bytes) -> TstInfo:
     mi = der.expect(items[2], der.SEQUENCE, "message imprint").children()
     if len(mi) != 2:
         raise TokenError("malformed message imprint")
-    hash_oid, _ = _alg(mi[0])
+    hash_oid = _digest_alg(mi[0])
     hashed = der.octet_string(mi[1])
     serial = der.integer(items[3])
     gen_time = der.generalized_time(items[4])
@@ -180,7 +190,7 @@ def _parse_signer(node: der.Node) -> SignerInfo:
         ski = sid.content
     else:
         raise TokenError("SignerInfo identifies its signer in neither form CMS allows")
-    digest_oid, _ = _alg(parts[i]); i += 1
+    digest_oid = _digest_alg(parts[i]); i += 1
     if i >= len(parts) or not parts[i].is_context(0):
         raise TokenError("SignerInfo has no signed attributes; RFC 3161 tokens require them")
     sa = parts[i]; i += 1
@@ -218,8 +228,11 @@ def parse_token(data: bytes) -> Token:
             kids = top.children()
         if der.oid(kids[0]) != OID_SIGNED_DATA:
             raise TokenError("the token is not CMS SignedData")
+        if len(kids) != 2 or not (kids[1].is_context(0) and kids[1].constructed) or len(kids[1].children()) != 1:
+            raise TokenError("ContentInfo does not hold its content as [0] EXPLICIT, as CMS requires")
         sd = kids[1].children()[0].children()
         der.integer(sd[0])  # SignedData version: read to check it is an integer; any value is accepted
+        digest_algs = [_digest_alg(a) for a in der.expect(sd[1], der.SET, "digest algorithms").children()]
         encap = der.expect(sd[2], der.SEQUENCE, "encapsulated content").children()
         econtent_type = der.oid(encap[0])
         if len(encap) != 2 or not encap[1].is_context(0):
@@ -237,7 +250,7 @@ def parse_token(data: bytes) -> Token:
             raise TokenError("SignedData does not end with its signer infos")
         signers = [_parse_signer(s) for s in der.expect(rest[0], der.SET, "signer infos").children()]
         tst = _parse_tstinfo(econtent)
-        return Token(tst, econtent_type, econtent, certs, signers, status, status_text)
+        return Token(tst, econtent_type, econtent, certs, signers, status, status_text, digest_algs)
     except (der.DerError, IndexError, ValueError) as exc:
         if isinstance(exc, TokenError):
             raise
@@ -446,6 +459,12 @@ def _verify(
         attr_problems.append("the message-digest attribute is missing")
     elif expected_md is not None and der.octet_string(md[0]) != expected_md:
         attr_problems.append("the message-digest attribute does not match the TSTInfo: the time-stamp content was changed after signing")
+    if si.digest_oid not in tok.digest_algs:
+        checks.append(Check("rfc3161.digest_algorithms", Status.WARN,
+                            "the signer's hash algorithm is not listed in SignedData's digestAlgorithms",
+                            reasons=["no signature covers that list, and RFC 5652 (section 5.1) allows this; OpenSSL refuses such a token",
+                                     f"listed: {', '.join(_hash_name(x) for x in tok.digest_algs) or 'none'}; "
+                                     f"the signer's: {_hash_name(si.digest_oid)}"], required=False))
     if attr_problems:
         checks.append(Check("rfc3161.signed_attrs", Status.FAIL, "the signed attributes do not cover this TSTInfo", reasons=attr_problems))
     else:

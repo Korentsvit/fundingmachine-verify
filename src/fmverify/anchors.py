@@ -27,7 +27,7 @@ from typing import Sequence
 from . import merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict, summarize
 
 FORMAT = "fm-anchor-batch/0"
 LEAF_ENCODINGS = {
@@ -139,17 +139,6 @@ def inclusion_proof(batch: Batch, path: str) -> dict:
             "leaf": leaves[index].hex()}
 
 
-def _summarize(sub: Verdict, cid: str, name: str, anchors_valid: int) -> Check:
-    if sub.outcome is Outcome.VALID:
-        return Check(cid, Status.PASS, sub.statement, relies_on=sub.relies_on, data={"verdict": sub.to_dict()})
-    failing = [f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.FAIL]
-    if sub.outcome is Outcome.INVALID:
-        return Check(cid, Status.FAIL, f"{name} does not hold", reasons=failing, data={"verdict": sub.to_dict()})
-    open_items = [f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.NOT_CHECKED and c.required]
-    return Check(cid, Status.NOT_CHECKED, f"{name} could not be checked: {sub.statement}", reasons=open_items,
-                 required=anchors_valid == 0, data={"verdict": sub.to_dict()})
-
-
 @guarded("anchor-batch", "anchors.batch", "anchor batch")
 def verify_batch(
     directory: "str | Path | Batch",
@@ -245,7 +234,7 @@ def verify_batch(
                                     subject=f"root {batch.root.hex()}", checked_at=checked_at, crls=crls)))
     valid = sum(1 for _, _, v in subs if v.outcome is Outcome.VALID)
     for cid, name, v in subs:
-        checks.append(_summarize(v, cid, name, valid))
+        checks.append(summarize(v, cid, name, valid))
     if not subs:
         checks.append(Check("anchors.present", Status.NOT_CHECKED, "the batch holds no anchor over its root"))
     kinds_valid = {v.kind for _, _, v in subs if v.outcome is Outcome.VALID}

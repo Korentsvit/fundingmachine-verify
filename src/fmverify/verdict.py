@@ -172,6 +172,26 @@ def make_verdict(
     )
 
 
+def summarize(sub: Verdict, cid: str, what: str, others_valid: int) -> Check:
+    """One proof's verdict as a row of a larger one (a token in an anchor, a
+    proof in a certificate). A proof that holds with warnings is a warning row
+    naming them, so the row says what the proof's own verdict says; one that
+    could not be checked names what was not checked and what it noted.
+    ``others_valid`` counts the other proofs that hold: while one does, a
+    proof that could not be checked is not required."""
+    data = {"verdict": sub.to_dict()}
+    if sub.outcome is Outcome.VALID:
+        warned = [f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.WARN]
+        return Check(cid, Status.WARN if warned else Status.PASS, sub.statement, reasons=warned, relies_on=sub.relies_on, data=data)
+    if sub.outcome is Outcome.INVALID:
+        return Check(cid, Status.FAIL, f"{what} does not hold",
+                     reasons=[f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.FAIL], data=data)
+    noted = [f"{c.id}: {c.summary}" for c in sub.checks
+             if (c.status is Status.NOT_CHECKED and c.required) or c.status in (Status.WARN, Status.INFO)]
+    return Check(cid, Status.NOT_CHECKED, f"{what} could not be checked: {sub.statement}", reasons=noted,
+                 required=others_valid == 0, data=data)
+
+
 # What no anchor verdict establishes, whatever its outcome. Kept in one place
 # so that every verdict says the same thing (standing ruling
 # shows-the-work-never-proves-no-AI: the record never claims more than it shows).

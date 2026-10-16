@@ -106,7 +106,7 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
         proof = json.loads((case / "proof.json").read_text(encoding="utf-8"))
         leaf = (case / exp["leaf_file"]).read_bytes()
         root = bytes.fromhex(exp["root"]) if "root" in exp else None
-        v = merkle.verify_inclusion(leaf, proof, expected_root=root)
+        v = merkle.verify_inclusion(leaf, proof, expected_root=root, expected_size=exp.get("tree_size"))
     elif kind == "roots":
         from . import ledger_roots
         from .base58 import did_key_ed25519

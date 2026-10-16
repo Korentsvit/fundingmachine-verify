@@ -66,3 +66,11 @@ def test_deeply_nested_json_file_is_a_usage_error(tmp_path):
     deep = tmp_path / "events.json"
     deep.write_text("[" * 100_000 + "]" * 100_000)
     assert main(["chain", str(deep)]) == 64
+
+
+def test_merkle_tree_size(capsys):
+    case = Path(__file__).resolve().parent.parent / "fixtures" / "merkle" / "rfc9162-valid"
+    base = ["merkle", str(case / "proof.json"), "--leaf-file", str(case / "leaf.txt")]
+    assert main(base + ["--tree-size", "7"]) == 0
+    assert "leaf 5 of 7 in" in capsys.readouterr().out
+    assert main(base + ["--tree-size", "8"]) == 1

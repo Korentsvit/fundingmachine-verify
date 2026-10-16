@@ -65,3 +65,40 @@ def test_the_ledger_sessions_v01_journal():
     assert data["signer_names"] == 1 and data["declarations"] == 1 and data["quotes"] == 1
     journal["signer_name"] = journal["signer_name"] + "x"
     assert ledger_text.verify(chain["events"], journal).outcome.value == "invalid"
+
+
+def _valid_case():
+    case = FIX / "disclosure-valid"
+    return json.loads((case / "events.json").read_text())["events"], json.loads((case / "disclosure.json").read_text())
+
+
+def test_a_step_of_another_type_is_a_mismatch():
+    events, disclosure = _valid_case()
+    disclosure["steps"][0]["type"] = "edit.delete"  # seq 2 is an edit.insert
+    v = ledger_text.verify(events, disclosure)
+    assert v.outcome is Outcome.INVALID and "the chain's event a edit.insert" in v.checks[-1].reasons[0]
+
+
+def test_text_given_for_a_delete_is_compared_with_the_replay():
+    events, disclosure = _valid_case()
+    deleted = next(e["seq"] for e in events if e["type"] == "edit.delete")
+    disclosure["steps"].append({"seq": deleted, "content_text": "not what was deleted"})
+    v = ledger_text.verify(events, disclosure)
+    assert v.outcome is Outcome.INVALID and f"seq {deleted}: the disclosure's text for this edit.delete" in v.checks[-1].reasons[0]
+
+
+def test_a_signer_name_no_hash_covers_is_named():
+    events, disclosure = _valid_case()  # ledger-event/v0: no signer_name_hash
+    disclosure["signer_name"] = "A. Reader"
+    v = ledger_text.verify(events, disclosure)
+    unused = next(c for c in v.checks if c.id == "disclosure.unused")
+    assert v.outcome is Outcome.VALID and unused.status.value == "warn" and "signer_name" in unused.reasons[0]
+    assert "A. Reader" not in json.dumps(v.to_dict())
+
+
+def test_two_steps_for_one_event_fail_before_any_text_is_checked():
+    case = FIX / "disclosure-step-twice"
+    events = json.loads((case / "events.json").read_text())["events"]
+    v = ledger_text.verify(events, json.loads((case / "disclosure.json").read_text()))
+    assert [c.id for c in v.checks if c.status.value == "fail"] == ["disclosure.steps"]
+    assert "seq 2" in v.checks[-1].reasons[0]

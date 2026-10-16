@@ -26,7 +26,7 @@ fixtures/
   certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
   chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
-  merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root")
+  merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root" and "tree_size")
   ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
   ledger-anchors/set-*/      an anchors directory: index.jsonl and anchors under YYYY/MM/DD/HHMMSSZ/, expected.json
 ```

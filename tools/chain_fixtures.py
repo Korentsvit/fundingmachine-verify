@@ -408,6 +408,19 @@ def build(fix: Path) -> Writer:
                      "failing": ["disclosure.replay"]})
     disclosure_case("disclosure-wrong-key", dict(disclosure, doc_key_hex="11" * 32),
                     {"description": "A key other than the one committed at genesis", "outcome": "invalid", "failing": ["disclosure.key"]})
+    twice = copy.deepcopy(disclosure)
+    twice["steps"].insert(0, dict(altered["steps"][0]))
+    disclosure_case("disclosure-step-twice", twice,
+                    {"description": ("Two texts for one event, the first altered and the second as recorded: a reader cannot tell "
+                                     "which was disclosed, and only one could be checked"), "outcome": "invalid",
+                     "failing": ["disclosure.steps"]})
+    extra = copy.deepcopy(disclosure)
+    extra["steps"] += [{"seq": 3, "content_text": "Text a statement split never carries."},
+                       {"seq": 99, "content_text": "Text for an event the chain does not have."}]
+    disclosure_case("disclosure-text-no-hash-covers", extra,
+                    {"description": ("Every recorded text reproduces its hash, but the disclosure also carries text for a split and "
+                                     "for an event the chain lacks: a warning naming both, since no hash covers them"),
+                     "outcome": "valid", "warning": ["disclosure.unused"]})
 
     t = copy.deepcopy(events)
     t[1] = dict(t[1], payload=dict(t[1]["payload"], text="We will measure the effect on twelve sites."))

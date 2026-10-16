@@ -132,6 +132,58 @@ the event chain). It does not, and cannot:
   file is a warning: the anchor still proves the content as it was. A
   fragment removed by the daily assembly is matched only by an exact hash.
 
+## Changes the verifier accepts
+
+`tools/tamper_audit.py` changes every input of every valid fixture case
+(bytes overwritten, deleted or inserted; JSON values replaced, keys removed,
+elements swapped) and runs the case again: on 16 October 2026, 25,303
+changed inputs gave no crash, and of the 385 still judged valid, each either
+shows in the verdict (a warning, a proof not checked, a different
+statement) or changes only something no proof covers and no verdict reads:
+
+* **A Ledger manifest's URLs and its `sources` report**: each authority's
+  URL, the calendars that accepted the root, and what the job says it read
+  are the job's statements. Nothing proves them; only the leaves, the root
+  and the proofs over it are checked.
+* **Order where order carries no meaning**: token entries are matched to
+  their files by name, disclosure steps to events by `seq`, and an
+  unversioned manifest's descriptors are sorted before hashing.
+* **A pending OpenTimestamps branch**: the path to a pending attestation is
+  not checked until the attestation arrives; the verdict names the
+  commitment the calendar holds, so an altered path shows there.
+* **A PDF's pages**: only the embedded `certificate.json` is verified.
+* **Labels and copies**: the file lists in this verifier's own batch format
+  (its proof files are found by suffix), a fixture file's top-level
+  `contract` label (each event names its own), and a journal's optional copy
+  of removed text that the replay derives and checks against its hashes.
+
+What the audit found and this version fixes, each with a test that failed
+before the fix:
+
+* **A Merkle proof's position is its own claim.** A path of the same shape
+  verifies under another tree size (leaf 5 of 7 and of 8), so the verdict
+  states the position as shown only when the reader gives the size held with
+  the root (`--tree-size`); otherwise it says "as the proof states" (fixture
+  `merkle/rfc9162-other-size`). A certificate's anchor position is stated as
+  the certificate states it; the hourly record's position is fixed by the
+  record's signed size.
+* **A disclosure must say one thing per event.** Two steps for one event
+  fail, since a reader cannot tell which was disclosed (fixture
+  `chain/disclosure-step-twice`); text no hash covers is a warning naming it
+  (`chain/disclosure-text-no-hash-covers`); a step's `type` must be its
+  event's, and the text a journal gives for a delete, move or binding is
+  compared with the replay.
+* **A manifest that names no descriptor** is a warning, not silence.
+* **A proof that holds with a warning** (a token whose hash list omits its
+  own algorithm, an anchor whose OpenTimestamps proof is pending) is a
+  warning row wherever it is summarised: in an anchor, a batch, a
+  certificate, an anchor set and `--prove`.
+* **Two token fields are read strictly**: CMS ContentInfo's `[0]` wrapper,
+  and hash algorithm parameters (absent or NULL only). SignedData's
+  `digestAlgorithms`, which no signature covers, is now read: a list without
+  the signer's algorithm is a warning, as RFC 5652 allows it and OpenSSL
+  refuses it.
+
 ## The implementation
 
 * The cryptographic primitives (Ed25519, RSA, ECDSA, SHA-2) come from the
@@ -157,9 +209,10 @@ the event chain). It does not, and cannot:
   an error answer from the API), never a crash. OpenTimestamps proofs keep
   the reference implementation's limits.
 * Verify the verifier: run `fm-verify conformance fixtures`, which first
-  checks the fixtures against `fixtures/SHA256SUMS`, and rebuild the
-  fixtures with `python tools/make_fixtures.py`, which must give the same
-  bytes.
+  checks the fixtures against `fixtures/SHA256SUMS`, rebuild the fixtures
+  with `python tools/make_fixtures.py`, which must give the same bytes, and
+  run `python tools/tamper_audit.py`, which exits 1 on any crash or any
+  change accepted unseen.
 
 ## Reporting a problem
 

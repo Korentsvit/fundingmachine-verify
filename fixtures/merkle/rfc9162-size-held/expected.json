@@ -1,0 +1,7 @@
+{
+ "leaf_file": "leaf.txt",
+ "description": "Leaf 5 of 7, with the tree size held from elsewhere, which fixes the position",
+ "root": "73dc02b40eb2f827ffb099b411d47c40899e12eed96b3c35606aef4aabe84f07",
+ "tree_size": 7,
+ "outcome": "valid"
+}

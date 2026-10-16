@@ -1,0 +1,8 @@
+{
+ "description": "Two texts for one event, the first altered and the second as recorded: a reader cannot tell which was disclosed, and only one could be checked",
+ "outcome": "invalid",
+ "failing": [
+  "disclosure.steps"
+ ],
+ "disclosure": "disclosure.json"
+}

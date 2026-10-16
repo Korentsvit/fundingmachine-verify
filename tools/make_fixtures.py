@@ -423,7 +423,8 @@ def build_ledger_anchors() -> None:
     line1 = {"created": m1["created"], "root": m1["root"], "size": m1["size"], "path": first_rel}
     line2 = {"created": m2["created"], "root": m2["root"], "size": m2["size"], "path": second_rel}
     anchor_set("set-valid", {"description": ("Two anchors an hour apart, listed in index.jsonl, the second linked to the first; "
-                                             "its OpenTimestamps proof still pending"), "outcome": "valid"}, m2, [line1, line2])
+                                             "its OpenTimestamps proof still pending, so its row is a warning"), "outcome": "valid",
+                             "warning": [f"anchor_set.{second_rel}"]}, m2, [line1, line2])
     broken = {**m2, "previous": {"path": first_rel, "root": sha256(b"another root").hex()}}
     anchor_set("set-broken-link", {"description": "The second anchor links to a root the first does not have", "outcome": "invalid",
                                    "failing": ["anchor_set.index"]}, broken, [line1, line2])
@@ -439,8 +440,8 @@ def build_ledger_anchors() -> None:
     prove_case("prove-earliest", LEDGER_REPO["docs/decisions.d/2026-10-16-example.md"],
                {"description": "A fragment named in both anchors of set-valid: the earliest, 080411Z, holds", "outcome": "valid"})
     prove_case("prove-later-only", b"| 2026-10-17 | later |\n",
-               {"description": "Content named only in the second anchor, whose OpenTimestamps proof is pending: its tokens hold",
-                "outcome": "valid"})
+               {"description": ("Content named only in the second anchor, whose OpenTimestamps proof is pending: its tokens hold, "
+                                "and its row is a warning"), "outcome": "valid", "warning": [f"prove.{second_rel}"]})
     prove_case("prove-nowhere", b"never anchored\n",
                {"description": "Content no anchor names: indeterminate", "outcome": "indeterminate"})
 
@@ -476,6 +477,13 @@ def build_merkle() -> None:
                                                     "failing": ["merkle.anchored_root"]})
     case("rfc9162-path-too-long", dict(proof(5), path=proof(5)["path"] + ["00" * 32]), leaves[5],
          {"description": "A path longer than the tree is deep", "outcome": "invalid", "failing": ["merkle.proof"]})
+    case("rfc9162-size-held", proof(5), leaves[5],
+         {"description": "Leaf 5 of 7, with the tree size held from elsewhere, which fixes the position", "root": root.hex(),
+          "tree_size": 7, "outcome": "valid"})
+    case("rfc9162-other-size", dict(proof(5), tree_size=8), leaves[5],
+         {"description": ("Leaf 5's path, claiming a tree of 8: the path has the same shape, so it reproduces the root, but the "
+                          "size held with the root is 7"), "root": root.hex(), "tree_size": 7, "outcome": "invalid",
+          "failing": ["merkle.tree_size"]})
     sibling = sha256(b"sibling")
     case("explicit-valid", {"scheme": "explicit-sha256", "leaf_prefix": "00", "node_prefix": "01",
                             "steps": [{"side": "right", "hash": sibling.hex()}],

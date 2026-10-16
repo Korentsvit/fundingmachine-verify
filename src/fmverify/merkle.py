@@ -131,9 +131,17 @@ def verify_inclusion(
     expected_root: bytes | None = None,
     subject: str | None = None,
     checked_at: str | None = None,
+    expected_size: int | None = None,
 ) -> Verdict:
     """Check that ``leaf`` (the leaf data, before leaf hashing) is in the tree
     the proof describes, and that its root is the one given.
+
+    An RFC 9162 path fixes the leaf's index only within a tree of known
+    size, and the same path can verify under another size of the same shape
+    (leaf 5 of 7 and of 8). ``expected_size``, when given, is the size held
+    with the root from elsewhere (a signed tree head, an anchored record):
+    the proof's ``tree_size`` must equal it, and only then does the verdict
+    state the position as shown.
 
     ``proof`` holds ``scheme`` and, for ``rfc9162-sha256``, ``leaf_index``,
     ``tree_size``, ``path`` (hex strings, leaf upward) and ``root`` (hex); for
@@ -154,15 +162,27 @@ def verify_inclusion(
             index, size = int(proof["leaf_index"]), int(proof["tree_size"])
             path = [bytes.fromhex(h) for h in proof["path"]]
             computed = root_from_inclusion(leaf_hash(leaf), index, size, path)
-            position = f"leaf {index} of {size}"
+            bound = expected_size is not None and expected_size == size
+            position = f"leaf {index} of {size}" if bound else f"at index {index} of {size}, as the proof states"
             checks.append(
                 Check(
                     "merkle.scheme",
                     Status.PASS,
-                    "RFC 9162 tree: leaf and node hashes are domain-separated and the proof binds the leaf's position",
+                    "RFC 9162 tree: leaf and node hashes are domain-separated, so the leaf cannot be an inner node passed off as one",
+                    reasons=[] if expected_size is not None else [
+                        "the index and tree size are the proof's own statements: a path of the same shape verifies under "
+                        "another size (or index), so the position is fixed only by a size held from elsewhere (--tree-size)"],
                     data={"scheme": scheme, "leaf_index": index, "tree_size": size, "path_length": len(path)},
                 )
             )
+            if expected_size is not None:
+                checks.append(
+                    Check("merkle.tree_size", Status.PASS, f"the proof's tree size is the size given, {expected_size}: "
+                          f"the leaf is leaf {index} of that tree")
+                    if bound else
+                    Check("merkle.tree_size", Status.FAIL, "the proof's tree size differs from the size given",
+                          reasons=[f"proof {size}", f"given {expected_size}"])
+                )
         elif scheme == "explicit-sha256":
             leaf_prefix = bytes.fromhex(proof.get("leaf_prefix", ""))
             node_prefix = bytes.fromhex(proof.get("node_prefix", ""))
@@ -233,7 +253,8 @@ def verify_inclusion(
                 )
             )
     statements = {
-        Outcome.VALID: f"The leaf is {position} in the Merkle tree with root {stated_root.hex()}.",
+        Outcome.VALID: (f"The leaf is {position} in the Merkle tree with root {stated_root.hex()}." if position.startswith("leaf")
+                        else f"The leaf is in the Merkle tree with root {stated_root.hex()} ({position})."),
         Outcome.INVALID: "The leaf is not shown to be in a tree with the stated root.",
         Outcome.INDETERMINATE: "Inclusion could not be decided.",
     }

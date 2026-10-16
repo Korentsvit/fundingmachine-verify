@@ -38,7 +38,7 @@ from . import jcs, merkle, ots, rfc3161
 from .base58 import EncodingError, b64url_decode, did_key_ed25519, multibase_decode
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict
+from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict, summarize
 
 CONTRACT = "ledger-certificate/v0"
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
@@ -184,17 +184,6 @@ def _b64(value: str) -> bytes:
         return base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError, TypeError) as exc:
         raise CertificateError(f"not base64: {exc}") from exc
-
-
-def _summarize(sub: Verdict, cid: str, what: str, others_valid: int) -> Check:
-    if sub.outcome is Outcome.VALID:
-        return Check(cid, Status.PASS, sub.statement, relies_on=sub.relies_on, data={"verdict": sub.to_dict()})
-    if sub.outcome is Outcome.INVALID:
-        return Check(cid, Status.FAIL, f"{what} does not hold",
-                     reasons=[f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.FAIL], data={"verdict": sub.to_dict()})
-    return Check(cid, Status.NOT_CHECKED, f"{what} could not be checked: {sub.statement}",
-                 reasons=[f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.NOT_CHECKED and c.required],
-                 required=others_valid == 0, data={"verdict": sub.to_dict()})
 
 
 @guarded("certificate", "certificate.parse", "certificate", LIMITS)
@@ -477,7 +466,8 @@ def _check_anchor(anchor: dict, record: dict, checks: list[Check], header_source
                             reasons=problems))
         return ""
     checks.append(Check("certificate.anchor_inclusion", Status.PASS,
-                        f"the root record is leaf {anchor['leaf_index']} of {anchor['size']} under the anchored root {anchor['root']}"))
+                        f"the root record is under the anchored root {anchor['root']} "
+                        f"(leaf {anchor['leaf_index']} of {anchor['size']}, as the certificate states)"))
     subs: list[tuple[str, str, Verdict, list[Check]]] = []
     for i, t in enumerate(anchor.get("rfc3161", [])):
         extra: list[Check] = []
@@ -515,7 +505,7 @@ def _check_anchor(anchor: dict, record: dict, checks: list[Check], header_source
             subs.append(("certificate.opentimestamps", "the OpenTimestamps proof", v, extra))
     valid = sum(1 for _, _, v, extra in subs if v.outcome is Outcome.VALID and not extra)
     for cid, what, v, extra in subs:
-        checks.append(_summarize(v, cid, what, valid))
+        checks.append(summarize(v, cid, what, valid))
         checks.extend(extra)
     if not subs:
         checks.append(Check("certificate.anchor", Status.NOT_CHECKED, "the anchor carries no proof"))

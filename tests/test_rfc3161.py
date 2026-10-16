@@ -121,3 +121,41 @@ def test_crl_cli(capsys):
     assert main(base + ["--crl", str(FIX / "crl" / "root-clean.pem"), "--crl", str(FIX / "crl" / "ica-clean.pem")]) == 0
     assert main(base + ["--crl", str(FIX / "crl" / "ica-key-compromise.pem")]) == 1
     assert main(base + ["--crl", str(FIX / "pki" / "root.pem")]) == 64
+
+
+SHA256_ALG = bytes.fromhex("300d06096086480165030402010500")
+
+
+def _edited(old: bytes, new: bytes) -> bytes:
+    data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
+    at = data.index(old)  # the first occurrence: SignedData's digestAlgorithms, or ContentInfo's [0]
+    return data[:at] + new + data[at + len(old):]
+
+
+def _roots():
+    return pki.load_certificates((FIX / "pki" / "root.pem").read_bytes())
+
+
+def test_digest_algorithms_without_the_signers_is_a_warning():
+    """Found by tools/tamper_audit.py: digestAlgorithms was never read, so a
+    change there went unseen; OpenSSL refuses such a token."""
+    token = _edited(SHA256_ALG, SHA256_ALG[:-3] + b"\x02\x05\x00")  # sha384 listed instead
+    v = rfc3161.verify(token, roots=_roots())
+    row = next(c for c in v.checks if c.id == "rfc3161.digest_algorithms")
+    assert v.outcome is Outcome.VALID and row.status is Status.WARN and "OpenSSL refuses" in row.reasons[0]
+    assert not any(c.id == "rfc3161.digest_algorithms" for c in rfc3161.verify((FIX / "valid-rsa" / "token.tsr").read_bytes(),
+                                                                                roots=_roots()).checks)
+
+
+def test_hash_parameters_other_than_null_are_malformed():
+    v = rfc3161.verify(_edited(SHA256_ALG, SHA256_ALG[:-2] + b"\x04\x00"), roots=_roots())
+    assert v.outcome is Outcome.INVALID and "absent or NULL" in v.checks[0].reasons[0]
+
+
+def test_content_info_content_must_be_explicit_zero():
+    data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
+    oid = bytes.fromhex("06092a864886f70d010702")  # id-signedData, then [0] EXPLICIT
+    at = data.index(oid) + len(oid)
+    assert data[at] == 0xA0
+    v = rfc3161.verify(data[:at] + b"\xa1" + data[at + 1:], roots=_roots())
+    assert v.outcome is Outcome.INVALID and "[0] EXPLICIT" in v.checks[0].reasons[0]

@@ -126,7 +126,10 @@ def _run(req: dict):
             raise RequestError("proof must be an object")
         leaf = _b64(req["leaf"], "leaf") if "leaf" in req else _hex(proof.get("leaf", ""), "proof.leaf")
         root = _hex(req["root"], "root", 32) if "root" in req else None
-        return merkle.verify_inclusion(leaf, proof, expected_root=root, subject=label)
+        size = req.get("tree_size")
+        if size is not None and (not isinstance(size, int) or isinstance(size, bool)):
+            raise RequestError("tree_size must be a whole number")
+        return merkle.verify_inclusion(leaf, proof, expected_root=root, subject=label, expected_size=size)
     if kind == "anchors":
         batch_doc = req.get("batch")
         anchor_files = {name: _b64(v, f"anchor_files.{name}") for name, v in (req.get("anchor_files") or {}).items()}

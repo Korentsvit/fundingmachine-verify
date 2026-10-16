@@ -12,6 +12,9 @@
  ],
  "anchors": "../set-valid",
  "prove_sha256": "2d6ab384f020d69f4c17df191a93aeb10fe8f03bb4b3ac5f9294d334fc975bba",
- "description": "Content named only in the second anchor, whose OpenTimestamps proof is pending: its tokens hold",
- "outcome": "valid"
+ "description": "Content named only in the second anchor, whose OpenTimestamps proof is pending: its tokens hold, and its row is a warning",
+ "outcome": "valid",
+ "warning": [
+  "prove.2026/10/17/090411Z"
+ ]
 }

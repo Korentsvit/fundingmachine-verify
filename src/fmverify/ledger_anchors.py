@@ -37,7 +37,7 @@ from typing import Any, Mapping, Sequence
 from . import der, jcs, merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
 from .hashes import sha256
-from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict, utc
+from .verdict import ANCHOR_LIMITS, Check, Outcome, Status, Verdict, guarded, make_verdict, summarize, utc
 
 DESCRIPTOR_KEYS = {"kind", "path", "ref", "repo", "sha256"}
 KINDS = {"release_manifest", "release_asset_manifest", "published_manifest", "standing_rulings", "decisions_log",
@@ -302,17 +302,6 @@ def _sources_check(manifest: dict) -> Check:
                  reasons=assets, required=False, data=data)
 
 
-def _summarize(sub: Verdict, cid: str, what: str, valid_count: int) -> Check:
-    if sub.outcome is Outcome.VALID:
-        return Check(cid, Status.PASS, sub.statement, relies_on=sub.relies_on, data={"verdict": sub.to_dict()})
-    if sub.outcome is Outcome.INVALID:
-        return Check(cid, Status.FAIL, f"{what} does not hold",
-                     reasons=[f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.FAIL], data={"verdict": sub.to_dict()})
-    return Check(cid, Status.NOT_CHECKED, f"{what} could not be checked: {sub.statement}",
-                 reasons=[f"{c.id}: {c.summary}" for c in sub.checks if c.status is Status.NOT_CHECKED and c.required],
-                 required=valid_count == 0, data={"verdict": sub.to_dict()})
-
-
 def read_anchor_files(directory: str | Path) -> dict[str, bytes]:
     """An anchor directory's own files: manifest.json and root.preimage*."""
     d = Path(directory)
@@ -429,6 +418,11 @@ def verify_files(
             checks.append(Check("ledger_anchor.previous", Status.INFO, "the manifest says this is the first anchor", required=False))
     elif isinstance(manifest, (dict, list)):
         descriptors = _descriptors(manifest)
+    if manifest is not None and not v0 and contract is None and not descriptors:
+        checks.append(Check("ledger_anchor.leaves", Status.WARN,
+                            "the manifest names no descriptor: nothing here says what root.preimage covers",
+                            reasons=["no object in it has the descriptor's fields (kind, path, ref, repo, sha256)",
+                                     "the proofs below still show when root.preimage existed"], required=False))
     if descriptors and not v0 and contract is None:
         problems = [f"descriptor {i} has kind {x.get('kind')!r}" for i, x in enumerate(descriptors) if x.get("kind") not in KINDS]
         problems += [f"descriptor {i} sha256 is not 64 hex characters" for i, x in enumerate(descriptors)
@@ -463,7 +457,7 @@ def verify_files(
                                     subject=f"root {root.hex()}", checked_at=checked_at)))
     valid = sum(1 for _, _, v in subs if v.outcome is Outcome.VALID)
     for cid, what, v in subs:
-        checks.append(_summarize(v, cid, what, valid))
+        checks.append(summarize(v, cid, what, valid))
     if not subs:
         checks.append(Check("ledger_anchor.proofs", Status.NOT_CHECKED, "the directory holds no proof over root.preimage"))
     if v0:
@@ -736,20 +730,39 @@ def find_anchor_dirs(root: str | Path) -> list[Path]:
     return sorted(p.parent for p in base.rglob("root.preimage") if p.is_file())
 
 
+def _anchor_reasons(v: Verdict) -> list[str]:
+    return [f"{c.id}: {c.summary}" for c in v.checks if c.status in (Status.FAIL, Status.WARN)
+            or (c.status is Status.NOT_CHECKED and c.required)]
+
+
+def _anchor_row(v: Verdict, summary: str) -> tuple[Status, str]:
+    """One anchor as a row of a larger verdict. An anchor that holds with
+    warnings (a token that could not be checked, a proof still pending) is a
+    warning row, so the row's status says what its reasons say."""
+    if v.outcome is Outcome.INVALID:
+        return Status.FAIL, summary
+    if v.outcome is Outcome.INDETERMINATE:
+        return Status.NOT_CHECKED, summary
+    warnings = sum(c.status is Status.WARN for c in v.checks)
+    if warnings:
+        return Status.WARN, f"{summary}, with {warnings} warning{'s' if warnings != 1 else ''}"
+    return Status.PASS, summary
+
+
 @guarded("anchor-set", "anchor_set.read", "anchor set")
 def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Verdict:
     """Verify every anchor directory under ``root``; one check per anchor."""
     dirs = find_anchor_dirs(root)
     checks: list[Check] = []
     outcomes = {o: 0 for o in Outcome}
+    warned = 0
     for d in dirs:
         v = verify_dir(d, checked_at=checked_at, **kwargs)
         outcomes[v.outcome] += 1
         rel = d.relative_to(Path(root)).as_posix() or "."
-        status = {Outcome.VALID: Status.PASS, Outcome.INVALID: Status.FAIL, Outcome.INDETERMINATE: Status.NOT_CHECKED}[v.outcome]
-        reasons = [f"{c.id}: {c.summary}" for c in v.checks if c.status in (Status.FAIL, Status.WARN)
-                   or (c.status is Status.NOT_CHECKED and c.required)]
-        checks.append(Check(f"anchor_set.{rel}", status, f"{rel}: {v.outcome.value}", reasons=reasons,
+        status, summary = _anchor_row(v, f"{rel}: {v.outcome.value}")
+        warned += status is Status.WARN
+        checks.append(Check(f"anchor_set.{rel}", status, summary, reasons=_anchor_reasons(v),
                             relies_on=v.relies_on, data={"verdict": v.to_dict()}))
     if not dirs:
         checks.append(Check("anchor_set.read", Status.NOT_CHECKED, f"no anchor directory (with root.preimage) under {root}"))
@@ -757,7 +770,7 @@ def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Ver
         checks.append(check_index(root, dirs))
     n = len(dirs)
     statements = {
-        Outcome.VALID: f"All {n} anchors under {root} hold.",
+        Outcome.VALID: f"All {n} anchors under {root} hold" + (f"; {warned} of them with warnings (see their checks)." if warned else "."),
         Outcome.INVALID: ((f"{outcomes[Outcome.INVALID]} of {n} anchors under {root} do not hold; "
                            f"{outcomes[Outcome.VALID]} hold and {outcomes[Outcome.INDETERMINATE]} could not be checked.")
                           if outcomes[Outcome.INVALID] else
@@ -829,13 +842,12 @@ def prove(root: str | Path, digest: str, subject: str | None = None, checked_at:
 
     for rel, created, named, v in results:
         summary = f"{rel}" + (f" (created {created})" if created else "") + f": {v.outcome.value}; names it as {where(named)}"
-        reasons = [f"{c.id}: {c.summary}" for c in v.checks if c.status in (Status.FAIL, Status.WARN)
-                   or (c.status is Status.NOT_CHECKED and c.required)]
+        reasons = _anchor_reasons(v)
         data = {"descriptors": named, "verdict": v.to_dict()}
         if v.outcome is Outcome.VALID:
             first = earliest is not None and rel == earliest[0]
-            checks.append(Check(f"prove.{rel}", Status.PASS, summary + (" (the earliest that holds)" if first else ""), reasons=reasons,
-                                relies_on=v.relies_on if first else [], data=data))
+            status, summary = _anchor_row(v, summary + (" (the earliest that holds)" if first else ""))
+            checks.append(Check(f"prove.{rel}", status, summary, reasons=reasons, relies_on=v.relies_on if first else [], data=data))
         elif v.outcome is Outcome.INVALID:
             checks.append(Check(f"prove.{rel}", Status.FAIL if earliest is None else Status.WARN, summary, reasons=reasons,
                                 required=earliest is None, data=data))

@@ -55,6 +55,10 @@ def test_merkle_request():
              "path": [p.hex() for p in merkle.inclusion_path(leaves, 1)], "root": merkle.tree_hash(leaves).hex()}
     assert api.verify({"kind": "merkle", "proof": proof, "leaf": base64.b64encode(b"b").decode()})["outcome"] == "valid"
     assert api.verify({"kind": "merkle", "proof": proof, "leaf": base64.b64encode(b"x").decode()})["outcome"] == "invalid"
+    leaf = base64.b64encode(b"b").decode()
+    assert api.verify({"kind": "merkle", "proof": proof, "leaf": leaf, "tree_size": 3})["outcome"] == "valid"
+    assert api.verify({"kind": "merkle", "proof": proof, "leaf": leaf, "tree_size": 4})["outcome"] == "invalid"
+    assert "error" in api.verify({"kind": "merkle", "proof": proof, "leaf": leaf, "tree_size": "3"})
 
 
 def _anchor_request(case: Path, **extra):

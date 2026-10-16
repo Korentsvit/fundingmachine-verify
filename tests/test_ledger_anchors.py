@@ -312,3 +312,24 @@ def test_index_line_naming_no_anchor_fails(tmp_path):
         f.write(json.dumps({"created": m3["created"], "root": m3["root"], "size": m3["size"], "path": "2026/10/17/100411Z"}) + "\n")
     c = ledger_anchors.check_index(tmp_path / "set", ledger_anchors.find_anchor_dirs(tmp_path / "set"))
     assert c.status.value == "fail" and any("not an anchor here" in r for r in c.reasons)
+
+
+def test_a_manifest_naming_no_descriptor_is_a_warning(tmp_path):
+    """Found by tools/tamper_audit.py: an unversioned manifest whose leaves
+    were replaced held with no word that it names nothing."""
+    import shutil
+
+    from fmverify import conformance
+    from fmverify.verdict import Outcome, Status
+
+    case = tmp_path / "ledger-anchors" / "unversioned"
+    shutil.copytree(FIX / "ledger-anchors" / "unversioned", case)
+    shutil.copytree(FIX / "rfc3161" / "pki", tmp_path / "rfc3161" / "pki")
+    shutil.copytree(FIX / "ledger-anchors" / "pki", tmp_path / "ledger-anchors" / "pki")
+    shutil.copytree(FIX / "bitcoin" / "regtest", tmp_path / "bitcoin" / "regtest")
+    for value in ({"leaves": 0}, [], {"files": [{"path": "x"}]}, 0):
+        (case / "manifest.json").write_text(json.dumps(value))
+        _, v = conformance.run_case("ledger-anchors", case)
+        row = next(c for c in v.checks if c.id == "ledger_anchor.leaves")
+        assert v.outcome is Outcome.VALID and row.status is Status.WARN and "names no descriptor" in row.summary
+        assert v.statement.startswith("Root ")

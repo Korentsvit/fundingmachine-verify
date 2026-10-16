@@ -284,7 +284,7 @@ def cmd_merkle(args: argparse.Namespace) -> Verdict:
     else:
         raise UsageError("give the leaf with --leaf-file or --leaf-hex, or as 'leaf' in the proof")
     root = _hex32(args.root, "--root") if args.root else None
-    return merkle.verify_inclusion(leaf, proof, expected_root=root, subject=args.leaf_file)
+    return merkle.verify_inclusion(leaf, proof, expected_root=root, subject=args.leaf_file, expected_size=args.tree_size)
 
 
 def cmd_conformance(args: argparse.Namespace) -> int:
@@ -395,6 +395,8 @@ def build_parser() -> argparse.ArgumentParser:
     leaf.add_argument("--leaf-file", help="file whose bytes are the leaf data")
     leaf.add_argument("--leaf-hex", help="the leaf data in hex")
     m.add_argument("--root", help="the root (hex) held from the anchored record; the proof's root must equal it")
+    m.add_argument("--tree-size", type=int, metavar="N",
+                   help="the tree size held with that root (RFC 9162); the proof's must equal it, which fixes the leaf's position")
     m.add_argument("--json", action="store_true")
     m.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     m.set_defaults(func=cmd_merkle)

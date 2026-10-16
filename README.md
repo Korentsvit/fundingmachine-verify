@@ -119,7 +119,9 @@ verifier must reach, and `fixtures/SHA256SUMS`. `python tools/make_fixtures.py`
 rebuilds them offline, byte for byte. `fm-verify conformance fixtures`
 checks the manifest and runs every case; the format is in
 [docs/CONFORMANCE.md](docs/CONFORMANCE.md), so other implementations can use
-the cases too. No key in them protects anything: every key comes from a seed
+the cases too. `python tools/tamper_audit.py` changes every input of every
+valid case 200 ways and fails if any change is accepted without showing in
+the verdict or being explained (the security note lists what it accepts). No key in them protects anything: every key comes from a seed
 published in `tools/`, and no key file is committed. No content from
 FundingMachine's private repositories is in them.
 
@@ -141,7 +143,7 @@ FundingMachine's private repositories is in them.
   with the client keys (valid: only an anchor can bound a chain's time);
   re-ordered, plainly and re-signed; an event dropped; after close; the wrong
   key; text in a payload; and a disclosed key and text (valid, one word
-  changed, the wrong key). Under the proposed v0.1: a chain resumed with a
+  changed, the wrong key, one event given twice, text no hash covers). Under the proposed v0.1: a chain resumed with a
   `capture.resync`, valid; the resync not first in its session; a resync
   emptying the document; an event naming a version this verifier does not
   read (indeterminate); and the chain's journal, valid and with the signer's
@@ -154,6 +156,9 @@ FundingMachine's private repositories is in them.
   wrong; leaves out of order; a token misstated; a schema violation; a source
   not read and one token missing (warnings); an unknown contract; and anchor
   sets with `index.jsonl`: valid, a broken link, an anchor not listed.
+* `merkle/*`: inclusion proofs: valid, the wrong leaf, the wrong index, another
+  root, a path too long, the tree size held (valid) and a size of the same
+  shape claimed (invalid), and the explicit scheme (a warning).
 * `anchors/*`: batches in this verifier's own format over a synthetic
   repository: valid, changed checkout, changed file, re-ordered, dropped,
   pending proof, back-dated token, proof over another root.
