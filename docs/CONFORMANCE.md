@@ -1,0 +1,62 @@
+# Conformance suite
+
+```sh
+fm-verify conformance fixtures      # exit 0 only if the fixtures are the published ones and every case conforms
+fm-verify conformance fixtures --json
+```
+
+The suite first checks `fixtures/SHA256SUMS`, so a run says whether it used
+the published fixtures, then runs every case and compares the verdict with
+the case's `expected.json`. Another implementation can use the same cases:
+read the inputs named below, and compare its outcome with `outcome`.
+
+## Layout
+
+```
+fixtures/
+  SHA256SUMS                 SHA-256 of every fixture file
+  bitcoin/mainnet/           public Bitcoin headers and the data behind the mainnet proof
+  bitcoin/regtest/           regtest header chains mined by the fixture builder
+  ots/<case>/                proof.ots, the subject file, expected.json
+  rfc3161/<case>/            token.tsr, document.txt, expected.json
+  rfc3161/pki/, rfc3161/crl/ the test PKI's certificates and revocation lists
+  anchors/<case>/            batch.json, root.ots, root.test-tsa.tsr, expected.json
+  anchors/repo/, repo-changed/  the synthetic repository the batches list, as anchored and as later changed
+```
+
+## expected.json
+
+| Field | Meaning |
+| --- | --- |
+| `description` | what the case is |
+| `outcome` | `valid`, `invalid` or `indeterminate` |
+| `failing` | the check ids that must fail, in order, and no others (default none) |
+| `warning` | check ids that must warn, at least (default none) |
+| `network` | `mainnet` or `regtest` |
+| `file` | the subject file, relative to the case (`ots`, `rfc3161`) |
+| `headers` | sparse header files, relative to the case |
+| `headers_chain` | contiguous header files: `{"path", "start"}` |
+| `roots`, `chain`, `crls` | PEM files: trusted roots, extra certificates, revocation lists |
+| `repo_root`, `files` | for anchor batches: a checkout to compare, and files a reader holds (relative to `repo_root`) |
+
+Check ids are this verifier's; another implementation is asked to match
+`outcome`, and may map its own reasons to `failing` as it sees fit.
+
+## What the cases cover
+
+* OpenTimestamps: a real mainnet proof (sparse headers, a header chain, no
+  headers, the wrong file, a forged header) and regtest proofs (valid,
+  tampered file, tampered proof, back-dated, pending only, truncated,
+  trailing bytes).
+* RFC 3161: valid tokens under four signature schemes; trust (no root, wrong
+  root, chain missing); tampering (file, back-dated time, signature, ESS);
+  certificate rules (EKU missing or shared, expired); a refused request; and
+  revocation (clean, key compromise, superseded later, revoked before, stale
+  and forged CRLs).
+* Anchor batches: valid; a changed checkout; a changed file a reader holds;
+  re-ordered and dropped files; a pending proof; a back-dated token; a
+  proof over another root.
+
+Due by 14 November 2026: certificate v0 chains (valid, tampered, back-dated,
+re-ordered), once the Provenance Ledger session publishes the certificate
+format.

@@ -22,6 +22,8 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -q
+      - name: Conformance suite
+        run: fm-verify conformance fixtures
       - name: Fixtures rebuild byte for byte
         run: |
           python tools/make_fixtures.py

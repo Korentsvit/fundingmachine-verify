@@ -24,7 +24,7 @@ ledger, capture, capital, or the website.
 | V-6b | Run the API under Pyodide in CI, so the browser claim is tested rather than stated | queued |
 | V-7 | Certificate v0: ed25519 signatures, event chain order and linkage, Merkle roots, anchors, against `docs/CERTIFICATE.md` | queued, waits on the Ledger session's document |
 | V-8 | Static HTML report: authorship map and evidence coverage, no script from any third party | queued |
-| V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use | queued |
+| V-9 | Conformance suite and published fixtures: valid, tampered, back-dated, re-ordered chains; runner any third party can use. Runner and anchor fixtures: this pull request (`docs/CONFORMANCE.md`); certificate chains wait on V-7 | in progress |
 | V-10 | Security note: what the verifier cannot detect | queued |
 | V-11 | A local Bitcoin Core node as a header source (`getblockheader` over RPC), the strongest source short of a full headers file | queued |
 

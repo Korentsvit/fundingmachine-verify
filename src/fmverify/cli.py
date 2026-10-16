@@ -177,6 +177,22 @@ def cmd_merkle(args: argparse.Namespace) -> Verdict:
     return merkle.verify_inclusion(leaf, proof, expected_root=root, subject=args.leaf_file)
 
 
+def cmd_conformance(args: argparse.Namespace) -> int:
+    from . import conformance
+
+    fixtures = Path(args.fixtures)
+    if not fixtures.is_dir():
+        raise UsageError(f"{fixtures} is not a directory")
+    manifest, results = conformance.run_suite(fixtures)
+    if args.json:
+        print(json.dumps({"manifest_problems": manifest,
+                          "cases": [r.__dict__ for r in results],
+                          "conforms": not manifest and all(r.ok for r in results)}, indent=2))
+    else:
+        print(conformance.report(manifest, results))
+    return 0 if not manifest and results and all(r.ok for r in results) else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = _Parser(prog="fm-verify", description="Check FundingMachine anchors and certificates without trusting FundingMachine.")
     p.add_argument("--version", action="version", version=f"fm-verify {__version__}")
@@ -217,6 +233,11 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_anchors)
 
+    c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
+    c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")
+    c.add_argument("--json", action="store_true")
+    c.set_defaults(func=cmd_conformance)
+
     m = sub.add_parser("merkle", help="a Merkle inclusion proof (RFC 9162 or explicit path)")
     m.add_argument("proof", help="the proof, as JSON")
     leaf = m.add_mutually_exclusive_group()
@@ -235,6 +256,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     except UsageError as exc:
         print(f"fm-verify: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    if isinstance(verdict, int):
+        return verdict
     print(verdict.to_json() if args.json else verdict.to_text())
     return verdict.exit_code
 

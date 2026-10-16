@@ -100,11 +100,13 @@ is `invalid`. A Bitcoin block time is set by the miner and is only roughly
 accurate (within about two hours); the verdict quotes it as the header's
 time, not as a precise moment.
 
-## Fixtures
+## Fixtures and the conformance suite
 
 `fixtures/` holds the cases the test suite runs, each with the outcome the
 verifier must reach, and `fixtures/SHA256SUMS`. They are rebuilt offline,
-byte for byte, by `python tools/make_fixtures.py`.
+byte for byte, by `python tools/make_fixtures.py`. `fm-verify conformance
+fixtures` checks the manifest and runs every case; the format is in
+[docs/CONFORMANCE.md](docs/CONFORMANCE.md), for other implementations too.
 
 * `ots/mainnet-840000-*`: a real proof built from public Bitcoin data only.
   The "file" is the single SHA-256 of block 840000's coinbase transaction,
