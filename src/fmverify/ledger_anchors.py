@@ -221,3 +221,37 @@ def verify_dir(
 def read_index(path: str | Path) -> list[dict]:
     """anchors/index.jsonl: one JSON object per line."""
     return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def find_anchor_dirs(root: str | Path) -> list[Path]:
+    """Every directory under ``root`` (itself included) holding root.preimage, in path order."""
+    base = Path(root)
+    return sorted(p.parent for p in base.rglob("root.preimage") if p.is_file())
+
+
+@guarded("anchor-set", "anchor_set.read", "anchor set")
+def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Verdict:
+    """Verify every anchor directory under ``root``; one check per anchor."""
+    dirs = find_anchor_dirs(root)
+    checks: list[Check] = []
+    outcomes = {o: 0 for o in Outcome}
+    for d in dirs:
+        v = verify_dir(d, checked_at=checked_at, **kwargs)
+        outcomes[v.outcome] += 1
+        rel = d.relative_to(Path(root)).as_posix() or "."
+        status = {Outcome.VALID: Status.PASS, Outcome.INVALID: Status.FAIL, Outcome.INDETERMINATE: Status.NOT_CHECKED}[v.outcome]
+        reasons = [f"{c.id}: {c.summary}" for c in v.checks if c.status in (Status.FAIL, Status.WARN)
+                   or (c.status is Status.NOT_CHECKED and c.required)]
+        checks.append(Check(f"anchor_set.{rel}", status, f"{rel}: {v.outcome.value}", reasons=reasons,
+                            relies_on=v.relies_on, data={"verdict": v.to_dict()}))
+    if not dirs:
+        checks.append(Check("anchor_set.read", Status.NOT_CHECKED, f"no anchor directory (with root.preimage) under {root}"))
+    n = len(dirs)
+    statements = {
+        Outcome.VALID: f"All {n} anchors under {root} hold.",
+        Outcome.INVALID: (f"{outcomes[Outcome.INVALID]} of {n} anchors under {root} do not hold; "
+                          f"{outcomes[Outcome.VALID]} hold and {outcomes[Outcome.INDETERMINATE]} could not be checked."),
+        Outcome.INDETERMINATE: (f"{outcomes[Outcome.VALID]} of {n} anchors under {root} hold; "
+                                f"{outcomes[Outcome.INDETERMINATE]} could not be checked."),
+    }
+    return make_verdict("anchor-set", f"anchors under {root}", checks, statements, ANCHOR_LIMITS, checked_at)

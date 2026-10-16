@@ -46,3 +46,18 @@ def test_cli(capsys):
 
 def test_missing_preimage_is_not_this_layout(tmp_path):
     assert not ledger_anchors.is_layout(tmp_path)
+
+
+def test_all_anchors_under_a_directory(capsys):
+    base = ["anchors", str(FIX / "ledger-anchors"), "--all", "--network", "regtest",
+            "--headers-chain", str(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"),
+            "--roots", str(FIX / "rfc3161" / "pki" / "root.pem"), "--json"]
+    assert main(base) == 1  # the set includes the deliberately broken cases
+    import json as _json
+
+    doc = _json.loads(capsys.readouterr().out)
+    assert doc["kind"] == "anchor-set"
+    by_case = {c["id"].split(".", 1)[1]: c["status"] for c in doc["checks"]}
+    assert by_case["valid"] == "pass" and by_case["descriptor-altered"] == "fail"
+    assert "3 of 6 anchors" in doc["statement"] or "of 6 anchors" in doc["statement"]
+    assert ledger_anchors.find_anchor_dirs(FIX / "anchors") == []
