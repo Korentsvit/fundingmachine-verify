@@ -24,7 +24,7 @@ Common fields:
 | Field | Meaning |
 | --- | --- |
 | `api` | `fm-verify/0` (optional; any other value is refused) |
-| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `certificate` or `chain` |
+| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `ledger-anchor`, `certificate` or `chain` |
 | `label` | the subject's name, shown in the verdict (optional) |
 | `network` | `mainnet` (default) or `regtest` |
 | `headers` | block headers: `{"kind": "chain", "data": <base64 of 80-byte headers>, "start": 0, "name": ...}` or `{"kind": "sparse", "text": "HEIGHT HEX lines or JSON", "name": ...}` |
@@ -45,6 +45,7 @@ By kind:
 | `rfc3161` | `token` (base64 `.tsr` or token); `file` or `digest` with `digest_alg` (default `sha256`), optional |
 | `merkle` | `proof` (the JSON object of `docs/INPUTS.md`); `leaf` (base64) unless the proof carries `leaf` (hex); `root` (hex), optional |
 | `anchors` | `batch` (the parsed `batch.json`); `anchor_files` (file name to base64); `files` (listed path to base64 of a file the reader holds), optional |
+| `ledger-anchor` | `files`: one Provenance Ledger anchor directory as file name to base64 (`manifest.json`, `root.preimage`, `root.preimage.ots`, `root.preimage.<authority>.tsr`); no checkout comparison, which needs a disk |
 | `certificate` | `certificate` (the certificate's JSON object); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 events), optional, for step 7 |
 | `chain` | `events` (a list of ledger-event/v0 events); `disclosure` (`{"doc_key_hex", "steps": [{"seq", "content_text"}]}`), optional: replays the chain and checks every keyed hash; the text is never echoed |
 

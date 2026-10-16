@@ -140,6 +140,20 @@ def _run(req: dict):
         return anchors.verify_batch(batch, header_sources=_sources(req), network=NETWORKS[req.get("network", "mainnet")],
                                     roots=_certs(req.get("roots"), "roots"), extra_certs=_certs(req.get("chain"), "chain"),
                                     held=held, crls=_crls(req.get("crls")))
+    if kind == "ledger-anchor":
+        from . import ledger_anchors
+
+        files = req.get("files")
+        if not isinstance(files, dict):
+            raise RequestError("files must map manifest.json, root.preimage and its proof files to base64")
+        decoded = {}
+        for name, value in files.items():
+            if name != "manifest.json" and not name.startswith("root.preimage"):
+                raise RequestError(f"files.{name}: an anchor directory holds manifest.json and root.preimage files only")
+            decoded[name] = _b64(value, f"files.{name}")
+        return ledger_anchors.verify_files(decoded, name=label or "", header_sources=_sources(req),
+                                           network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
+                                           extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")))
     if kind == "certificate":
         cert = req.get("certificate")
         if not isinstance(cert, dict):
@@ -163,7 +177,7 @@ def _run(req: dict):
                 raise RequestError("disclosure must be an object with doc_key_hex and steps")
             return ledger_text.verify(events, req["disclosure"], subject=label)
         return ledger_events.verify(events, subject=label)
-    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, certificate, chain")
+    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, certificate, chain")
 
 
 def verify(request: dict) -> dict:

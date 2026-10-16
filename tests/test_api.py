@@ -103,3 +103,35 @@ def test_json_round_trip():
     case = FIX / "ots" / "regtest-pending-only"
     out = json.loads(api.verify_json(json.dumps({"kind": "ots", "proof": b64(case / "proof.ots")})))
     assert out["outcome"] == "indeterminate"
+
+
+def _ledger_anchor_request(case: Path, **extra) -> dict:
+    files = {p.name: b64(p) for p in sorted(case.iterdir()) if p.name == "manifest.json" or p.name.startswith("root.preimage")}
+    return {"kind": "ledger-anchor", "label": case.name, "network": "regtest", "files": files,
+            "headers": [{"kind": "chain", "data": b64(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin"), "start": 0,
+                         "name": "regtest fixture headers"}],
+            "roots": [(FIX / "rfc3161" / "pki" / "root.pem").read_text(), (FIX / "ledger-anchors" / "pki" / "second-root.pem").read_text()],
+            **extra}
+
+
+def test_ledger_anchor_request():
+    """The same verdicts as the command line, from files held in memory."""
+    from fmverify import ledger_anchors, pki
+    from fmverify.bitcoin import NETWORKS, HeaderChain
+
+    roots = [c for p in ("rfc3161/pki/root.pem", "ledger-anchors/pki/second-root.pem") for c in pki.load_certificates((FIX / p).read_bytes())]
+
+    for name in ("valid", "manifest-misstates-token", "leaf-hash-wrong", "one-authority", "unknown-contract"):
+        case = FIX / "ledger-anchors" / name
+        out = api.verify(_ledger_anchor_request(case))
+        disk = ledger_anchors.verify_dir(case, roots=roots, network=NETWORKS["regtest"],
+                                         header_sources=[HeaderChain.from_file(FIX / "bitcoin" / "regtest" / "ledger-anchor-headers-0-4.bin",
+                                                                               0, NETWORKS["regtest"])])
+        assert out["outcome"] == disk.outcome.value, name
+        assert [c["id"] for c in out["checks"]] == [c.id for c in disk.checks], name
+
+
+def test_ledger_anchor_request_refuses_other_files():
+    req = _ledger_anchor_request(FIX / "ledger-anchors" / "valid")
+    req["files"]["../etc/passwd"] = "AA=="
+    assert "manifest.json and root.preimage files only" in api.verify(req)["error"]

@@ -43,6 +43,13 @@ const requests = [
      headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/certificate-headers-0-5.bin") }],
      roots: [text("fixtures/rfc3161/pki/root.pem")], render: "html" }],
   ["chain re-ordered", "invalid", { kind: "chain", events: json("fixtures/chain/re-ordered/events.json").events }],
+  ...["valid", "manifest-misstates-token"].map((c) => [`ledger-anchor ${c}`, c === "valid" ? "valid" : "invalid", {
+    kind: "ledger-anchor", network: "regtest",
+    files: Object.fromEntries(readdirSync(join(repo, "fixtures/ledger-anchors", c))
+      .filter((n) => n === "manifest.json" || n.startsWith("root.preimage"))
+      .map((n) => [n, b64(`fixtures/ledger-anchors/${c}/${n}`)])),
+    headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/ledger-anchor-headers-0-4.bin") }],
+    roots: [text("fixtures/rfc3161/pki/root.pem"), text("fixtures/ledger-anchors/pki/second-root.pem")] }]),
 ];
 
 py.globals.set("REQUESTS", JSON.stringify(requests.map((r) => r[2])));

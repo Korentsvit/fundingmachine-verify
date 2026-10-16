@@ -31,7 +31,7 @@ import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from . import der, jcs, merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
@@ -195,7 +195,7 @@ def v0_problems(m: Any) -> list[str]:
     return out
 
 
-def _token_statements(d: Path, manifest: dict) -> tuple[list[str], list[str], list[str]]:
+def _token_statements(files: Mapping[str, bytes], manifest: dict) -> tuple[list[str], list[str], list[str]]:
     """Compare what a v0 manifest says about its proofs with the proofs:
     (contradictions, token files named and present, files named but absent)."""
     problems, named, missing = [], [], []
@@ -207,13 +207,12 @@ def _token_statements(d: Path, manifest: dict) -> tuple[list[str], list[str], li
         if Path(name).name != name or not name.startswith("root.preimage."):
             problems.append(f"the manifest names the token file {name!r}, which is not a root.preimage file in this directory")
             continue
-        f = d / name
-        if not f.is_file():
+        if name not in files:
             missing.append(name)
             continue
         named.append(name)
         try:
-            tst = rfc3161.parse_token(f.read_bytes()).tst
+            tst = rfc3161.parse_token(files[name]).tst
         except (rfc3161.TokenError, der.DerError, ValueError):
             continue  # the token's own check reports it
         who = t.get("authority")
@@ -231,7 +230,7 @@ def _token_statements(d: Path, manifest: dict) -> tuple[list[str], list[str], li
         if t.get("policy") != tst.policy:
             problems.append(f"{who}: the manifest states policy {t.get('policy')}, the token {tst.policy}")
     o = proofs.get("opentimestamps")
-    if isinstance(o, dict) and o.get("file") == "root.preimage.ots" and not (d / "root.preimage.ots").is_file():
+    if isinstance(o, dict) and o.get("file") == "root.preimage.ots" and "root.preimage.ots" not in files:
         missing.append("root.preimage.ots")
     return problems, named, missing
 
@@ -313,9 +312,26 @@ def _summarize(sub: Verdict, cid: str, what: str, valid_count: int) -> Check:
                  required=valid_count == 0, data={"verdict": sub.to_dict()})
 
 
-@guarded("ledger-anchor", "ledger_anchor.preimage", "anchor directory")
-def verify_dir(
-    directory: str | Path,
+def read_anchor_files(directory: str | Path) -> dict[str, bytes]:
+    """An anchor directory's own files: manifest.json and root.preimage*."""
+    d = Path(directory)
+    if not d.is_dir():
+        return {}
+    return {p.name: p.read_bytes() for p in sorted(d.iterdir())
+            if p.is_file() and (p.name == "manifest.json" or p.name.startswith("root.preimage"))}
+
+
+def verify_dir(directory: str | Path, repos: dict[str, str | Path] | None = None, **kwargs) -> Verdict:
+    """``repos`` maps a repository name as descriptors give it
+    (``Korentsvit/fundingmachine-core``), or ``NAME@TAG``, to a local checkout."""
+    d = Path(directory)
+    return verify_files(read_anchor_files(d), name=d.name, repos=repos, **kwargs)
+
+
+@guarded("ledger-anchor", "ledger_anchor.preimage", "anchor")
+def verify_files(
+    files: Mapping[str, bytes],
+    name: str = "",
     repos: dict[str, str | Path] | None = None,
     header_sources: Sequence[HeaderSource] = (),
     network: Network = MAINNET,
@@ -324,16 +340,16 @@ def verify_dir(
     crls=(),
     checked_at: str | None = None,
 ) -> Verdict:
-    """``repos`` maps a repository name as descriptors give it
-    (``Korentsvit/fundingmachine-core``) to a local checkout."""
-    d = Path(directory)
+    """One anchor from its files held in memory (``manifest.json``,
+    ``root.preimage``, ``root.preimage.ots``, ``root.preimage.<authority>.tsr``):
+    no disk is read unless ``repos`` names checkouts to compare."""
     checks: list[Check] = []
-    subject = f"Provenance Ledger anchor {d.name}"
+    subject = f"Provenance Ledger anchor {name}".rstrip()
     bad = {o: "The anchor does not hold: see the failing checks." for o in Outcome}
-    try:
-        preimage = (d / "root.preimage").read_bytes()
-    except OSError as exc:
-        checks.append(Check("ledger_anchor.preimage", Status.FAIL, "root.preimage cannot be read", reasons=[str(exc)]))
+    preimage = files.get("root.preimage")
+    if preimage is None:
+        checks.append(Check("ledger_anchor.preimage", Status.FAIL, "root.preimage is missing",
+                            reasons=["an anchor's root is the SHA-256 of root.preimage"]))
         return make_verdict("ledger-anchor", subject, checks, bad, ANCHOR_LIMITS, checked_at)
     root = sha256(preimage)
     shape_ok = (len(preimage) == 65 and preimage[0] == 1) or (len(preimage) >= 1 and preimage[0] == 0)
@@ -349,7 +365,9 @@ def verify_dir(
     stated_root = None
     manifest: Any = None
     try:
-        manifest = jcs.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        if "manifest.json" not in files:
+            raise FileNotFoundError("manifest.json")
+        manifest = jcs.loads(files["manifest.json"].decode("utf-8"))
         stated_root = manifest.get("root") if isinstance(manifest, dict) else None
     except FileNotFoundError:
         checks.append(Check("ledger_anchor.manifest", Status.NOT_CHECKED, "no manifest.json: the anchored files cannot be named",
@@ -432,13 +450,13 @@ def verify_dir(
 
     # The proofs over root.preimage.
     subs: list[tuple[str, str, Verdict]] = []
-    if (d / "root.preimage.ots").is_file():
+    if "root.preimage.ots" in files:
         subs.append(("ledger_anchor.ots", "the OpenTimestamps proof",
-                     ots.verify((d / "root.preimage.ots").read_bytes(), header_sources, file_bytes=preimage, network=network,
+                     ots.verify(files["root.preimage.ots"], header_sources, file_bytes=preimage, network=network,
                                 subject=f"root {root.hex()}", checked_at=checked_at)))
-    for p in sorted(d.glob("root.preimage.*.tsr")):
-        subs.append((f"ledger_anchor.rfc3161.{p.name}", f"the RFC 3161 token {p.name}",
-                     rfc3161.verify(p.read_bytes(), file_bytes=preimage, roots=roots, extra_certs=extra_certs, crls=crls,
+    for fname in sorted(n for n in files if n.startswith("root.preimage.") and n.endswith(".tsr")):
+        subs.append((f"ledger_anchor.rfc3161.{fname}", f"the RFC 3161 token {fname}",
+                     rfc3161.verify(files[fname], file_bytes=preimage, roots=roots, extra_certs=extra_certs, crls=crls,
                                     subject=f"root {root.hex()}", checked_at=checked_at)))
     valid = sum(1 for _, _, v in subs if v.outcome is Outcome.VALID)
     for cid, what, v in subs:
@@ -446,7 +464,7 @@ def verify_dir(
     if not subs:
         checks.append(Check("ledger_anchor.proofs", Status.NOT_CHECKED, "the directory holds no proof over root.preimage"))
     if v0:
-        stated, named, missing = _token_statements(d, manifest)
+        stated, named, missing = _token_statements(files, manifest)
         if missing:
             checks.append(Check("ledger_anchor.files", Status.WARN, "the manifest names proofs this directory does not hold",
                                 reasons=missing, required=False))
