@@ -10,6 +10,8 @@ printed near the top, word for word.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from html import escape
 from typing import Any
 
@@ -49,13 +51,17 @@ h1 { font-size: 1.5rem; margin: 0 0 4px; } h2 { font-size: 1.15rem; margin: 32px
 .scope { border-left: 4px solid var(--fg); padding: 8px 12px; background: var(--card); margin: 12px 0; }
 table { border-collapse: collapse; width: 100%; margin: 8px 0; } th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-weight: 600; } td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--line); margin: 6px 0 2px; }
-.bar span { display: block; height: 100%; }
-.k1 { background: var(--o1); } .k2 { background: var(--o2); } .k3 { background: var(--o3); } .k4 { background: var(--o4); } .k5 { background: var(--o5); }
+.bar { display: block; width: 100%; height: 18px; border-radius: 4px; overflow: hidden; background: var(--line); margin: 6px 0 2px; }
+.k1 { background: var(--o1); fill: var(--o1); } .k2 { background: var(--o2); fill: var(--o2); } .k3 { background: var(--o3); fill: var(--o3); }
+.k4 { background: var(--o4); fill: var(--o4); } .k5 { background: var(--o5); fill: var(--o5); }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: baseline; }
 .note { font-size: 0.9em; color: var(--muted); }
 ul { padding-left: 20px; }
 """
+
+# The report's one <style> element as a Content Security Policy source
+# (style-src), for a page that shows reports: the report has no other styles.
+CSP_STYLE_HASH = "'sha256-" + base64.b64encode(hashlib.sha256(CSS.encode("utf-8")).digest()).decode("ascii") + "'"
 
 
 def _pct(value: Any) -> float:
@@ -67,12 +73,16 @@ def _pct(value: Any) -> float:
 
 
 def _bar(block: dict, keys: list[str], labels: dict) -> str:
-    segments = "".join(
-        f'<span class="k{i + 1}" style="width:{_pct(block.get("percent", {}).get(k)):.1f}%" title="{escape(labels[k])}: '
-        f'{escape(str(block.get("percent", {}).get(k)))}%"></span>'
-        for i, k in enumerate(keys)
-    )
-    return f'<div class="bar" role="img" aria-label="shares, as in the table below">{segments}</div>'
+    # SVG geometry rather than style attributes, so a page showing the report
+    # under a Content Security Policy needs only CSP_STYLE_HASH for its styles
+    x, segments = 0.0, []
+    for i, k in enumerate(keys):
+        width = min(_pct(block.get("percent", {}).get(k)), 100.0 - x)
+        segments.append(f'<rect class="k{i + 1}" x="{x:.1f}" y="0" width="{width:.1f}" height="1"><title>{escape(labels[k])}: '
+                        f'{escape(str(block.get("percent", {}).get(k)))}%</title></rect>')
+        x += width
+    return (f'<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" role="img" '
+            f'aria-label="shares, as in the table below">{"".join(segments)}</svg>')
 
 
 def _table(block: dict, keys: list[str], labels: dict) -> str:

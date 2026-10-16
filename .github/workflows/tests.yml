@@ -77,3 +77,22 @@ jobs:
           npm install --silent pyodide@0.27.7
           cp "$GITHUB_WORKSPACE/tools/pyodide/check.mjs" .
           node check.mjs "$GITHUB_WORKSPACE"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: In a browser, under the hosted page's Content Security Policy (docs/HOSTED_PAGE.md)
+        run: |
+          site="$RUNNER_TEMP/site"
+          mkdir -p "$site"
+          cp tools/pyodide/policy/index.html tools/pyodide/policy/app.mjs tools/pyodide/policy/check.mjs "$site"
+          for f in pyodide.mjs pyodide.asm.js pyodide.asm.wasm python_stdlib.zip pyodide-lock.json; do
+            cp "$RUNNER_TEMP/pyodide/node_modules/pyodide/$f" "$site"
+          done
+          python tools/pyodide/policy/fetch_packages.py "$site" cryptography
+          python -m pip wheel --quiet --no-deps --wheel-dir "$site" .
+          (cd "$site" && ls fundingmachine_verify-*.whl > wheel.txt)
+          style=$(PYTHONPATH=src python -c 'from fmverify.report import CSP_STYLE_HASH; print(CSP_STYLE_HASH)')
+          cd "$site"
+          npm init -y > /dev/null
+          npm install --silent playwright-core@1.56.1
+          node check.mjs "$GITHUB_WORKSPACE" "$style"
