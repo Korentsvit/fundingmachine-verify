@@ -172,3 +172,27 @@ def test_huge_lengths_cost_no_memory():
     assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 100 * 1024  # KiB on Linux
     amap = ledger_events.authorship_map(r.state, 3, r.head)
     assert amap["document"]["total"] == 2**53 - 1 - (2**52 - 5)
+
+
+def test_a_range_ending_before_it_starts_is_empty():
+    """Found by the differential run against the Ledger's validator: [34, 0)
+    holds nothing, so a tool.edit over it fails as range_empty there; it was
+    range_out_of_bounds here. The contract's half-open span reads the
+    Ledger's way."""
+    import copy
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
+    from chain_fixtures import basic_chain, event_hash, sign_event
+
+    w = basic_chain()
+    keys = {sid: key for sid, key in w.sessions.values()}
+    evs = copy.deepcopy(w.events)
+    i = next(k for k, e in enumerate(evs) if e["type"] == "tool.edit")
+    evs[i]["range"] = dict(evs[i]["range"], end=0)
+    last = evs[i - 1]
+    for k in range(i, len(evs)):
+        evs[k] = sign_event(dict(evs[k], prev_hash=event_hash(last)), keys[evs[k]["session_id"]])
+        last = evs[k]
+    r = ledger_events.validate_chain(evs)
+    assert (r.ok, r.index, r.code) == (False, i, "range_empty")

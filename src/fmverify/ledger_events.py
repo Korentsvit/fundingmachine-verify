@@ -525,7 +525,9 @@ def _apply(st: State, ev: dict, i: int, prev: dict | None) -> None:
         empty = start == end
         if t in ("edit.insert", "statement.split", "statement.merge") and not empty:
             raise ChainError("range_not_empty", f"{t} needs an empty range")
-        if t in ("edit.delete", "edit.replace", "edit.move", "tool.edit") and empty:
+        # [start, end) is half-open: with end at or before start it holds nothing, so a type needing a
+        # non-empty range fails as range_empty, as the Ledger's own validator reads its contract.
+        if t in ("edit.delete", "edit.replace", "edit.move", "tool.edit") and end <= start:
             raise ChainError("range_empty", f"{t} needs a non-empty range")
         if start > end or end > length:
             raise ChainError("range_out_of_bounds", f"[{start}, {end}) is outside a statement of {length}")

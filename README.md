@@ -235,7 +235,10 @@ not take this code's word:
   v0.1 (27cec9a, 16 October 2026), it agreed on 14 of 16 chains (the other
   two, no events at all and a version neither reads, it calls invalid and
   this verifier indeterminate), on all 21 certificate proofs, and on both
-  authorship map hashes, v0 and v0.1;
+  authorship map hashes, v0 and v0.1; and on 3,000 chains changed one way
+  each and re-signed (`tools/ledger_crosscheck/mutated_chains.py`, reaching
+  20 of the contract's failure codes), it gave the same outcome, position and
+  code on 2,991, and the 9 others are the same difference by design;
 * the Ledger's anchoring work (its branch of 16 October 2026): its recorded
   DigiCert and Sectigo responses and OpenTimestamps proof verify here; this
   verifier's schema check gives the published `anchor-manifest/v0` schema's
