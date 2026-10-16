@@ -3,8 +3,9 @@
 Written from the Provenance Ledger session's published documents
 (fundingmachine-ledger: docs/CERTIFICATE.md, docs/ANCHORING.md,
 docs/AUTHORSHIP_MAP.md and the JSON Schemas, read 16 October 2026), not from
-its code. The steps are the document's, reported one by one, and a verdict
-never claims more than the steps it ran:
+its code. The steps are the document's, each reported on its own whether
+or not an earlier one failed, and a verdict never claims more than the steps
+it ran:
 
 1. the Data Integrity proof (eddsa-jcs-2022) under the issuer's did:key;
 2. the scope statement, word for word;
@@ -106,10 +107,21 @@ def _unknown_fields(cred: dict) -> list[str]:
     return out
 
 
-def _check_proof(cred: dict) -> tuple[Check, bytes | None]:
+def _issuer_key(cred: dict) -> tuple[bytes | None, str]:
+    """The Ed25519 key of the issuer's did:key, read whether or not the proof
+    holds: step 4 runs under the key the certificate names (the root
+    record's key_id is the issuer's), so a failed proof never hides it."""
+    issuer = cred.get("issuer", {}).get("id") if isinstance(cred.get("issuer"), dict) else None
+    try:
+        return did_key_ed25519(issuer if isinstance(issuer, str) else ""), ""
+    except EncodingError as exc:
+        return None, str(exc)
+
+
+def _check_proof(cred: dict) -> Check:
     proof = cred.get("proof")
     if not isinstance(proof, dict):
-        return Check("certificate.proof", Status.FAIL, "the certificate carries no proof"), None
+        return Check("certificate.proof", Status.FAIL, "the certificate carries no proof")
     problems = []
     if proof.get("type") != "DataIntegrityProof" or proof.get("cryptosuite") != "eddsa-jcs-2022":
         problems.append(f"proof type {proof.get('type')!r} / cryptosuite {proof.get('cryptosuite')!r}, not DataIntegrityProof / eddsa-jcs-2022")
@@ -131,20 +143,20 @@ def _check_proof(cred: dict) -> tuple[Check, bytes | None]:
         problems.append(str(exc))
         public = None
     if problems:
-        return Check("certificate.proof", Status.FAIL, "the proof is not a well-formed eddsa-jcs-2022 proof by the issuer", reasons=problems), None
+        return Check("certificate.proof", Status.FAIL, "the proof is not a well-formed eddsa-jcs-2022 proof by the issuer", reasons=problems)
     try:
         signature = multibase_decode(proof.get("proofValue", ""))
     except EncodingError as exc:
-        return Check("certificate.proof", Status.FAIL, "the proof value cannot be decoded", reasons=[str(exc)]), None
+        return Check("certificate.proof", Status.FAIL, "the proof value cannot be decoded", reasons=[str(exc)])
     unsecured = {k: v for k, v in cred.items() if k != "proof"}
     config = {k: v for k, v in proof.items() if k != "proofValue"}
     hash_data = sha256(jcs.dumps(config)) + sha256(jcs.dumps(unsecured))
     if len(signature) != 64 or not _ed25519_verify(public, signature, hash_data):
         return Check("certificate.proof", Status.FAIL, "the issuer's signature over the certificate does not verify",
-                     reasons=["the certificate or its proof was changed after signing, or was signed by another key"]), None
+                     reasons=["the certificate or its proof was changed after signing, or was signed by another key"])
     return Check("certificate.proof", Status.PASS, f"signed by {issuer} (eddsa-jcs-2022), created {proof.get('created')}",
                  relies_on=[f"{issuer} is the tenant's signing key: the certificate names it, nothing outside it vouches for it"],
-                 data={"issuer": issuer, "public_key": public.hex(), "created": proof.get("created")}), public
+                 data={"issuer": issuer, "public_key": public.hex(), "created": proof.get("created")})
 
 
 def _check_authorship(subj: dict) -> Check:
@@ -237,12 +249,13 @@ def verify(
                             reasons=unknown))
 
     # 1. Proof.
-    proof_check, public = _check_proof(cred)
+    proof_check = _check_proof(cred)
     checks.append(proof_check)
 
     # 2. Scope statement.
     if subj.get("scope_statement") == SCOPE_STATEMENT:
-        checks.append(Check("certificate.scope_statement", Status.PASS, "the scope statement is present word for word"))
+        checks.append(Check("certificate.scope_statement", Status.PASS, "the scope statement is present word for word",
+                            reasons=[f"as the certificate states it: {SCOPE_STATEMENT}"]))
     else:
         checks.append(Check("certificate.scope_statement", Status.FAIL, "the scope statement is missing or altered",
                             reasons=[f"expected: {SCOPE_STATEMENT}", f"found: {subj.get('scope_statement')!r}"]))
@@ -268,33 +281,47 @@ def verify(
     lr = subj.get("ledger_root")
     anchored_statement = ""
     if lr is None:
-        checks.append(Check("certificate.ledger_root", Status.NOT_CHECKED, "the certificate carries no hourly root yet",
-                            reasons=["steps 4 to 6 (root signature, inclusion, anchor) cannot run"], required=False))
-    elif public is not None:
+        # Each step on its own, as the certificate document asks (Verifying offline).
+        for cid, step in (("certificate.root_record", "4, the root record's signature"), ("certificate.inclusion", "5, the sign event's inclusion"),
+                          ("certificate.anchor", "6, the anchor")):
+            checks.append(Check(cid, Status.NOT_CHECKED, f"step {step}, did not run: the certificate carries no hourly root yet",
+                                reasons=["ledger_root is null: the certificate was issued before its hour's root was signed"], required=False))
+    else:
         record = lr.get("record") or {}
-        # 4. Root record signature.
+        # 4. Root record signature, under the key the certificate names.
+        public, key_problem = _issuer_key(cred)
         problems = []
         if record.get("contract") != "ledger-root/v0":
             problems.append(f"record contract {record.get('contract')!r}")
         if record.get("tenant_id") != subj.get("tenant_id"):
             problems.append("the record's tenant is not the certificate's")
-        if record.get("key_id") != sha256(public).hex():
-            problems.append("the record's key_id is not the SHA-256 of the issuer's public key")
-        try:
-            sig = b64url_decode(record.get("sig", ""))
-        except EncodingError as exc:
-            problems.append(f"record signature: {exc}")
-            sig = b""
-        unsigned = {k: v for k, v in record.items() if k != "sig"}
-        message = ("ledger-root/v0:" + sha256(jcs.dumps(unsigned)).hex()).encode("utf-8")
-        if not problems and not (len(sig) == 64 and _ed25519_verify(public, sig, message)):
-            problems.append("the record's signature does not verify under the issuer key")
-        if problems:
-            checks.append(Check("certificate.root_record", Status.FAIL, "the hourly root record does not hold", reasons=problems))
+        if public is None and problems:
+            checks.append(Check("certificate.root_record", Status.FAIL, "the hourly root record does not hold",
+                                reasons=problems + [f"its signature was not checked: the issuer's key cannot be read ({key_problem})"]))
+        elif public is None:
+            checks.append(Check("certificate.root_record", Status.NOT_CHECKED, "step 4 did not run: the issuer's key cannot be read",
+                                reasons=[key_problem]))
         else:
-            w = record.get("window", {})
-            checks.append(Check("certificate.root_record", Status.PASS,
-                                f"the issuer signed hourly root {record.get('root')} over {record.get('size')} events for {w.get('start')} to {w.get('end')}"))
+            if record.get("key_id") != sha256(public).hex():
+                problems.append("the record's key_id is not the SHA-256 of the issuer's public key")
+            try:
+                sig = b64url_decode(record.get("sig", ""))
+            except EncodingError as exc:
+                problems.append(f"record signature: {exc}")
+                sig = b""
+            unsigned = {k: v for k, v in record.items() if k != "sig"}
+            message = ("ledger-root/v0:" + sha256(jcs.dumps(unsigned)).hex()).encode("utf-8")
+            if not problems and not (len(sig) == 64 and _ed25519_verify(public, sig, message)):
+                problems.append("the record's signature does not verify under the issuer key")
+            unproven = [] if proof_check.status == Status.PASS else [
+                "under the key the certificate names; the certificate's own proof does not verify, so nothing here shows that key is the tenant's"]
+            if problems:
+                checks.append(Check("certificate.root_record", Status.FAIL, "the hourly root record does not hold", reasons=problems + unproven))
+            else:
+                w = record.get("window", {})
+                checks.append(Check("certificate.root_record", Status.PASS,
+                                    f"the issuer signed hourly root {record.get('root')} over {record.get('size')} events for {w.get('start')} to {w.get('end')}",
+                                    reasons=unproven))
         # 5. Inclusion of the sign event.
         signed = subj.get("signed") or {}
         try:
