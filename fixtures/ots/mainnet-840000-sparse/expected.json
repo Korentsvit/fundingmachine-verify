@@ -1,0 +1,9 @@
+{
+ "description": "Real proof from public chain data, checked against a sparse headers file",
+ "network": "mainnet",
+ "file": "subject.bin",
+ "headers": [
+  "../../bitcoin/mainnet/headers-sparse.txt"
+ ],
+ "outcome": "valid"
+}

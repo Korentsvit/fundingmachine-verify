@@ -1,0 +1,1 @@
+FundingMachine verifier fixture: an Anchored document

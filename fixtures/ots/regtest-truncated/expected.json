@@ -1,0 +1,15 @@
+{
+ "description": "The proof file cut short",
+ "network": "regtest",
+ "file": "document.txt",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/headers-0-11.bin",
+   "start": 0
+  }
+ ],
+ "outcome": "invalid",
+ "failing": [
+  "ots.parse"
+ ]
+}

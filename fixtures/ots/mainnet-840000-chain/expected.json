@@ -1,0 +1,12 @@
+{
+ "description": "The same proof, checked against a contiguous header window starting at 839990",
+ "network": "mainnet",
+ "file": "subject.bin",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/mainnet/headers-839990-840009.bin",
+   "start": 839990
+  }
+ ],
+ "outcome": "valid"
+}
