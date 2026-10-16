@@ -145,6 +145,20 @@ def cmd_anchors(args: argparse.Namespace) -> Verdict:
     )
 
 
+def cmd_certificate(args: argparse.Namespace) -> Verdict:
+    from . import certificate
+
+    return certificate.verify(
+        _read(args.certificate),
+        exported_file=_read(args.file) if args.file else None,
+        header_sources=header_sources(args),
+        network=NETWORKS[args.network],
+        roots=_certs(args.roots, "--roots"),
+        extra_certs=_certs(args.chain, "--chain"),
+        crls=_crls(args.crl),
+    )
+
+
 def _header_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--headers", action="append", metavar="FILE",
                    help="sparse headers: lines 'HEIGHT HEX' or JSON; each header is checked alone (repeatable)")
@@ -232,6 +246,16 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
     a.add_argument("--json", action="store_true")
     a.set_defaults(func=cmd_anchors)
+
+    ce = sub.add_parser("certificate", help="a Provenance Ledger certificate (ledger-certificate/v0, JSON form)")
+    ce.add_argument("certificate", help="the certificate JSON")
+    ce.add_argument("--file", help="the exported document the certificate covers")
+    _header_options(ce)
+    ce.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
+    ce.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
+    ce.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
+    ce.add_argument("--json", action="store_true")
+    ce.set_defaults(func=cmd_certificate)
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
     c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")

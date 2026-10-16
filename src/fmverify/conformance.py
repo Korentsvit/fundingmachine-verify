@@ -4,7 +4,7 @@ verdict with what the case expects.
     fm-verify conformance [FIXTURES_DIR]
 
 Each case is a directory holding ``expected.json``: the kind (from the
-directory it sits under: ``ots``, ``rfc3161``, ``anchors``), the inputs, the
+directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``), the inputs, the
 outcome the verifier must reach, the checks that must fail (``failing``,
 exactly) and those that must warn (``warning``, at least). The fixture
 manifest ``SHA256SUMS`` is checked first, so a run says whether the fixtures
@@ -19,11 +19,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import anchors, ots, pki, rfc3161
+from . import anchors, certificate, ots, pki, rfc3161
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "anchors")
+KINDS = ("ots", "rfc3161", "anchors", "certificate")
 
 
 @dataclass
@@ -80,6 +80,9 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
         files = [repo / f for f in exp.get("files", [])] if repo is not None else []
         v = anchors.verify_batch(case, repo_root=repo, files=files, header_sources=_sources(case, exp), network=net,
                                  roots=roots, extra_certs=chain, crls=crls)
+    elif kind == "certificate":
+        v = certificate.verify_file(case / "certificate.json", case / exp["file"] if "file" in exp else None,
+                                    header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls)
     else:
         raise ValueError(f"unknown kind {kind}")
     return exp, v

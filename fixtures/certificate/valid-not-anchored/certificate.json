@@ -1,0 +1,201 @@
+{
+ "@context": [
+  "https://www.w3.org/ns/credentials/v2"
+ ],
+ "id": "urn:uuid:3c2f1e0d-0000-4000-8000-00000000c0de",
+ "type": [
+  "VerifiableCredential",
+  "ProvenanceCertificate"
+ ],
+ "issuer": {
+  "id": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "name": "Provenance Ledger"
+ },
+ "validFrom": "2026-10-16T09:10:00.000Z",
+ "credentialSubject": {
+  "type": "DocumentWritingRecord",
+  "contract": "ledger-certificate/v0",
+  "scope_statement": "This record shows how this document was written in this environment; it does not detect AI, certify originality, or prove what the author consulted elsewhere.",
+  "tenant_id": "fixture",
+  "doc_id": "0b7d1c52-5f1e-4c47-9a0e-6d1f6d3f2a10",
+  "document": {
+   "exported_sha256": "81a94fb9eb7e9558aa8e7087993bae32f8e42d3f2f8cfe6e6995647618a80ca4",
+   "media_type": "text/plain",
+   "byte_length": 66,
+   "doc_hash": "ce24e3f11219627cab346edd181ccb139b3f02faa82d8d5c9d1d7d4c45ab0738",
+   "key_commitment": "cf74311284342ee0153253cfa889ab6d769435e5aabebf8ce51d3270b031edfa"
+  },
+  "signed": {
+   "seq": 19,
+   "event_hash": "aa67bd983a93ac9cd7050293e630bc225eee0b8bc0456a42671145ddf6eb1c3f",
+   "ts": "2026-10-16T08:41:12.000Z",
+   "actor_id": "person:0f1x",
+   "declaration_hash": "030d2e1a36342ecd6a2ea537df17e026497b9dba9f12a0d6fdf9a239b881cad1"
+  },
+  "chain": {
+   "first_event_hash": "1bb8e0298ec3b0f6496c4acee50b524f25bf5063c9a6633417f9cc371864bce3",
+   "events": 19,
+   "sessions": [
+    {
+     "session_id": "5f9d1d0e-7a7b-4c2e-8d1e-3b1c2a4f5e60",
+     "key_id": "85edb195b992f399c1efbb21b95302c154ece9a113c65497347e12f728dc869d",
+     "public_key": "n08QEP9ptQDgPhp2AqsNuMv9zyQVjVFqLWM1vpSQruU",
+     "client": {
+      "name": "fixture-writer",
+      "version": "0.1.0"
+     },
+     "opened_seq": 1,
+     "closed_seq": null
+    }
+   ]
+  },
+  "authorship": {
+   "contract": "authorship-map/v0",
+   "map_sha256": "d448f76b28e48c17c94f4342146978b07f616538377639da0a667fd5c39d206b",
+   "unit": "unicode_code_point",
+   "document": {
+    "total": 184,
+    "counts": {
+     "human_typed": 120,
+     "imported": 30,
+     "tool_generated": 25,
+     "tool_edited": 9
+    },
+    "percent": {
+     "human_typed": "65.2",
+     "imported": "16.3",
+     "tool_generated": "13.6",
+     "tool_edited": "4.9"
+    }
+   },
+   "sections": [
+    {
+     "section_id": "approach",
+     "section_ref": "call:example/approach",
+     "statements": 2,
+     "total": 134,
+     "counts": {
+      "human_typed": 70,
+      "imported": 30,
+      "tool_generated": 25,
+      "tool_edited": 9
+     },
+     "percent": {
+      "human_typed": "52.2",
+      "imported": "22.4",
+      "tool_generated": "18.7",
+      "tool_edited": "6.7"
+     }
+    },
+    {
+     "section_id": "team",
+     "section_ref": null,
+     "statements": 1,
+     "total": 50,
+     "counts": {
+      "human_typed": 50,
+      "imported": 0,
+      "tool_generated": 0,
+      "tool_edited": 0
+     },
+     "percent": {
+      "human_typed": "100.0",
+      "imported": "0.0",
+      "tool_generated": "0.0",
+      "tool_edited": "0.0"
+     }
+    }
+   ],
+   "fidelity": {
+    "total": 184,
+    "counts": {
+     "live": 118,
+     "snapshot_diff": 30,
+     "tool_report": 36,
+     "reconstructed": 0,
+     "declared": 0
+    },
+    "percent": {
+     "live": "64.1",
+     "snapshot_diff": "16.3",
+     "tool_report": "19.6",
+     "reconstructed": "0.0",
+     "declared": "0.0"
+    }
+   },
+   "activity": {
+    "inserted": {
+     "human_typed": 131,
+     "imported": 30,
+     "tool_generated": 40,
+     "tool_edited": 9
+    },
+    "deleted": 26
+   }
+  },
+  "tools": [
+   {
+    "tool_name": "Example Assistant",
+    "model_id": null
+   }
+  ],
+  "evidence": {
+   "statements": 3,
+   "statements_with_evidence": 1,
+   "bindings": [
+    {
+     "binding_id": "2d8f4c1e-9b3a-4f6d-8e2c-1a5b7c9d0e3f",
+     "statement_id": "st-2",
+     "bound_seq": 11,
+     "source": {
+      "ref": "url:https://example.org/source",
+      "visibility": "public"
+     },
+     "date": {
+      "kind": "retrieved",
+      "value": "2026-10-15"
+     },
+     "licence": "CC-BY-4.0",
+     "page_hash": "3660315a9af3df255d8f19ab077e4797822b41488a0e2a04bc6af71213c23274",
+     "quoted_span": {
+      "quote_hash": "6327245c3a45d3d9ea72b70fbb671926e7b80f63d311bfd73dde876d5df02b26",
+      "locator": "paragraph 2"
+     }
+    }
+   ]
+  },
+  "ledger_root": {
+   "record": {
+    "contract": "ledger-root/v0",
+    "tenant_id": "fixture",
+    "window": {
+     "start": "2026-10-16T08:00:00.000Z",
+     "end": "2026-10-16T09:00:00.000Z"
+    },
+    "size": 20,
+    "root": "ebde69e48bb3655cefb96f0172ce7dab05d2001e1cdd6cbd314cb91e25318c9a",
+    "prev_root": "0000000000000000000000000000000000000000000000000000000000000000",
+    "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+    "sig": "dWPexlwgfXlMnG3HaSmqTZfG343rBaciNruFKfGbwI1Y3_4AZcJ0gCm3tTR6R-0KUMv3-KL1JMSwDQ1qrjSUBA"
+   },
+   "leaf_index": 18,
+   "audit_path": [
+    "6cf5461b07b8713ef1867a8a70766e7f31d325e01f95a4adabcdc13cc05f2714",
+    "c34f0189170631d98e67f1304263fadd50689be527f7a07d950a6b240e412a38",
+    "edf7f3fdcf929688e4681bafba70e1ca7e7aa2309e72aafda7fda05b8d1bc281"
+   ],
+   "anchor": null
+  }
+ },
+ "proof": {
+  "type": "DataIntegrityProof",
+  "cryptosuite": "eddsa-jcs-2022",
+  "created": "2026-10-16T09:10:00.000Z",
+  "verificationMethod": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu#z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+  "proofPurpose": "assertionMethod",
+  "@context": [
+   "https://www.w3.org/ns/credentials/v2"
+  ],
+  "proofValue": "z5ejBr993SSbxC93tozrkds8FeVQtJ7EpxsN4xa6YamcdQr6WePeQ7byRFTYL15gfqQ6SfysUgTtJdzjFaV67Aeif"
+ }
+}

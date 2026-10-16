@@ -42,10 +42,25 @@ Explicit path, accepted with a warning:
  "steps": [{"side": "left", "hash": "<hex>"}], "root": "<hex>"}
 ```
 
+## The Provenance Ledger's formats
+
+Published by the Provenance Ledger session on 16 October 2026 in
+fundingmachine-ledger, and read by this verifier from those documents:
+
+* `ledger-certificate/v0` (`docs/CERTIFICATE.md`): `fm-verify certificate`,
+  steps 1 to 6; step 7 next.
+* Artefact anchoring (`docs/ANCHORING.md`): leaves are the RFC 8785 JSON of
+  a descriptor `{kind, path, ref, repo, sha256}`, sorted; the anchored
+  digest is the SHA-256 of `root.preimage`; proofs on the `anchors` branch.
+  Its `anchor-manifest/v0` schema arrives with the job on 17 October; the
+  verifier reads that layout from then (V-3b).
+
 ## Anchor batches (`fm-verify anchors`)
 
-The verifier's proposal, read today by `fm-verify anchors`, and offered to
-the Provenance Ledger session; not a published contract.
+The verifier's own batch format, written before the Ledger session
+published its layout, and kept for the verifier's fixtures and for anyone
+anchoring a set of files themselves. Where the Ledger's layout differs, the
+Ledger's governs for FundingMachine's anchors.
 
 ```
 anchors/<batch>/

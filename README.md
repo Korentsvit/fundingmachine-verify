@@ -13,7 +13,7 @@ convenience on top of it.
 | OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` | done |
 | RFC 3161 time-stamp token against the authority's certificate chain | `fm-verify rfc3161` | done |
 | An anchor batch: listed files, their Merkle root, its OpenTimestamps proof and its RFC 3161 tokens together | `fm-verify anchors` | done, in the verifier's proposed format until the Ledger session publishes its own |
-| Certificate v0: ed25519 signatures, event chain, Merkle roots, anchors | `fm-verify certificate` | queued, for 31 October |
+| Provenance Ledger certificate v0 (`ledger-certificate/v0`, JSON form): steps 1 to 6 of the Ledger's `docs/CERTIFICATE.md` (eddsa-jcs-2022 proof, scope statement, exported file, signed hourly root, inclusion, anchor) | `fm-verify certificate` | steps 1 to 6 done; step 7 (event chain, authorship map) and the PDF form for 31 October |
 
 The plan, with dates, is in [docs/PLAN.md](docs/PLAN.md). The input formats
 are in [docs/INPUTS.md](docs/INPUTS.md). Programs and pages call one function,
@@ -83,6 +83,9 @@ fm-verify rfc3161 document.pdf.tsr --file document.pdf --roots authority-root.pe
 # An anchor batch, compared with a checkout, against headers and a trusted authority root
 fm-verify anchors anchors/2026-10-31 --repo-root . --headers-chain blockchain_headers --roots authority-root.pem
 
+# A Provenance Ledger certificate, with the exported document it covers
+fm-verify certificate certificate.json --file proposal.pdf --headers-chain blockchain_headers --roots digicert-root.pem --roots sectigo-root.pem
+
 # A Merkle inclusion proof, with the root you hold from the anchored record
 fm-verify merkle proof.json --leaf-file document.pdf --root 6f1c...
 ```
@@ -121,6 +124,14 @@ fixtures` checks the manifest and runs every case; the format is in
   changed, files re-ordered, a file dropped, a back-dated token, a proof over
   another root (failures); a pending proof beside a valid token (valid, with
   the anchor-everything warning).
+* `certificate/*`: `ledger-certificate/v0` credentials issued by the fixture
+  builder from the Ledger session's published documents, with this
+  repository's own test keys: valid (anchored, and not yet anchored); wrong
+  file; changed after signing; signed by another key; and an issuer that
+  signs falsehoods (altered scope statement, inconsistent percentages, a
+  root record signed by another key, a wrong inclusion path, an anchor time
+  earlier than the authority's token, a token over another root, a Bitcoin
+  block the proof does not hold); an unknown contract version.
 * `rfc3161/*`: tokens from a test PKI (a root, an issuing CA, RSA, P-256 and
   Ed25519 authorities): valid with PKCS#1 v1.5, PSS, ECDSA and Ed25519; no
   root, wrong root, chain missing, tampered file, back-dated, tampered
@@ -144,6 +155,11 @@ Independent implementations check the same fixtures in CI:
   with `openssl cms -verify` and with the reference Ed25519 algorithm of
   RFC 8032, written out in the test. A token made by OpenSSL's own
   time-stamping code must verify here.
+
+* the Provenance Ledger session's own certificate fixture, issued by its
+  TypeScript code, must verify here (`tests/test_certificate.py`, run when
+  `FM_LEDGER_REPO` points at a checkout of fundingmachine-ledger, which is
+  private; its fixture is not copied into this public repository).
 
 Those tools are test-time only; the verifier never imports them.
 

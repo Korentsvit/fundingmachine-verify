@@ -213,6 +213,189 @@ def build_anchors() -> None:
            "failing": ["anchors.ots.root.ots"]})
 
 
+def build_certificates() -> None:
+    """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
+    session's published documents with this repository's own test keys."""
+    import base64
+    import copy
+    import datetime as _dt
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from fmverify import jcs, merkle
+    from fmverify.base58 import b58encode, ed25519_did_key
+    from fmverify.certificate import FIDELITIES, ORIGINS, SCOPE_STATEMENT, percentages
+
+    out = FIX / "certificate"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+
+    def key(seed: str) -> Ed25519PrivateKey:
+        return Ed25519PrivateKey.from_private_bytes(sha256(seed.encode()))
+
+    def raw(k) -> bytes:
+        from cryptography.hazmat.primitives import serialization
+
+        return k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+    def b64url(b: bytes) -> str:
+        return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+    tenant, other = key("fm-verify test tenant key"), key("fm-verify test other key")
+    did = ed25519_did_key(raw(tenant))
+
+    # The hour: 20 accepted events; the sign event is the 19th.
+    events = [sha256(b"fm-verify fixture event %d" % i) for i in range(20)]
+    signed_index = 18
+
+    def record_for(k, root_bytes: bytes, tenant_id: str = "fixture", signer=None) -> dict:
+        rec = {"contract": "ledger-root/v0", "tenant_id": tenant_id,
+               "window": {"start": "2026-10-16T08:00:00.000Z", "end": "2026-10-16T09:00:00.000Z"},
+               "size": len(events), "root": root_bytes.hex(), "prev_root": "0" * 64, "key_id": sha256(raw(k)).hex()}
+        msg = ("ledger-root/v0:" + sha256(jcs.dumps(rec)).hex()).encode()
+        rec["sig"] = b64url((signer or k).sign(msg))
+        return rec
+
+    hour_root = merkle.tree_hash(events)
+    record = record_for(tenant, hour_root)
+    other_record = record_for(other, sha256(b"another tenant's hour"), tenant_id="other")
+    anchor_leaves = [sha256(jcs.dumps(record)), sha256(jcs.dumps(other_record))]  # sorted by tenant_id: fixture, other
+    anchor_root = merkle.tree_hash(anchor_leaves)
+
+    # The anchor: a regtest block 3 commits to the anchored root; the test authority signs it.
+    path_ops = [append(sha256(b"certificate anchor nonce")[:16]), SHA256, prepend(sha256(b"certificate calendar sibling")), SHA256,
+                prepend(bytes.fromhex("0100000001") + bytes(36) + bytes.fromhex("00ffffffff01") + bytes(8) + bytes.fromhex("226a20")),
+                append(bytes(4)), SHA256, SHA256] + merkle_ops([sha256d(b"certificate block sibling")], 0)
+    prev, headers = bytes(32), []
+    for height in range(6):
+        h = mine_regtest(prev, run(anchor_root, path_ops) if height == 3 else sha256d(b"certificate regtest %d" % height),
+                         1760200000 + 600 * height)
+        headers.append(h)
+        prev = sha256d(h)
+    (REG / "certificate-headers-0-5.bin").write_bytes(b"".join(headers))
+    ots_proof = ots.DetachedTimestamp(SHA256, chain(anchor_root, path_ops, bitcoin_attestation(3))).serialize()
+
+    tsa_k, tsa_cert, ica = tsa_fixtures.test_authority()
+    gen_time = _dt.datetime(2026, 10, 16, 9, 5, 0, tzinfo=_dt.timezone.utc)
+
+    def tsr(value: bytes) -> bytes:
+        return tsa_fixtures.token(tsa_k, tsa_cert, [tsa_cert, ica], b"", serial=3001, sig="rsa", imprint_value=value, gen_time=gen_time)
+
+    def anchor_block(token: bytes, ots_status: str = "bitcoin", ots_block=3, gen_time_text: str = "2026-10-16T09:05:00Z") -> dict:
+        return {"contract": "ledger-anchor/v0", "root": anchor_root.hex(), "size": 2, "leaf_index": 0,
+                "audit_path": [h.hex() for h in merkle.inclusion_path(anchor_leaves, 0)],
+                "opentimestamps": {"proof_b64": base64.b64encode(ots_proof).decode(), "status": ots_status, "bitcoin_block": ots_block},
+                "rfc3161": [{"authority": "FM Verify Test TSA RSA", "url": "http://tsa.example.org", "token_b64": base64.b64encode(token).decode(),
+                             "gen_time": gen_time_text}]}
+
+    exported = b"FundingMachine verifier fixture: an exported document, as signed.\n"
+    counts = {"human_typed": 120, "imported": 30, "tool_generated": 25, "tool_edited": 9}
+    fidelity = {"live": 118, "snapshot_diff": 30, "tool_report": 36, "reconstructed": 0, "declared": 0}
+    sec_a = {"human_typed": 70, "imported": 30, "tool_generated": 25, "tool_edited": 9}
+    sec_b = {"human_typed": 50, "imported": 0, "tool_generated": 0, "tool_edited": 0}
+
+    def block(c: dict, keys: list[str]) -> dict:
+        total = sum(c.values())
+        return {"total": total, "counts": dict(c), "percent": percentages(c, keys, total)}
+
+    subject = {
+        "type": "DocumentWritingRecord", "contract": "ledger-certificate/v0", "scope_statement": SCOPE_STATEMENT,
+        "tenant_id": "fixture", "doc_id": "0b7d1c52-5f1e-4c47-9a0e-6d1f6d3f2a10",
+        "document": {"exported_sha256": sha256(exported).hex(), "media_type": "text/plain", "byte_length": len(exported),
+                     "doc_hash": sha256(b"keyed document hash stand-in").hex(), "key_commitment": sha256(b"document key stand-in").hex()},
+        "signed": {"seq": signed_index + 1, "event_hash": events[signed_index].hex(), "ts": "2026-10-16T08:41:12.000Z",
+                   "actor_id": "person:0f1x", "declaration_hash": sha256(b"declaration stand-in").hex()},
+        "chain": {"first_event_hash": events[0].hex(), "events": signed_index + 1,
+                  "sessions": [{"session_id": "5f9d1d0e-7a7b-4c2e-8d1e-3b1c2a4f5e60", "key_id": sha256(b"session key").hex(),
+                                "public_key": b64url(sha256(b"session public key")), "client": {"name": "fixture-writer", "version": "0.1.0"},
+                                "opened_seq": 1, "closed_seq": None}]},
+        "authorship": {"contract": "authorship-map/v0", "map_sha256": sha256(b"authorship map stand-in").hex(), "unit": "unicode_code_point",
+                       "document": block(counts, ORIGINS),
+                       "sections": [{"section_id": "approach", "section_ref": "call:example/approach", "statements": 2, **block(sec_a, ORIGINS)},
+                                    {"section_id": "team", "section_ref": None, "statements": 1, **block(sec_b, ORIGINS)}],
+                       "fidelity": block(fidelity, FIDELITIES),
+                       "activity": {"inserted": {"human_typed": 131, "imported": 30, "tool_generated": 40, "tool_edited": 9}, "deleted": 26}},
+        "tools": [{"tool_name": "Example Assistant", "model_id": None}],
+        "evidence": {"statements": 3, "statements_with_evidence": 1,
+                     "bindings": [{"binding_id": "2d8f4c1e-9b3a-4f6d-8e2c-1a5b7c9d0e3f", "statement_id": "st-2", "bound_seq": 11,
+                                   "source": {"ref": "url:https://example.org/source", "visibility": "public"},
+                                   "date": {"kind": "retrieved", "value": "2026-10-15"}, "licence": "CC-BY-4.0",
+                                   "page_hash": sha256(b"page").hex(), "quoted_span": {"quote_hash": sha256(b"quote").hex(), "locator": "paragraph 2"}}]},
+        "ledger_root": {"record": record, "leaf_index": signed_index,
+                        "audit_path": [h.hex() for h in merkle.inclusion_path(events, signed_index)], "anchor": anchor_block(tsr(anchor_root))},
+    }
+
+    def issue(subj: dict, signer=tenant, vm_did: str | None = None) -> dict:
+        cred = {"@context": ["https://www.w3.org/ns/credentials/v2"], "id": "urn:uuid:3c2f1e0d-0000-4000-8000-00000000c0de",
+                "type": ["VerifiableCredential", "ProvenanceCertificate"], "issuer": {"id": did, "name": "Provenance Ledger"},
+                "validFrom": "2026-10-16T09:10:00.000Z", "credentialSubject": subj}
+        vm = vm_did or did
+        config = {"type": "DataIntegrityProof", "cryptosuite": "eddsa-jcs-2022", "created": "2026-10-16T09:10:00.000Z",
+                  "verificationMethod": f"{vm}#{vm[len('did:key:'):]}", "proofPurpose": "assertionMethod", "@context": cred["@context"]}
+        sig = signer.sign(sha256(jcs.dumps(config)) + sha256(jcs.dumps(cred)))
+        cred["proof"] = {**config, "proofValue": "z" + b58encode(sig)}
+        return cred
+
+    common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/certificate-headers-0-5.bin", "start": 0}],
+              "roots": ["../../rfc3161/pki/root.pem"]}
+
+    def case(name: str, cred: dict, expected: dict, file_bytes: bytes | None = exported) -> None:
+        d = out / name
+        d.mkdir()
+        (d / "certificate.json").write_text(json.dumps(cred, indent=1) + "\n", encoding="utf-8")
+        exp = {**common, **expected}
+        if file_bytes is not None:
+            (d / "exported.txt").write_bytes(file_bytes)
+            exp["file"] = "exported.txt"
+        (d / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+
+    def variant(**changes) -> dict:
+        subj = copy.deepcopy(subject)
+        for path, value in changes.items():
+            target = subj
+            keys = path.split("__")
+            for k in keys[:-1]:
+                target = target[int(k)] if k.isdigit() else target[k]
+            target[keys[-1]] = value
+        return subj
+
+    case("valid-anchored", issue(subject), {"description": "Anchored certificate, the exported file presented", "outcome": "valid"})
+    case("valid-not-anchored", issue(variant(ledger_root__anchor=None)),
+         {"description": "Issued before the hour was anchored: steps 4 and 5 run, step 6 cannot", "outcome": "valid"})
+    case("wrong-file", issue(subject), {"description": "The file presented is not the exported document", "outcome": "invalid",
+                                        "failing": ["certificate.file"]}, file_bytes=exported.replace(b"exported", b"edited"))
+    tampered = issue(subject)
+    tampered["credentialSubject"]["doc_id"] = "0b7d1c52-5f1e-4c47-9a0e-6d1f6d3f2a11"
+    case("tampered-after-signing", tampered, {"description": "The document id changed after the issuer signed", "outcome": "invalid",
+                                              "failing": ["certificate.proof"]})
+    case("signed-by-another-key", issue(subject, signer=other), {"description": "The issuer is named, but another key signed",
+                                                                  "outcome": "invalid", "failing": ["certificate.proof"]})
+    case("scope-statement-altered", issue(variant(scope_statement=SCOPE_STATEMENT.replace("does not detect AI", "detects no AI"))),
+         {"description": "The issuer signed an altered scope statement", "outcome": "invalid", "failing": ["certificate.scope_statement"]})
+    bad_percent = copy.deepcopy(subject["authorship"]["document"]["percent"])
+    bad_percent["human_typed"], bad_percent["imported"] = "65.0", "17.0"
+    case("percentages-inconsistent", issue(variant(authorship__document__percent=bad_percent)),
+         {"description": "The issuer signed percentages that do not follow from the counts", "outcome": "invalid",
+          "failing": ["certificate.authorship_arithmetic"]})
+    wrong_record = record_for(tenant, hour_root, signer=other)
+    case("root-record-wrong-signer", issue(variant(ledger_root__record=wrong_record, ledger_root__anchor=None)),
+         {"description": "The hourly root record is signed by a key other than the issuer's", "outcome": "invalid",
+          "failing": ["certificate.root_record"]})
+    case("inclusion-wrong", issue(variant(ledger_root__leaf_index=17)),
+         {"description": "The issuer signed a wrong position for the sign event", "outcome": "invalid", "failing": ["certificate.inclusion"]})
+    case("anchor-time-earlier-than-token", issue(variant(ledger_root__anchor=anchor_block(tsr(anchor_root), gen_time_text="2026-10-16T07:00:00Z"))),
+         {"description": "The certificate states an earlier time than the authority's token", "outcome": "invalid",
+          "failing": ["certificate.rfc3161.0.gen_time"]})
+    case("anchor-token-over-other-root", issue(variant(ledger_root__anchor=anchor_block(tsr(sha256(b"some other root")))))  ,
+         {"description": "The authority's token covers a different root", "outcome": "invalid", "failing": ["certificate.rfc3161.0"]})
+    case("ots-status-overstated", issue(variant(ledger_root__anchor=anchor_block(tsr(anchor_root), ots_block=99))),
+         {"description": "The certificate names a Bitcoin block the proof does not hold", "outcome": "invalid",
+          "failing": ["certificate.opentimestamps.status"]})
+    case("unknown-version", issue(variant(contract="ledger-certificate/v9")),
+         {"description": "A contract version this verifier does not know: not verified", "outcome": "indeterminate"})
+
+
 def main() -> None:
     # Mainnet: contiguous header files cut from the sparse capture.
     sparse = read_sparse(MAIN / "headers-sparse.txt")
@@ -338,6 +521,7 @@ def main() -> None:
 
     tsa_fixtures.build(FIX)
     build_anchors()
+    build_certificates()
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

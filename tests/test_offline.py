@@ -68,3 +68,19 @@ def test_every_anchor_case_runs_offline(no_network, capsys):
             argv += ["--repo-root", str(case / exp["repo_root"])]
         main(argv)
     assert no_network == []
+
+
+def test_every_certificate_case_runs_offline(no_network, capsys):
+    import json
+
+    for case in sorted(p for p in (FIX / "certificate").iterdir() if (p / "expected.json").is_file()):
+        exp = json.loads((case / "expected.json").read_text())
+        argv = ["certificate", str(case / "certificate.json"), "--network", exp["network"]]
+        if "file" in exp:
+            argv += ["--file", str(case / exp["file"])]
+        for spec in exp.get("headers_chain", []):
+            argv += ["--headers-chain", f"{case / spec['path']}@{spec['start']}"]
+        for r in exp.get("roots", []):
+            argv += ["--roots", str(case / r)]
+        main(argv)
+    assert no_network == []
