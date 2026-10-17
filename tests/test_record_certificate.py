@@ -111,3 +111,16 @@ def test_the_submission_index_as_served_or_as_lines(tmp_path, capsys):
            "roots": [Path(p).read_text() for p in ROOTS], "index": doc}
     assert api.verify(req)["outcome"] == "valid"
     assert "error" in api.verify(dict(req, index="x"))
+
+
+def test_the_pseudonym_is_derived_from_the_issuers_key_id_and_the_tenant_id_is_not_repeated():
+    data = (FIX / "valid" / "certificate.json").read_bytes()
+    v = rc.verify(data, (FIX / "valid" / "certificate.sig").read_bytes(), network=REGTEST)
+    row = next(c for c in v.checks if c.id == "record_certificate.pseudonym")
+    assert row.status.value == "pass" and not row.required
+    # The root record carries the tenant's id as the ledger signed it; the verdict does not repeat it.
+    assert all("fixture" not in c.summary for c in v.checks)
+    c = json.loads(data)
+    c["record"]["tenant"] = "tp-" + "0" * 32
+    v = rc.verify(json.dumps(c).encode(), None, network=REGTEST)
+    assert next(c for c in v.checks if c.id == "record_certificate.pseudonym").status.value == "info"

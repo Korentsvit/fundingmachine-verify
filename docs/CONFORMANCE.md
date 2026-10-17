@@ -182,6 +182,12 @@ the contract's own list. This verifier reports them as these check ids:
 An unknown contract version (CS-69) is `record_certificate.contract`, not
 run: the verdict is indeterminate, not invalid.
 
+Two optional checks are this verifier's own and have no case in the suite:
+`record_certificate.chain`, when the document's events are given, and
+`record_certificate.pseudonym`, which passes when the tenant pseudonym is the
+one the contract derives from the issuer's key id and is information
+otherwise (a tenant that rotated its key keeps the pseudonym of its first).
+
 ## Versioned releases
 
 A release of the suite is one file, `fm-verify-fixtures-VERSION.tar`, made by
