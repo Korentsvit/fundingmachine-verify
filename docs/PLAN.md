@@ -3,13 +3,16 @@
 Owner: the Verifier session. Scope: this repository only. Not building the
 ledger, capture, capital, or the website.
 
-## Gates
+## Targets
 
-| Date | Gate |
+End states, with no dates. Standing ruling `scoreboard-wake-hold` (17 October
+2026) retired the dated gates this plan used to carry.
+
+| Target | Measure |
 | --- | --- |
-| 18 October 2026 | Verify the anchor-everything proofs the Provenance Ledger session commits under `anchors/` in fundingmachine-core, Knowledge-goblin and fundingmachine-web: Merkle paths, OpenTimestamps proofs against Bitcoin block headers (offline headers file, optional public explorer, reliance stated), RFC 3161 tokens against the authorities' certificate chains. Until those proofs exist, against fixtures of our own. |
-| 31 October 2026 | Certificate v0 end to end (ed25519 signatures, event chain, Merkle roots, anchors) against the Ledger session's `docs/CERTIFICATE.md` in fundingmachine-ledger; the authorship map and evidence coverage rendered as a static HTML report; a library entry point the hosted page can call. |
-| 14 November 2026 | A conformance suite any third party can run; published fixtures for valid, tampered, back-dated and re-ordered chains; a security note on what the verifier cannot detect. |
+| A verdict on every anchor the Provenance Ledger commits, from its public record, with the block headers relied on, under `verdicts/` | Ledger anchors with a verdict, of anchors committed (the scoreboard line) |
+| The verifier conformance suite, which any third party can run | Conformance cases, the Ledger's `validation-conformance/v0` cases agreed |
+| The hosted verifier page's specification, handed to the website side through the owner | `docs/HOSTED_PAGE.md`, `hosted-page/0`; handed over on 17 October |
 
 ## Queue
 
@@ -40,6 +43,7 @@ ledger, capture, capital, or the website.
 | V-22 | Tenant key rotation: follow `ledger-key-event/v0` handovers (the previous key signs `retired` and `activated`) so root records and certificates signed across a rotation verify. Waits: the Ledger's `docs/KEYS.md` (branch, 16 October) describes the statement in prose only, with no schema, fixture or published location; certificate v0.1 is to carry the chain | waits on the Ledger |
 | V-23 | A certificate fixture over a v0.1 chain (a resync's imported, reconstructed characters in the authorship map), so step 7 is tested on v0.1 | this pull request |
 | V-24 | The Ledger's submission index (`docs/SUBMISSION_INDEX.md`, its branch of 16 October): with the tenant's disclosure, check that each printed statement is the statement the certificate's chain holds at its sign event. The PDF alone cannot show that: the signed record holds keyed hashes of text only | waits on the format reaching the Ledger's main |
+| V-34 | Anchor verdicts committed under `verdicts/`, dated, with the block headers relied on (the owner's answer of 17 October): `tools/fetch_ledger_record.py` copies the Ledger's public record, keeping a file only if it matches the listing and the server's hash; `tools/fetch_headers.py` takes the heights a set of proofs names from two explorers and keeps a header only if both agree and it hashes to its block. The first verdict (17 October, 09:25 UTC): 20 anchors valid with Bitcoin confirmation, 1 pending. Next: a file traced through a published `sha256-manifest/v0` to its anchor (`--prove` through a manifest) | this pull request |
 | V-33 | The Provenance Ledger's `validation-conformance/v0` (its `docs/validation/CONFORMANCE_SUITE.md`, main 3bc6bcf) run through this verifier on the 21 of its 28 cases its fixtures allow. Its findings fixed here: after a failed proof, steps 4 to 6 were left out of the verdict, where every step must be reported on its own (CS-04 to CS-07, CS-50); a certificate with no hourly root reported steps 4 to 6 as one row; the text output did not print the scope statement (CS-51). Two expectations put to the suite's author: CS-21's unknown contract (indeterminate here, by design) and CS-30's map hash (the fixture's map is at seq 20, the certificate signed at 19). The other 7 wait on its inputs (exported file, anchored certificate, pairwise chains) or on the anchors' source | this pull request |
 | V-32 | The hosted page's specification (`docs/HOSTED_PAGE.md`, `hosted-page/0`) for verify.fundingmachine.ai, for the website side: the verifier in the reader's browser only, every file from the page's origin, a Content Security Policy without `'unsafe-eval'` or `'unsafe-inline'` (the report's bar drawn as SVG so its one style element can be pinned), headers from the reader's file or two explorers compared, roots shipped by the page and stated as its choice, the conformance suite run through the page before each deploy. CI runs the verifier in Chrome under that policy. To finish: handed to the website side | this pull request |
 | V-31 | RFC 8785 compared with the `rfc8785` reference package (20,000 random values alike, once integers beyond 2^53 are taken as ECMAScript takes them); signed counts and positions in certificates and root records read strictly as whole numbers | this pull request |
