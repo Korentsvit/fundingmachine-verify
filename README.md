@@ -56,9 +56,13 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   `--require-hashes`, pip asks for the hash of every dependency too
   (`cryptography` and what it needs), not only the verifier's.
 * **Verdicts are published with their evidence.** [`verdicts/`](verdicts)
-  holds dated verdicts on the Provenance Ledger's anchors. Each one carries
-  the listing it read and the Bitcoin headers it relied on, and says how to
-  reproduce it with `tools/fetch_ledger_record.py` and `tools/fetch_headers.py`.
+  holds dated verdicts on the Provenance Ledger's anchors and on the
+  certificates it issues. Each one carries the listing it read and the
+  Bitcoin headers it relied on, and says how to reproduce it with
+  `tools/fetch_ledger_record.py` and `tools/fetch_headers.py`. Since
+  17 October 2026, 21:29 UTC, `tools/anchor_verdict.py` writes each anchor
+  verdict's directory from a checkout of the public mirror, so the README
+  too is the tool's output, not a hand summary.
 * **The hosted page runs this code, in your browser.** verify.fundingmachine.ai
   is to run the same wheel under Pyodide, every file from its own origin,
   nothing you give leaving the tab, under a Content Security Policy CI tests

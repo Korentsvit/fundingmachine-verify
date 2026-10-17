@@ -1,0 +1,35 @@
+VALID: The 692 files and entries the manifest lists are the leaves of root 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a. The time-stamping authority CN=DigiCert SHA256 RSA4096 Timestamp Responder 2026 1,O=DigiCert\, Inc.,C=US (whose certificate chains to CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US, a root you trust) signed that the sha256 digest 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a existed at 2026-10-17T20:29:01Z (no accuracy stated), under policy 2.16.840.1.114412.7.1. The time-stamping authority CN=Sectigo Public Time Stamping Signer R37,O=Sectigo Limited,ST=Greater London,C=GB (whose certificate chains to CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US, a root you trust) signed that the sha256 digest 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a existed at 2026-10-17T20:29:02Z (no accuracy stated), under policy 1.3.6.1.4.1.6449.2.1.1.
+Subject: Provenance Ledger anchor 2026/10/17/202900Z
+
+Checks:
+  [pass] ledger_anchor.preimage: root.preimage has the shape of a root node; its SHA-256 is 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a
+  [pass] ledger_anchor.manifest_schema: the manifest follows anchor-manifest/v0
+  [pass] ledger_anchor.leaves: the 692 leaves, each the RFC 8785 JSON of its descriptor, give the anchored root, and root.preimage is their root node
+  [info] ledger_anchor.sources (optional): all 5 sources were read; 6 configured paths were absent
+  [info] ledger_anchor.previous (optional): the manifest links to the anchor before it, 2026/10/17/202232Z (root 22024fde1bb0401cba50c55c0c8cda9f48e171cc7e9f3d95f1c51ced100c88f0); the link is checked when the whole set is verified (--all)
+  [not_checked] ledger_anchor.ots (optional): the OpenTimestamps proof could not be checked: The proof is well formed but its Bitcoin anchor could not be checked: it is still pending.
+      - ots.pending: a calendar (https://finney.calendar.eternitywall.com) promised a Bitcoin attestation for the commitment 6ad3da8de4ed27278fd59208c8e7f082b09d2c515051b196bb334aa934eb3fe695213f9d00e892061bd4eed3 that this proof does not yet hold
+      - ots.pending: a calendar (https://alice.btc.calendar.opentimestamps.org) promised a Bitcoin attestation for the commitment 6ad3da8c7e14a3cccd46aede66fcd4ab373d9e0d69073be66e1b6fb5317dd0d1604d053f9cd6a0c17827510b that this proof does not yet hold
+      - ots.pending: a calendar (https://bob.btc.calendar.opentimestamps.org) promised a Bitcoin attestation for the commitment 6ad3da8c95b3f087095cb1d841de096da5490d6f0f3baa841ca986a78887d33232810ba4195dc06882df983f that this proof does not yet hold
+      - ots.pending: a calendar (https://btc.calendar.catallaxy.com) promised a Bitcoin attestation for the commitment 6ad3da8c8e6fa74cc3155e15e117b9120128766716c214e3856d53506e8f58854a8b52014504b446b48bb25c that this proof does not yet hold
+      - ots.anchor: the proof holds no Bitcoin attestation yet
+  [pass] ledger_anchor.rfc3161.root.preimage.digicert.tsr: The time-stamping authority CN=DigiCert SHA256 RSA4096 Timestamp Responder 2026 1,O=DigiCert\, Inc.,C=US (whose certificate chains to CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US, a root you trust) signed that the sha256 digest 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a existed at 2026-10-17T20:29:01Z (no accuracy stated), under policy 2.16.840.1.114412.7.1.
+  [pass] ledger_anchor.rfc3161.root.preimage.sectigo.tsr: The time-stamping authority CN=Sectigo Public Time Stamping Signer R37,O=Sectigo Limited,ST=Greater London,C=GB (whose certificate chains to CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US, a root you trust) signed that the sha256 digest 26f9fc28a4c1716dbd2b5671e096570b48842c73c8e47bd9c49ed97d34cd871a existed at 2026-10-17T20:29:02Z (no accuracy stated), under policy 1.3.6.1.4.1.6449.2.1.1.
+  [pass] ledger_anchor.statements: the manifest's genTime, serial and policy for each of its 2 RFC 3161 tokens are the tokens' own
+  [pass] ledger_anchor.authorities: each of the 2 tokens was signed by a certificate naming the authority the manifest gives
+  [pass] ledger_anchor.independence: the 2 tokens come from different organisations under different roots
+      - root.preimage.digicert.tsr: DigiCert, Inc., root 552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988
+      - root.preimage.sectigo.tsr: Sectigo Limited, root e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2
+  [warn] ledger_anchor.policy (optional): docs/ANCHORING.md anchors each root with OpenTimestamps and two RFC 3161 authorities; shown valid here: OpenTimestamps no, RFC 3161 2
+
+Relied on:
+  - CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US (SHA-256 552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+  - the authority's certificates were not revoked for key compromise
+  - CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US (SHA-256 e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+
+Does not establish:
+  - who wrote the content, or how it was written
+  - that the content is true, original, or free of AI assistance
+  - that the content did not exist earlier than the anchor (an anchor bounds existence from above only)
+
+fm-verify 0.1.0, checked at 2026-10-17T21:29:28Z
