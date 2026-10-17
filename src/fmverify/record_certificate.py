@@ -246,6 +246,65 @@ def read_files(data: bytes, signature: bytes | None) -> tuple[bytes, bytes | Non
     return data, signature, "the files given"
 
 
+INDEX_FIELDS = {"record_id", "tenant", "certificate_id", "certificate_sha256", "certificate_contract", "issued_at", "events",
+                "head_seq", "hour", "anchor_root", "bitcoin"}
+
+
+def read_index(data: bytes) -> list:
+    """The entries of the public submission index: the JSON GET /api/submission-index answers (submission-index/v0),
+    or certificates/index.jsonl, one entry per line."""
+    text = data.decode("utf-8")
+    try:
+        doc = jcs.loads(text)
+    except jcs.JcsError:
+        return [jcs.loads(line) for line in text.splitlines() if line.strip()]
+    if isinstance(doc, dict) and ("entries" in doc or "contract" in doc):
+        if doc.get("contract") != "submission-index/v0":
+            raise ValueError(f"the index's contract is {doc.get('contract')!r}, not submission-index/v0")
+        if set(doc) != {"contract", "statement", "scope_statement", "entries"} or not isinstance(doc["entries"], list) \
+                or not all(isinstance(doc[k], str) for k in ("statement", "scope_statement")):
+            raise ValueError("the index is not a submission-index/v0 object: contract, statement and scope_statement (text) and entries")
+        return doc["entries"]
+    if isinstance(doc, dict):
+        return [doc]
+    if not isinstance(doc, list):
+        raise ValueError("the index is neither a submission-index/v0 object nor a list of its entries")
+    return doc
+
+
+def index_check(entries: list, digest: str, c: dict) -> Check:
+    """The certificate's entry in the public submission index (docs/RECORD_CERTIFICATE.md, The submission index):
+    found by the certificate's SHA-256, it carries the index's fields only, and they are the certificate's."""
+    mine = [e for e in entries if isinstance(e, dict) and e.get("certificate_sha256") == digest]
+    if not mine:
+        return Check("record_certificate.index", Status.WARN, f"the index given ({len(entries)} entries) lists no certificate with "
+                     f"SHA-256 {digest}", reasons=["an index read before the certificate was issued does not list it"], required=False)
+    if len(mine) > 1:
+        return Check("record_certificate.index", Status.FAIL, f"the index lists the certificate {len(mine)} times")
+    e, r, h, a = mine[0], c["record"], c["hour"], c["anchor"]
+    reasons = []
+    if set(e) != INDEX_FIELDS:
+        reasons.append("the entry's fields are not those of submission-index/v0: "
+                       + "; ".join(([f"missing {', '.join(sorted(INDEX_FIELDS - set(e)))}"] if INDEX_FIELDS - set(e) else [])
+                                   + ([f"not in the contract: {', '.join(sorted(set(e) - INDEX_FIELDS))}"] if set(e) - INDEX_FIELDS else [])))
+    want = {"record_id": r["record_id"], "tenant": r["tenant"], "certificate_id": c["certificate_id"], "certificate_contract": c["contract"],
+            "issued_at": c["issued_at"], "events": r["events"], "head_seq": r["head"]["seq"], "hour": h["window"]["start"],
+            "anchor_root": a["root"], "bitcoin": {"height": a["bitcoin"]["height"], "block_hash": a["bitcoin"]["block_hash"]}}
+    for k, v in want.items():
+        if k in e and e[k] != v:
+            reasons.append(f"its {k} is {e[k]!r}, the certificate's is {v!r}")
+    if reasons:
+        return Check("record_certificate.index", Status.FAIL, "the index's entry for this certificate does not match it", reasons=reasons)
+    times = [x.get("issued_at") if isinstance(x, dict) else None for x in entries]
+    if not all(isinstance(x, str) for x in times) or times != sorted(times):
+        return Check("record_certificate.index", Status.WARN,
+                     "the index's entry for this certificate matches it, but the index is not in issue order",
+                     reasons=["the contract lists each entry in issue order"], required=False)
+    return Check("record_certificate.index", Status.PASS,
+                 f"the index lists this certificate (SHA-256 {digest}) once, with the certificate's record, counts, hour, anchored root "
+                 "and block, and no other field", required=False)
+
+
 @guarded("record-certificate", "record_certificate.read", "record certificate", LIMITS)
 def verify(
     data: bytes,
@@ -256,10 +315,12 @@ def verify(
     extra_certs=(),
     crls=(),
     events: list | None = None,
+    index: list | bytes | None = None,
     subject: str | None = None,
     checked_at: str | None = None,
 ) -> Verdict:
-    """``data`` is certificate.json (with ``signature``, the bytes of certificate.sig) or certificate.pdf."""
+    """``data`` is certificate.json (with ``signature``, the bytes of certificate.sig) or certificate.pdf; ``index``,
+    the public submission index (its bytes, or its entries), checks the certificate's entry there."""
     checks: list[Check] = []
     raw, sig, where = read_files(data, signature)
     subject = subject or "record certificate"
@@ -495,6 +556,14 @@ def verify(
         checks.append(Check("record_certificate.chain", Status.NOT_CHECKED,
                             "the document's events were not given, so the record's own statements (record id, events, sessions, "
                             "head) are the issuer's", required=False))
+
+    if index is not None:
+        try:
+            entries = read_index(index) if isinstance(index, (bytes, bytearray)) else index
+            checks.append(index_check(entries, sha256(raw).hex(), c))
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+            checks.append(Check("record_certificate.index", Status.NOT_CHECKED, "the index given cannot be read as a submission index",
+                                reasons=[str(exc)], required=False))
 
     toks = ", ".join(f"{t['authority']} at {t['gen_time']}" for t in a["rfc3161"])
     statements = {

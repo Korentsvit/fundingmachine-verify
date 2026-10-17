@@ -90,3 +90,24 @@ def test_shape_problems_name_what_departs_from_the_contract():
     c["record"]["extra"] = 1
     problems = rc.shape_problems(c)
     assert any("not in the contract: extra" in p for p in problems)
+
+
+def test_the_submission_index_as_served_or_as_lines(tmp_path, capsys):
+    d = FIX / "index-entry-matches"
+    doc = json.loads((d / "index.json").read_text())
+    assert rc.read_index((d / "index.json").read_bytes()) == doc["entries"]
+    lines = tmp_path / "index.jsonl"
+    lines.write_text("".join(json.dumps(e) + "\n" for e in doc["entries"]))
+    assert rc.read_index(lines.read_bytes()) == doc["entries"]
+    with pytest.raises(ValueError, match="submission-index/v0"):
+        rc.read_index(json.dumps(dict(doc, contract="other/v0")).encode())
+    assert main(["record-certificate", str(d), *ARGS, "--index", str(lines), "--json"]) == 0
+    v = json.loads(capsys.readouterr().out)
+    assert next(c for c in v["checks"] if c["id"] == "record_certificate.index")["status"] == "pass"
+    req = {"kind": "record-certificate", "network": "regtest",
+           "certificate_file": base64.b64encode((d / "certificate.json").read_bytes()).decode(),
+           "signature": base64.b64encode((d / "certificate.sig").read_bytes()).decode(),
+           "headers": [{"kind": "chain", "data": base64.b64encode(REG.read_bytes()).decode()}],
+           "roots": [Path(p).read_text() for p in ROOTS], "index": doc}
+    assert api.verify(req)["outcome"] == "valid"
+    assert "error" in api.verify(dict(req, index="x"))

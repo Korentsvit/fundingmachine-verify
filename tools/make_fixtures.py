@@ -898,11 +898,16 @@ def build_record_certificates(writer) -> None:
         return body, signer.sign(body)
 
     def case(name: str, c: dict, expected: dict, body_sig: tuple[bytes, bytes] | None = None, pdf: bool = False,
-             common_inputs: dict = common, events_doc: list | None = None) -> None:
+             common_inputs: dict = common, events_doc: list | None = None, index: list | None = None) -> None:
         d = out / name
         d.mkdir()
         body, sig = body_sig or signed(c)
         exp = {**common_inputs, **expected}
+        if index is not None:
+            doc = {"contract": "submission-index/v0", "statement": "Record certificates issued, hashes only.",
+                   "scope_statement": SCOPE_STATEMENT, "entries": index}
+            (d / "index.json").write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
+            exp["index"] = "index.json"
         if pdf:
             (d / "certificate.pdf").write_bytes(pdf_fixtures.classic(body, [("certificate.json", body), ("certificate.sig", sig)]))
             exp["certificate"] = "certificate.pdf"
@@ -970,6 +975,34 @@ def build_record_certificates(writer) -> None:
           "failing": ["record_certificate.block_header", "record_certificate.bitcoin_block"]})
     case("unknown-contract", changed(contract="record-certificate/v0.1"),
          {"description": "A contract version this verifier does not read: not verified", "outcome": "indeterminate"})
+    plain = [dict(x, gen_time="2026-10-16T09:05:00Z") for x in cert["anchor"]["rfc3161"]]
+    case("token-time-written-otherwise", changed(anchor__rfc3161=plain),
+         {"description": "The tokens' times written as the same instants without fractional seconds: they hold", "outcome": "valid"})
+    reversing = path_ops[:2] + [ots.Op(0xF2), ots.Op(0xF2)] + path_ops[2:]
+    assert run(anchor_root, reversing) == run(anchor_root, path_ops)
+    other_proof = ots.DetachedTimestamp(SHA256, chain(anchor_root, reversing, bitcoin_attestation(3))).serialize()
+    case("ots-path-other-operation", changed(anchor__opentimestamps_b64=base64.b64encode(other_proof).decode()),
+         {"description": "The proof's path to the block reverses the message twice: an operation the steps cannot write",
+          "outcome": "invalid", "failing": ["record_certificate.opentimestamps"]})
+
+    # The public submission index (docs/RECORD_CERTIFICATE.md, The submission index).
+    def entry(c: dict, body: bytes, **over) -> dict:
+        e = {"record_id": c["record"]["record_id"], "tenant": c["record"]["tenant"], "certificate_id": c["certificate_id"],
+             "certificate_sha256": sha256(body).hex(), "certificate_contract": c["contract"], "issued_at": c["issued_at"],
+             "events": c["record"]["events"], "head_seq": c["record"]["head"]["seq"], "hour": c["hour"]["window"]["start"],
+             "anchor_root": c["anchor"]["root"], "bitcoin": {"height": c["anchor"]["bitcoin"]["height"],
+                                                            "block_hash": c["anchor"]["bitcoin"]["block_hash"]}}
+        return {**e, **over}
+
+    neighbour = changed(certificate_id="urn:uuid:5e1f0c2a-0000-4000-8000-00000000c0df", issued_at="2026-10-16T09:30:00.000Z")
+    others = [entry(neighbour, signed(neighbour)[0])]
+    case("index-entry-matches", cert, {"description": "The certificate's entry in the public submission index matches it",
+                                       "outcome": "valid"}, index=others + [entry(cert, body)])
+    case("index-entry-misstates", cert, {"description": "The index's entry for the certificate states another event count",
+                                         "outcome": "invalid", "failing": ["record_certificate.index"]},
+         index=others + [entry(cert, body, events=21)])
+    case("index-not-listing", cert, {"description": "An index read before the certificate was issued: not listed, a warning",
+                                     "outcome": "valid", "warning": ["record_certificate.index"]}, index=others)
 
 
 def main() -> None:

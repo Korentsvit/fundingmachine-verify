@@ -1,0 +1,23 @@
+{
+ "contract": "submission-index/v0",
+ "statement": "Record certificates issued, hashes only.",
+ "scope_statement": "This record shows how this document was written in this environment; it does not detect AI, certify originality, or prove what the author consulted elsewhere.",
+ "entries": [
+  {
+   "record_id": "7b009fa243e3dbc8d62c2d214dd8711ccee9bb001ac4dfac436c76862f8f6360",
+   "tenant": "tp-e426c6013e306431e382bdb248190780",
+   "certificate_id": "urn:uuid:5e1f0c2a-0000-4000-8000-00000000c0df",
+   "certificate_sha256": "38df50a2ad54ebc084b4ff91e0338f1a7316d823952560e5ce3fd6cc4df81b86",
+   "certificate_contract": "record-certificate/v0",
+   "issued_at": "2026-10-16T09:30:00.000Z",
+   "events": 20,
+   "head_seq": 20,
+   "hour": "2026-10-16T08:00:00.000Z",
+   "anchor_root": "91940d1940bf566056c3dfb8d352ea41d3b4ab63bf92a56d302b06e01ee60779",
+   "bitcoin": {
+    "height": 3,
+    "block_hash": "6786a97eee40bef690e89ea40cf2ceb9edbca100e151cde70d2f4e989f502bb7"
+   }
+  }
+ ]
+}
