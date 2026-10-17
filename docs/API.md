@@ -14,8 +14,10 @@ A hosted page can call it server-side, or in the browser under Pyodide (the
 package is pure Python apart from `cryptography`, which Pyodide ships). CI
 runs `tools/pyodide/check.mjs`, which loads the package into Pyodide 0.27.7
 (Python 3.12, cryptography 42.0.5, the oldest version the package accepts)
-and checks ten fixture requests: among them a certificate with its HTML
-page, and two certificates passed as the PDF received. The same CI job runs
+and checks fifteen fixture requests: among them a certificate with its HTML
+page, two certificates passed as the PDF received, three record certificates
+(JSON with its signature, the PDF, one changed after signing) and two anchors
+directories (`ledger-anchor-set`). The same CI job runs
 three of them in Chrome, served from one origin under the hosted page's
 Content Security Policy (`tools/pyodide/policy/check.mjs`; what the page
 must do is in [HOSTED_PAGE.md](HOSTED_PAGE.md)). The command line remains

@@ -23,6 +23,8 @@ function copyTree(src, dst) {
 copyTree(join(repo, "src", "fmverify"), "/lib/fmverify/fmverify");
 
 const b64 = (p) => readFileSync(join(repo, p)).toString("base64");
+const walk = (dir, pre = "") => readdirSync(dir).flatMap((n) => statSync(join(dir, n)).isDirectory()
+  ? walk(join(dir, n), `${pre}${n}/`) : [`${pre}${n}`]);
 const text = (p) => readFileSync(join(repo, p), "utf8");
 const json = (p) => JSON.parse(text(p));
 const requests = [
@@ -55,6 +57,19 @@ const requests = [
       .map((n) => [n, b64(`fixtures/ledger-anchors/${c}/${n}`)])),
     headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/ledger-anchor-headers-0-4.bin") }],
     roots: [text("fixtures/rfc3161/pki/root.pem"), text("fixtures/ledger-anchors/pki/second-root.pem")] }]),
+  ...[["valid", "valid"], ["valid-pdf", "valid"], ["changed-after-signing", "invalid"]].map(([c, want]) => [`record-certificate ${c}`, want, {
+    kind: "record-certificate", network: "regtest",
+    certificate_file: b64(`fixtures/record-certificate/${c}/certificate.${c === "valid-pdf" ? "pdf" : "json"}`),
+    ...(c === "valid-pdf" ? {} : { signature: b64(`fixtures/record-certificate/${c}/certificate.sig`) }),
+    headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/record-certificate-headers-0-5.bin") }],
+    roots: [text("fixtures/rfc3161/pki/root.pem"), text("fixtures/ledger-anchors/pki/second-root.pem")] }]),
+  ...["set-valid", "set-broken-link"].map((c) => [`ledger-anchor-set ${c}`, c === "set-valid" ? "valid" : "invalid", {
+    kind: "ledger-anchor-set", network: "regtest",
+    files: Object.fromEntries(walk(join(repo, "fixtures/ledger-anchors", c)).filter((r) => r !== "expected.json")
+      .map((r) => [r, b64(`fixtures/ledger-anchors/${c}/${r}`)])),
+    headers: json(`fixtures/ledger-anchors/${c}/expected.json`).headers_chain.map((h) => ({ kind: "chain", start: h.start,
+      data: b64(join("fixtures/ledger-anchors", c, h.path)) })),
+    roots: json(`fixtures/ledger-anchors/${c}/expected.json`).roots.map((r) => text(join("fixtures/ledger-anchors", c, r))) }]),
 ];
 
 py.globals.set("REQUESTS", JSON.stringify(requests.map((r) => r[2])));
