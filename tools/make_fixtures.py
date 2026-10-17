@@ -794,6 +794,184 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
          {"description": "A contract version this verifier does not know: not verified", "outcome": "indeterminate"})
 
 
+def build_record_certificates(writer) -> None:
+    """record-certificate/v0 (the Provenance Ledger's docs/RECORD_CERTIFICATE.md), issued here with this
+    repository's own test keys over a fixture chain of tools/chain_fixtures.py: the hour holds the chain's events,
+    its signed root record is a leaf of an anchored root, two test authorities stamp that root, and regtest block 3
+    commits to it through an OpenTimestamps path."""
+    import base64
+    import copy
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from fmverify import jcs, merkle
+    from fmverify.record_certificate import SCOPE_STATEMENT, fold, inclusion_steps
+
+    out = FIX / "record-certificate"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+
+    def key(seed: str) -> Ed25519PrivateKey:
+        return Ed25519PrivateKey.from_private_bytes(sha256(seed.encode()))
+
+    def raw(k) -> bytes:
+        return k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+    def b64url(b: bytes) -> str:
+        return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+    tenant, other = key("fm-verify record certificate tenant key"), key("fm-verify record certificate other key")
+    chain_events = writer.events
+    events = [bytes.fromhex(chain_fixtures.event_hash(e)) for e in chain_events]
+    head_index = len(events) - 1
+    window = {"start": "2026-10-16T08:00:00.000Z", "end": "2026-10-16T09:00:00.000Z"}
+
+    def root_record(k, root: bytes, tenant_id: str, size: int, signer=None) -> dict:
+        rec = {"contract": "ledger-root/v0", "tenant_id": tenant_id, "window": window, "size": size, "root": root.hex(),
+               "prev_root": "0" * 64, "key_id": sha256(raw(k)).hex()}
+        rec["sig"] = b64url((signer or k).sign(("ledger-root/v0:" + sha256(jcs.dumps(rec)).hex()).encode()))
+        return rec
+
+    hour_root = merkle.tree_hash(events)
+    record = root_record(tenant, hour_root, "fixture", len(events))
+    other_record = root_record(other, sha256(b"another tenant's hour, record certificate"), "other", 3)
+    leaves = [sha256(jcs.dumps(record)), sha256(jcs.dumps(other_record))]
+    anchor_root = merkle.tree_hash(leaves)
+
+    path_ops = [append(sha256(b"record certificate anchor nonce")[:16]), SHA256, prepend(sha256(b"record certificate calendar sibling")),
+                SHA256, prepend(bytes.fromhex("0100000001") + bytes(36) + bytes.fromhex("00ffffffff01") + bytes(8) + bytes.fromhex("226a20")),
+                append(bytes(4)), SHA256, SHA256] + merkle_ops([sha256d(b"record certificate block sibling")], 0)
+    prev, headers = bytes(32), []
+    for height in range(6):
+        h = mine_regtest(prev, run(anchor_root, path_ops) if height == 3 else sha256d(b"record certificate regtest %d" % height),
+                         1760300000 + 600 * height)
+        headers.append(h)
+        prev = sha256d(h)
+    (REG / "record-certificate-headers-0-5.bin").write_bytes(b"".join(headers))
+    ots_proof = ots.DetachedTimestamp(SHA256, chain(anchor_root, path_ops, bitcoin_attestation(3))).serialize()
+    block = parse_header(headers[3])
+
+    import datetime as _dt
+
+    gen_time = _dt.datetime(2026, 10, 16, 9, 5, 0, tzinfo=_dt.timezone.utc)
+    rsa_k, rsa_cert, ica = tsa_fixtures.test_authority()
+    p256_k, p256_cert, _ = tsa_fixtures.test_authority_second()
+
+    def tokens(value: bytes) -> list[dict]:
+        return [{"authority": "FM Verify Test TSA RSA", "gen_time": "2026-10-16T09:05:00.000Z",
+                 "token_b64": base64.b64encode(tsa_fixtures.token(rsa_k, rsa_cert, [rsa_cert, ica], b"", serial=5001, sig="rsa",
+                                                                  imprint_value=value, gen_time=gen_time)).decode()},
+                {"authority": "FM Verify Second Test TSA", "gen_time": "2026-10-16T09:05:00.000Z",
+                 "token_b64": base64.b64encode(tsa_fixtures.token(p256_k, p256_cert, [p256_cert], b"", serial=5002, sig="ecdsa",
+                                                                  imprint_value=value, gen_time=gen_time)).decode()}]
+
+    last = chain_events[-1]
+    cert = {
+        "contract": "record-certificate/v0",
+        "certificate_id": "urn:uuid:5e1f0c2a-0000-4000-8000-00000000c0de",
+        "issued_at": "2026-10-16T10:00:00.000Z",
+        "scope_statement": SCOPE_STATEMENT,
+        "issuer": {"name": "Provenance Ledger", "public_key": raw(tenant).hex(), "key_id": sha256(raw(tenant)).hex()},
+        "record": {"record_id": events[0].hex(), "tenant": "tp-" + sha256(("tenant-pseudonym/v0:" + sha256(raw(tenant)).hex()).encode()).hex()[:32],
+                   "events": len(events), "sessions": len({e["session_id"] for e in chain_events}),
+                   "event_contracts": sorted({e["contract"] for e in chain_events}),
+                   "head": {"seq": last["seq"], "event_hash": events[head_index].hex(), "ts": last["ts"],
+                            "received_at": "2026-10-16T08:21:00.000Z"}},
+        "hour": {"window": window, "root": hour_root.hex(), "size": len(events), "leaf_index": head_index,
+                 "head_to_root": inclusion_steps(head_index, len(events), [x.hex() for x in merkle.inclusion_path(events, head_index)]),
+                 "root_record_b64": base64.b64encode(jcs.dumps(record)).decode(), "root_record_sha256": leaves[0].hex()},
+        "anchor": {"root": anchor_root.hex(), "size": 2, "leaf_index": 0,
+                   "record_to_anchor": inclusion_steps(0, 2, [x.hex() for x in merkle.inclusion_path(leaves, 0)]),
+                   "rfc3161": tokens(anchor_root), "opentimestamps_b64": base64.b64encode(ots_proof).decode(),
+                   "bitcoin": {"height": 3, "block_hash": block.hash_hex, "time": block.time_iso.replace("Z", ".000Z"),
+                               "header": headers[3].hex(), "merkle_root": block.merkle_root.hex(),
+                               "anchor_to_merkle_root": fold(path_ops)}},
+        "procedure": ["# The commands of docs/RECORD_CERTIFICATE.md, The procedure: not printed in this fixture"],
+    }
+    common = {"network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/record-certificate-headers-0-5.bin", "start": 0}],
+              "roots": ["../../rfc3161/pki/root.pem", "../../ledger-anchors/pki/second-root.pem"]}
+
+    def signed(c: dict, signer=tenant) -> tuple[bytes, bytes]:
+        body = jcs.dumps(c)
+        return body, signer.sign(body)
+
+    def case(name: str, c: dict, expected: dict, body_sig: tuple[bytes, bytes] | None = None, pdf: bool = False,
+             common_inputs: dict = common, events_doc: list | None = None) -> None:
+        d = out / name
+        d.mkdir()
+        body, sig = body_sig or signed(c)
+        exp = {**common_inputs, **expected}
+        if pdf:
+            (d / "certificate.pdf").write_bytes(pdf_fixtures.classic(body, [("certificate.json", body), ("certificate.sig", sig)]))
+            exp["certificate"] = "certificate.pdf"
+        else:
+            (d / "certificate.json").write_bytes(body)
+            (d / "certificate.sig").write_bytes(sig)
+        if events_doc is not None:
+            (d / "events.json").write_text(json.dumps({"contract": "ledger-event/v0", "events": events_doc}, indent=1) + "\n",
+                                           encoding="utf-8")
+            exp["events"] = "events.json"
+        (d / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+
+    def changed(**paths) -> dict:
+        c = copy.deepcopy(cert)
+        for path, value in paths.items():
+            target = c
+            keys = path.split("__")
+            for k in keys[:-1]:
+                target = target[int(k)] if k.isdigit() else target[k]
+            target[keys[-1]] = value
+        return c
+
+    case("valid", cert, {"description": "A record certificate with its signature, checked against the regtest chain and the test authorities",
+                         "outcome": "valid"})
+    case("valid-pdf", cert, {"description": "The same certificate in its PDF form, certificate.json and certificate.sig attached",
+                             "outcome": "valid"}, pdf=True)
+    case("valid-with-chain", cert, {"description": "With the document's events: the record id, counts and head match the chain",
+                                    "outcome": "valid"}, events_doc=chain_events)
+    case("no-bitcoin-source", cert, {"description": "No source of the reader's own for the block at height 3: indeterminate",
+                                     "outcome": "indeterminate", "network": "regtest", "roots": common["roots"]},
+         common_inputs={})
+    body, sig = signed(cert)
+    case("changed-after-signing", cert, {"description": "One count changed after signing: the signature no longer covers the bytes",
+                                         "outcome": "invalid", "failing": ["record_certificate.signature"]},
+         body_sig=(body.replace(b'"events":20', b'"events":21'), sig))
+    pretty = json.dumps(cert, indent=1).encode()
+    case("not-rfc8785", cert, {"description": "Signed, but not in RFC 8785 form: the contract signs the canonical bytes only",
+                               "outcome": "invalid", "failing": ["record_certificate.form"]}, body_sig=(pretty, tenant.sign(pretty)))
+    case("signed-by-another-key", cert, {"description": "certificate.sig made with a key that is not the issuer's",
+                                         "outcome": "invalid", "failing": ["record_certificate.signature"]},
+         body_sig=(body, other.sign(body)))
+    case("scope-statement-altered", changed(scope_statement=SCOPE_STATEMENT.replace("does not detect AI", "detects no AI")),
+         {"description": "The issuer signed another scope statement", "outcome": "invalid", "failing": ["record_certificate.scope_statement"]})
+    case("head-not-at-its-index", changed(hour__leaf_index=head_index - 1),
+         {"description": "The head's steps are those of leaf 19, the certificate says leaf 18", "outcome": "invalid",
+          "failing": ["record_certificate.head_to_root"]})
+    stranger = root_record(other, hour_root, "fixture", len(events))
+    case("root-record-by-another-key", changed(hour__root_record_b64=base64.b64encode(jcs.dumps(stranger)).decode(),
+                                               hour__root_record_sha256=sha256(jcs.dumps(stranger)).hex()),
+         {"description": "The hour's root record is signed by another key: the issuer's key did not seal that hour", "outcome": "invalid",
+          "failing": ["record_certificate.root_record", "record_certificate.record_to_anchor"]})
+    wrong = tokens(sha256(b"another root"))
+    case("token-for-another-root", changed(anchor__rfc3161=[cert["anchor"]["rfc3161"][0], wrong[1]]),
+         {"description": "The second authority's token stamps another digest", "outcome": "invalid", "failing": ["record_certificate.rfc3161.1"]})
+    bent = copy.deepcopy(cert["anchor"]["bitcoin"]["anchor_to_merkle_root"])
+    bent[0] = {"prepend": bent[0]["append"], "append": bent[0]["prepend"]}
+    case("bitcoin-steps-not-the-proofs", changed(anchor__bitcoin__anchor_to_merkle_root=bent),
+         {"description": "The steps to the merkle root are not the OpenTimestamps proof's", "outcome": "invalid",
+          "failing": ["record_certificate.opentimestamps"]})
+    case("block-time-misstated", changed(anchor__bitcoin__time="2026-10-12T00:00:00.000Z"),
+         {"description": "The certificate states a block time the header does not give", "outcome": "invalid",
+          "failing": ["record_certificate.block_header"]})
+    case("another-blocks-header", changed(anchor__bitcoin__header=headers[2].hex(), anchor__bitcoin__block_hash=parse_header(headers[2]).hash_hex),
+         {"description": "The header of block 2 in place of block 3's", "outcome": "invalid",
+          "failing": ["record_certificate.block_header", "record_certificate.bitcoin_block"]})
+    case("unknown-contract", changed(contract="record-certificate/v0.1"),
+         {"description": "A contract version this verifier does not read: not verified", "outcome": "indeterminate"})
+
+
 def main() -> None:
     # Mainnet: contiguous header files cut from the sparse capture.
     sparse = read_sparse(MAIN / "headers-sparse.txt")
@@ -924,6 +1102,7 @@ def main() -> None:
     build_certificates(writer)
     build_certificates(chain_fixtures.v01_chain(close=False), prefix="v01-", headers_name="certificate-v01-headers-0-5.bin", fresh=False,
                        core_only=True)
+    build_record_certificates(writer)
     build_roots()
     build_merkle()
 

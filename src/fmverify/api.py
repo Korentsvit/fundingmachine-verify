@@ -173,6 +173,17 @@ def _run(req: dict):
         return ledger_anchors.verify_set_files(decoded, name=label or "", header_sources=_sources(req),
                                                network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
                                                extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")))
+    if kind == "record-certificate":
+        from . import record_certificate
+
+        events = req.get("events")
+        if events is not None and not isinstance(events, list):
+            raise RequestError("events must be a list of ledger-event events")
+        return record_certificate.verify(_b64(req.get("certificate_file"), "certificate_file"),
+                                         _b64(req["signature"], "signature") if "signature" in req else None,
+                                         header_sources=_sources(req), network=NETWORKS[req.get("network", "mainnet")],
+                                         roots=_certs(req.get("roots"), "roots"), extra_certs=_certs(req.get("chain"), "chain"),
+                                         crls=_crls(req.get("crls")), events=events, subject=label)
     if kind == "certificate":
         cert = req.get("certificate")
         if ("certificate_file" in req) == ("certificate" in req):
@@ -203,7 +214,8 @@ def _run(req: dict):
                 raise RequestError("disclosure must be an object with doc_key_hex and steps")
             return ledger_text.verify(events, req["disclosure"], subject=label)
         return ledger_events.verify(events, subject=label)
-    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, ledger-anchor-set, certificate, chain")
+    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, ledger-anchor-set, certificate, "
+                       "record-certificate, chain")
 
 
 def _certificate_json(value: Any) -> dict | None:

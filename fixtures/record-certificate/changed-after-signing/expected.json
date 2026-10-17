@@ -1,0 +1,18 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/record-certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "One count changed after signing: the signature no longer covers the bytes",
+ "outcome": "invalid",
+ "failing": [
+  "record_certificate.signature"
+ ]
+}

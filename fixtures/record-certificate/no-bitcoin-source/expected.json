@@ -1,0 +1,9 @@
+{
+ "description": "No source of the reader's own for the block at height 3: indeterminate",
+ "outcome": "indeterminate",
+ "network": "regtest",
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ]
+}
