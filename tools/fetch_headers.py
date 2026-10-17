@@ -2,9 +2,11 @@
 two explorers, and keep them only if the explorers agree.
 
     python tools/fetch_headers.py DIR OUT [--explorer URL --explorer URL ...]
+    python tools/fetch_headers.py CERTIFICATE OUT [...]
 
-Reads every ``*.ots`` file under DIR, collects the heights of their Bitcoin
-attestations, and asks each explorer (default https://mempool.space/api and
+Reads every ``*.ots`` file under DIR, or the OpenTimestamps proof inside a
+Provenance Ledger certificate (``ledger-certificate/v0`` or
+``record-certificate/v0``, its JSON or its PDF form), collects the heights of their Bitcoin attestations, and asks each explorer (default https://mempool.space/api and
 https://blockstream.info/api, both Esplora) for the block hash at each height
 and that block's header. A header is kept only if every explorer gives the
 same bytes and they hash to the block hash given. OUT receives the headers as
@@ -18,8 +20,11 @@ mislead than one, and a node of your own (``--bitcoind``) is stronger still.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime as _dt
 import hashlib
+import json
 import sys
 import time
 import urllib.error
@@ -51,11 +56,30 @@ def get(url: str, tries: int = 3) -> str:
 
 
 def heights(directory: Path) -> list[int]:
+    if directory.is_file():
+        return certificate_heights(directory.read_bytes())
     found = set()
     for path in sorted(directory.rglob("*.ots")):
         proof = ots.parse(path.read_bytes())
         found.update(leaf.attestation.height for leaf in ots.leaves(proof.timestamp) if leaf.attestation.kind == "bitcoin")
     return sorted(found)
+
+
+def certificate_heights(raw: bytes) -> list[int]:
+    """The heights a certificate's anchor proof names (``ledger_root.anchor.opentimestamps.proof_b64``); none while
+    the certificate has no root, no anchor, or a proof still pending."""
+    from fmverify import pdf
+
+    cert = json.loads((pdf.extract(raw) if raw.startswith(b"%PDF-") else raw).decode("utf-8"))
+    if cert.get("contract") == "record-certificate/v0":  # docs/RECORD_CERTIFICATE.md: the whole proof, inline
+        proof_b64 = (cert.get("anchor") or {}).get("opentimestamps_b64")
+    else:
+        proof_b64 = ((((cert.get("credentialSubject") or {}).get("ledger_root") or {}).get("anchor") or {})
+                     .get("opentimestamps") or {}).get("proof_b64")
+    if not proof_b64:
+        return []
+    proof = ots.parse(base64.b64decode(proof_b64, validate=True))
+    return sorted({leaf.attestation.height for leaf in ots.leaves(proof.timestamp) if leaf.attestation.kind == "bitcoin"})
 
 
 def block_hash(header: bytes) -> str:
@@ -101,7 +125,8 @@ def main(argv: list[str]) -> int:
             print(f"no Bitcoin attestation in any proof under {directory}: nothing to fetch", file=sys.stderr)
             return 1
         headers = fetch_headers(wanted, explorers)
-    except (HeaderFetchError, ots.OtsError, urllib.error.URLError, TimeoutError, ConnectionError, ValueError) as exc:
+    except (HeaderFetchError, ots.OtsError, urllib.error.URLError, TimeoutError, ConnectionError, ValueError,
+            binascii.Error, AttributeError) as exc:
         print(f"not written: {exc}", file=sys.stderr)
         return 1
     at = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

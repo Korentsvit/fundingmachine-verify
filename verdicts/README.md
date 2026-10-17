@@ -6,6 +6,7 @@ later verdict is a new directory.
 
 | Directory | What |
 | --- | --- |
+| [`certificates/`](certificates) | Provenance Ledger certificates (`ledger-certificate/v0`, `record-certificate/v0`) the live service issued: none yet. Each directory will hold the verdict, the headers relied on and the certificate's SHA-256 |
 | [`ledger-anchors/`](ledger-anchors) | The Provenance Ledger's anchors (`anchor-manifest/v0`), from its public record: since 17 October, 12:18 UTC, its public mirror repository at a named commit, cross-checked with its HTTP record. Each directory holds the listing read, the Bitcoin block headers relied on, the verdict on the whole set and one per anchor, and how to reproduce it |
 
 A verdict is about the evidence as it stood when it was checked. An anchor's
