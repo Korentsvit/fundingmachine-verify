@@ -54,6 +54,10 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   (`pip install ./fundingmachine_verify-VERSION-py3-none-any.whl`); with
   `--require-hashes`, pip asks for the hash of every dependency too
   (`cryptography` and what it needs), not only the verifier's.
+* **Verdicts are published with their evidence.** [`verdicts/`](verdicts)
+  holds dated verdicts on the Provenance Ledger's anchors. Each one carries
+  the listing it read and the Bitcoin headers it relied on, and says how to
+  reproduce it with `tools/fetch_ledger_record.py` and `tools/fetch_headers.py`.
 * **The hosted page runs this code, in your browser.** verify.fundingmachine.ai
   is to run the same wheel under Pyodide, every file from its own origin,
   nothing you give leaving the tab, under a Content Security Policy CI tests
