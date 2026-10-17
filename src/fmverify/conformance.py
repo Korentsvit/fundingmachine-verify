@@ -32,7 +32,7 @@ from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "chain", "roots")
+KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "record-certificate", "chain", "roots")
 
 
 @dataclass
@@ -101,6 +101,15 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
         v = certificate.verify_file(case / exp.get("certificate", "certificate.json"), case / exp["file"] if "file" in exp else None,
                                     header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls,
                                     events=events)
+    elif kind == "record-certificate":
+        from . import record_certificate
+
+        events = json.loads((case / exp["events"]).read_text(encoding="utf-8"))["events"] if "events" in exp else None
+        name = exp.get("certificate", "certificate.json")
+        sig = case / "certificate.sig"
+        v = record_certificate.verify((case / name).read_bytes(), sig.read_bytes() if sig.is_file() and name.endswith(".json") else None,
+                                      header_sources=_sources(case, exp), network=net, roots=roots, extra_certs=chain, crls=crls,
+                                      events=events)
     elif kind == "chain":
         events = json.loads((case / "events.json").read_text(encoding="utf-8"))["events"]
         if "disclosure" in exp:

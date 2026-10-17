@@ -28,7 +28,7 @@ Common fields:
 | Field | Meaning |
 | --- | --- |
 | `api` | `fm-verify/0` (optional; any other value is refused) |
-| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `ledger-anchor`, `ledger-anchor-set`, `certificate` or `chain` |
+| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `ledger-anchor`, `ledger-anchor-set`, `certificate`, `record-certificate` or `chain` |
 | `label` | the subject's name, shown in the verdict (optional) |
 | `network` | `mainnet` (default) or `regtest` |
 | `headers` | block headers: `{"kind": "chain", "data": <base64 of 80-byte headers>, "start": 0, "name": ...}` or `{"kind": "sparse", "text": "HEIGHT HEX lines or JSON", "name": ...}` |
@@ -52,6 +52,7 @@ By kind:
 | `ledger-anchor` | `files`: one Provenance Ledger anchor directory as file name to base64 (`manifest.json`, `root.preimage`, `root.preimage.ots`, `root.preimage.<authority>.tsr`); no checkout comparison, which needs a disk |
 | `ledger-anchor-set` | `files`: a whole Provenance Ledger anchors directory as path to base64, each path relative to it (`index.jsonl`, `YYYY/MM/DD/HHMMSSZ/manifest.json`, `YYYY/MM/DD/HHMMSSZ/root.preimage.ots`, ...); every anchor and the index are verified, as `fm-verify anchors DIR --all` does, and only `index.jsonl` and each anchor's `manifest.json` and `root.preimage*` files are read |
 | `certificate` | `certificate` (the certificate's JSON object), or `certificate_file` (base64 of the file as received, JSON or PDF, read by this verifier's own PDF reader, so a page reaches the verdict the command line reaches for the same file); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 or v0.1 events), optional, for step 7 |
+| `record-certificate` | `certificate_file` (base64 of `certificate.json`, or of the PDF form, which carries `certificate.json` and `certificate.sig`); `signature` (base64 of `certificate.sig`), with the JSON; `events`, optional: the record's own statements checked against the chain |
 | `chain` | `events` (a list of ledger-event/v0 or v0.1 events); `disclosure` (`{"doc_key_hex", "steps": [{"seq", "content_text"}]}`), optional: replays the chain and checks every keyed hash; the text is never echoed |
 
 ### Which headers to fetch

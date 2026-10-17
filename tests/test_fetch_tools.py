@@ -134,3 +134,6 @@ def test_a_certificates_heights_from_its_json_or_its_pdf():
     # No root yet, or no anchor yet: nothing to fetch.
     assert fetch_headers.heights(cert / "valid-no-root-yet" / "certificate.json") == []
     assert fetch_headers.heights(cert / "valid-not-anchored" / "certificate.json") == []
+    # A record certificate carries the whole proof.
+    assert fetch_headers.heights(FIX / "record-certificate" / "valid" / "certificate.json") == [3]
+    assert fetch_headers.heights(FIX / "record-certificate" / "valid-pdf" / "certificate.pdf") == [3]

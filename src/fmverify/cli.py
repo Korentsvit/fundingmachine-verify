@@ -203,6 +203,35 @@ def cmd_certificate(args: argparse.Namespace) -> Verdict:
     )
 
 
+def cmd_record_certificate(args: argparse.Namespace) -> Verdict:
+    from . import record_certificate
+
+    path = Path(args.certificate)
+    sig_path = args.sig
+    if path.is_dir():
+        if (path / "certificate.json").is_file():
+            sig_path = sig_path or (str(path / "certificate.sig") if (path / "certificate.sig").is_file() else None)
+            path = path / "certificate.json"
+        elif (path / "certificate.pdf").is_file():
+            path = path / "certificate.pdf"
+        else:
+            raise UsageError(f"{args.certificate} holds neither certificate.json nor certificate.pdf")
+    elif sig_path is None and path.suffix == ".json" and (path.parent / "certificate.sig").is_file():
+        sig_path = str(path.parent / "certificate.sig")
+    events = _events(args.events) if args.events else None
+    return record_certificate.verify(
+        _read(str(path)),
+        _read(sig_path) if sig_path else None,
+        header_sources=header_sources(args),
+        network=NETWORKS[args.network],
+        roots=_certs(args.roots, "--roots"),
+        extra_certs=_certs(args.chain, "--chain"),
+        crls=_crls(args.crl),
+        events=events,
+        subject=str(path),
+    )
+
+
 def _events(path: str) -> list:
     try:
         doc = json.loads(_read(path).decode("utf-8"))
@@ -395,6 +424,20 @@ def build_parser() -> argparse.ArgumentParser:
     ce.add_argument("--json", action="store_true")
     ce.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ce.set_defaults(func=cmd_certificate)
+
+    rc = sub.add_parser("record-certificate", help="a Provenance Ledger record certificate (record-certificate/v0), JSON with its "
+                                                   "signature, or PDF")
+    rc.add_argument("certificate", help="certificate.json (its certificate.sig beside it, or --sig), certificate.pdf, or a directory "
+                                        "holding them")
+    rc.add_argument("--sig", help="certificate.sig, the issuer's 64-byte signature of certificate.json")
+    rc.add_argument("--events", help="the document's event chain, to check the record's own statements against it")
+    _header_options(rc)
+    rc.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
+    rc.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
+    rc.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
+    rc.add_argument("--json", action="store_true")
+    rc.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
+    rc.set_defaults(func=cmd_record_certificate)
 
     ch = sub.add_parser("chain", help="a Provenance Ledger event chain (ledger-event/v0)")
     ch.add_argument("events", help="the events, a JSON array or {\"events\": [...]}")

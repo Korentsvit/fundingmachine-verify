@@ -20,7 +20,7 @@ fm-verify conformance fixtures --implementation "your-verifier" --kind rfc3161 -
 
 For each case the runner calls the command with two more arguments, the
 case's kind (the directory it sits under: `ots`, `rfc3161`, `merkle`,
-`anchors`, `ledger-anchors`, `certificate`, `chain`, `roots`) and the case
+`anchors`, `ledger-anchors`, `certificate`, `record-certificate`, `chain`, `roots`) and the case
 directory's absolute path. The command reads the inputs the case's
 `expected.json` names (below), and prints its verdict as one JSON object on
 standard output, holding at least `outcome` (`valid`, `invalid` or
@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 45 of the 136 cases.
+command answering `valid` to everything conforms on 48 of the 151 cases.
 
 ## Layout
 
@@ -51,6 +51,7 @@ fixtures/
   anchors/<case>/            batch.json, root.ots, root.test-tsa.tsr, expected.json
   anchors/repo/, repo-changed/  the synthetic repository the batches list, as anchored and as later changed
   certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
+  record-certificate/<case>/ certificate.json and certificate.sig, or certificate.pdf ("certificate"), events.json where given, expected.json
   chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
   merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root" and "tree_size")
@@ -83,7 +84,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-136 cases, on 17 October 2026:
+151 cases, on 17 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -115,6 +116,13 @@ Check ids are this verifier's; another implementation is asked to match
   wrong file; and an issuer signing falsehoods, from the scope statement to
   the authorship totals and the anchor's times, or signing a position as a
   string.
+* Record certificates (15, `record-certificate/v0`): valid, in JSON with its
+  signature and in PDF form, with and without the events; no Bitcoin source
+  of the reader's own (indeterminate); changed after signing; not in RFC 8785
+  form; signed by another key; the scope statement altered; the head's steps
+  claimed for another leaf; the hour's root record signed by another key; a
+  token for another root; steps to the merkle root that are not the proof's;
+  a block time misstated; another block's header; an unknown version.
 * Event chains (32, `ledger-event/v0` and v0.1): valid, tampered, back-dated
   (one event, and the whole chain consistently, which the chain alone cannot
   detect), re-ordered (plainly, and re-signed), dropped, after close, wrong

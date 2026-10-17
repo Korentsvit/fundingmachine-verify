@@ -5,8 +5,8 @@ two explorers, and keep them only if the explorers agree.
     python tools/fetch_headers.py CERTIFICATE OUT [...]
 
 Reads every ``*.ots`` file under DIR, or the OpenTimestamps proof inside a
-Provenance Ledger certificate (``ledger-certificate/v0``, its JSON or its PDF
-form), collects the heights of their Bitcoin attestations, and asks each explorer (default https://mempool.space/api and
+Provenance Ledger certificate (``ledger-certificate/v0`` or
+``record-certificate/v0``, its JSON or its PDF form), collects the heights of their Bitcoin attestations, and asks each explorer (default https://mempool.space/api and
 https://blockstream.info/api, both Esplora) for the block hash at each height
 and that block's header. A header is kept only if every explorer gives the
 same bytes and they hash to the block hash given. OUT receives the headers as
@@ -71,8 +71,11 @@ def certificate_heights(raw: bytes) -> list[int]:
     from fmverify import pdf
 
     cert = json.loads((pdf.extract(raw) if raw.startswith(b"%PDF-") else raw).decode("utf-8"))
-    proof_b64 = ((((cert.get("credentialSubject") or {}).get("ledger_root") or {}).get("anchor") or {})
-                 .get("opentimestamps") or {}).get("proof_b64")
+    if cert.get("contract") == "record-certificate/v0":  # docs/RECORD_CERTIFICATE.md: the whole proof, inline
+        proof_b64 = (cert.get("anchor") or {}).get("opentimestamps_b64")
+    else:
+        proof_b64 = ((((cert.get("credentialSubject") or {}).get("ledger_root") or {}).get("anchor") or {})
+                     .get("opentimestamps") or {}).get("proof_b64")
     if not proof_b64:
         return []
     proof = ots.parse(base64.b64decode(proof_b64, validate=True))
