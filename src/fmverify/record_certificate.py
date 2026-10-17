@@ -374,6 +374,19 @@ def verify(
             checks.append(Check("record_certificate.signature", Status.FAIL,
                                 "certificate.sig does not verify over certificate.json under the issuer's key"))
 
+    # The tenant pseudonym: the contract derives it from the key id of the tenant's first signing key, so it matches
+    # this key unless the tenant has since rotated (the Ledger's docs/RECORD_CERTIFICATE.md, src/certificate/record.ts).
+    derived = "tp-" + sha256(("tenant-pseudonym/v0:" + i["key_id"]).encode()).hex()[:32]
+    if r["tenant"] == derived:
+        checks.append(Check("record_certificate.pseudonym", Status.PASS,
+                            f"the tenant pseudonym {r['tenant']} is the one the contract derives from the issuer's key id: the "
+                            "certificate names the tenant whose first signing key this is", required=False))
+    else:
+        checks.append(Check("record_certificate.pseudonym", Status.INFO,
+                            f"the tenant pseudonym {r['tenant']} is not derived from the issuer's key id ({derived} would be)",
+                            reasons=["the contract derives it from the tenant's first signing key: this key is a later one, or "
+                                     "the pseudonym names another tenant"], required=False))
+
     # The scope statement, word for word.
     ok = c["scope_statement"] == SCOPE_STATEMENT
     checks.append(Check("record_certificate.scope_statement", Status.PASS if ok else Status.FAIL,
@@ -424,7 +437,7 @@ def verify(
         checks.append(Check("record_certificate.root_record", Status.FAIL, "the hour's root record does not hold", reasons=reasons))
     else:
         checks.append(Check("record_certificate.root_record", Status.PASS,
-                            f"the issuer's key signed the hour's root record (ledger-root/v0, tenant {rec['tenant_id']}, hour "
+                            f"the issuer's key signed the hour's root record (ledger-root/v0, hour "
                             f"{h['window']['start']}): root {h['root']}, {h['size']} events, SHA-256 {h['root_record_sha256']}"))
 
     # 4. The root record in the anchored root.
