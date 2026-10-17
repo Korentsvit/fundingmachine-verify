@@ -62,6 +62,13 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   is to run the same wheel under Pyodide, every file from its own origin,
   nothing you give leaving the tab, under a Content Security Policy CI tests
   in Chrome: [docs/HOSTED_PAGE.md](docs/HOSTED_PAGE.md), its specification.
+* **The anchors page.** [`page/index.html`](page/index.html) is one static
+  file that checks every anchor in the Ledger's public mirror, at a commit
+  you name, in your browser. It compares each file with the Ledger's own
+  record and fetches headers from two explorers, then shows the verdict and
+  the headers it relied on. `tools/build_page.py` assembles it with Pyodide
+  and the wheel. It is not deployed from here (`docs/HOSTED_PAGE.md`,
+  section 11).
 
 ## Verdicts
 
