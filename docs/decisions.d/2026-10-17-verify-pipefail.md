@@ -1,0 +1,1 @@
+| 2026-10-17 | verify | The conformance workflow's steps run under `shell: bash`, which GitHub runs with `-eo pipefail`; without it a step is `bash -e`, and a failing suite piped into `tee` passed | Found in the page job's log on 17 October: the default shell line read `bash -e {0}`. No run had failed yet, so no failure was hidden | this pull request |
