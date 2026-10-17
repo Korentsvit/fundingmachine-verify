@@ -54,13 +54,17 @@ End states, with no dates. Standing ruling `scoreboard-wake-hold` (17 October
 | V-26 | The verifier's own release: wheel and source archive rebuilt byte for byte from a commit (`tools/build_release.py`; setuptools pinned, the source archive rewritten deterministically, the wheel built from it under umask 022), a CI job building twice under different file times and umask, and the built wheel run over the suite. To finish: the owner's tag | this pull request |
 | V-25 | Tamper audit (`tools/tamper_audit.py`): every valid case's inputs changed 200 ways each; a change still judged valid must show in the verdict or be explained from the data. Its findings fixed: a Merkle position stated as shown, disclosures giving one event twice or text no hash covers, a manifest naming nothing, warnings lost when a proof is summarised, and two token fields read loosely. A short run is in CI | this pull request |
 | V-17 | A guide for a reader holding a certificate (`docs/HOW_TO_VERIFY.md`): where to get headers, roots and revocation lists independently | this pull request |
+| V-35 | The release path: `.github/workflows/release.yml` on a tag `v*` runs the two-key gate (`gate/`) for the tagged commit, checks that the tag, the package version and `CHANGELOG.md` agree, builds the wheel, the source archive and the fixture archive twice under different file times and umask and compares them, runs the built wheel over the archived fixtures, and publishes a GitHub release with the change log's section and the SHA-256 values. First use: v0.1.0, by the owner's answer of 17 October | this pull request |
 
-## Not available yet
+## Sources
 
-* Knowledge-goblin is attached to this session read-only since
-  16 October; its decisions log and published manifests were rehearsed
-  against, and its anchors will be read when the Ledger's job writes them.
-* The Provenance Ledger session published its contracts v0 on 16 October
-  2026 (events, authorship map, certificate, hourly roots, anchoring). Its
-  artefact anchors start on the `anchors` branch with the anchor-everything
-  job, due 17 October; none exist yet.
+* The Provenance Ledger's anchors are public since 17 October 2026, without a
+  login: https://fundingmachine-ledger.vercel.app/api/anchors (the listing,
+  `anchor-record/v0`, and every file by path and SHA-256). Verdicts read them
+  there (`verdicts/`), cross-checked against the Ledger's `anchors` branch.
+* The repositories the anchors cover (fundingmachine-core, Knowledge-goblin,
+  the Ledger) are private. This session reads them, which lets it compare
+  anchored leaves with the files at the commits each anchor records; a
+  public reader checks a file it holds against the anchored hashes instead.
+* Still to come from the Ledger: a schema and published location for key
+  rotation (V-22), and the submission index on its main branch (V-24).
