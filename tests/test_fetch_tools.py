@@ -124,3 +124,13 @@ def test_headers_are_refused_when_explorers_disagree_or_a_header_is_not_its_bloc
     _serve(monkeypatch, hd, _explorers(hdr, (good, other)))
     with pytest.raises(hd.HeaderFetchError, match="does not hash"):
         hd.fetch_headers([840000], ("https://a.example/api", "https://b.example/api"))
+
+
+def test_a_certificates_heights_from_its_json_or_its_pdf():
+    fetch_headers = _tool("fetch_headers")
+    cert = FIX / "certificate"
+    assert fetch_headers.heights(cert / "valid-anchored" / "certificate.json") == [3]
+    assert fetch_headers.heights(cert / "pdf-compressed" / "certificate.pdf") == [3]
+    # No root yet, or no anchor yet: nothing to fetch.
+    assert fetch_headers.heights(cert / "valid-no-root-yet" / "certificate.json") == []
+    assert fetch_headers.heights(cert / "valid-not-anchored" / "certificate.json") == []
