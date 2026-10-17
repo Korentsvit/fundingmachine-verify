@@ -15,9 +15,9 @@ Ordinary pull requests are not gated: sessions merge their own green pull reques
 | --- | --- | --- |
 | `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive and the conformance fixture archive (nothing goes to a package index) | Job `gate` (`release-gate.yml`, release name = the tag) runs first; `build` needs `gate` and `publish` needs `build` |
 
-The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag only after the
-record has merged: the tag ruleset on `v*` blocks deleting or moving a tag. A tag pushed early fails its `gate` job
-and publishes nothing; re-running that run after the record merges reads main again.
+The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag once, on the
+recorded commit, and only after the record has merged: a release tag is never moved or deleted. A tag pushed early
+fails its `gate` job and publishes nothing; re-running that run after the record merges reads main again.
 
 ## How a release goes
 
@@ -45,8 +45,9 @@ edited after its release; a new release gets a new record.
 
 ## Checks and rulesets
 
-* **Required checks** are this repository's own CI only, from `.github/workflows/` (today `test (3.10)`,
-  `test (3.13)`, `interop`, `pyodide` and `release-build`; the Verifier session names the set). No Vercel
-  deployment check is required.
-* **Proposed for the owner to apply:** a tag ruleset on `v*` that blocks deletion and updates.
+* **Required checks on main** are this repository's own CI only, from `.github/workflows/tests.yml`:
+  `test (3.10)`, `test (3.13)`, `interop`, `release-build` and `pyodide`, with the branch up to date (ruleset
+  "main"; the Verifier session names the set). No Vercel deployment check is required.
+* **Proposed for the owner to apply:** a tag ruleset on `v*`, `atlas-*`, `awards-*` and `R*` that blocks deletion
+  and updates, so a released tag cannot move.
 * `release-gate.yml` runs the gate's self-test on any pull request that touches `gate/`. It is not a required check.
