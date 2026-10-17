@@ -1,0 +1,50 @@
+name: conformance
+
+# The full conformance suite, on every pull request, on main and nightly: this verifier's cases
+# (docs/CONFORMANCE.md), with the Provenance Ledger conformance suite's rule pairs (CS-22) among them,
+# run in process and through the harness a third party uses; then the Ledger suite's two live cases
+# (CS-42, CS-43) on its public anchors mirror at its current head, with headers from two explorers.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, node24
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - name: This verifier's cases
+        run: fm-verify conformance fixtures | tee "$RUNNER_TEMP/suite.txt"
+      - name: The same cases through the outside-implementation harness, with check ids
+        run: fm-verify conformance fixtures --implementation "fm-verify conformance-case" --check-ids | tee "$RUNNER_TEMP/harness.txt"
+      - name: The rule pairs (CS-22), each rule alone and both
+        run: python -m pytest -q tests/test_chain_pairs.py
+      - name: The live cases (CS-42, CS-43) on the public anchors mirror
+        run: |
+          git clone --quiet https://github.com/Korentsvit/fundingmachine-anchors "$RUNNER_TEMP/mirror"
+          git -C "$RUNNER_TEMP/mirror" log -1 --format='mirror at %H, %cI' | tee "$RUNNER_TEMP/live.txt"
+          python tools/fetch_headers.py "$RUNNER_TEMP/mirror/anchors" "$RUNNER_TEMP/headers.txt" | tee -a "$RUNNER_TEMP/live.txt"
+          python tools/mirror_conformance.py "$RUNNER_TEMP/mirror/anchors" --headers "$RUNNER_TEMP/headers.txt" \
+            --roots /etc/ssl/certs/ca-certificates.crt | tee -a "$RUNNER_TEMP/live.txt"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Conformance"
+            echo
+            for f in suite harness; do [ -f "$RUNNER_TEMP/$f.txt" ] && echo "* $f: $(tail -n 1 "$RUNNER_TEMP/$f.txt")"; done
+            [ -f "$RUNNER_TEMP/live.txt" ] && sed 's/^/* /' "$RUNNER_TEMP/live.txt"
+          } >> "$GITHUB_STEP_SUMMARY"

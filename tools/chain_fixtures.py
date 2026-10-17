@@ -15,6 +15,7 @@ import copy
 import hashlib
 import hmac
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -430,6 +431,12 @@ def build(fix: Path) -> Writer:
     case("empty", [], {"description": "No events at all: there is no chain to check (the contract's code: empty)",
                         "outcome": "indeterminate", "code": "empty"})
 
+    # Pairs (the Ledger conformance suite's CS-22): one event breaking two rules is reported with the code of the
+    # rule listed first in the contract's chain rules table.
+    for p in rule_pairs(events, keys):
+        case(p["name"], p["both"], {"description": p["description"], "outcome": "invalid", "index": p["index"],
+                                    "code": p["first"], "breaks": [p["first"], p["second"]]})
+
     # ledger-event/v0.1.
     def v01_case(name: str, wr: Writer, expected: dict, evs: list | None = None) -> None:
         evs = evs if evs is not None else wr.events
@@ -485,3 +492,71 @@ def rechain_tail(prev: dict, tail: list[dict], keys: dict) -> list[dict]:
         out.append(ev)
         last = ev
     return out
+
+
+def _changed(events: list[dict], keys: dict, i: int, fields: dict, key_id: str | None = None) -> list[dict]:
+    """Event i with some fields changed and re-signed with its own session's key, the events after it relinked:
+    nothing breaks but what the changed fields break. With ``key_id``, the signature names another key."""
+    t = copy.deepcopy(events)
+    key = keys[t[i]["session_id"]]
+    ev = sign_event({**t[i], **fields}, key)
+    if key_id:
+        ev["client_sig"] = dict(ev["client_sig"], key_id=key_id)
+    return t[:i] + [ev] + rechain_tail(ev, t[i + 1:], keys)
+
+
+def rule_pairs(events: list[dict], keys: dict) -> list[dict]:
+    """The chains in which one event breaks two rules of the contract's chain rules table (the Ledger conformance
+    suite's CS-22, its CT-02 pairs and the Ledger's own order test), each with the chains breaking one rule alone.
+
+    Each pair gives ``both`` (the fixture), ``first_only`` and ``second_only``: ``first`` is the code of the rule
+    listed first in the table, the one a verifier must report for ``both``."""
+    e1 = events[1]
+    year_back = re.sub(r"^(\d{4})", lambda m: str(int(m.group(1)) - 1), e1["ts"])
+    duplicate = {"event_id": e1["event_id"]}
+    pairs = []
+
+    def pair(first: str, second: str, i: int, what: str, a: dict, b: dict, both: dict | None = None,
+             key_a: str | None = None, key_b: str | None = None) -> None:
+        both = both if both is not None else {**a, **b}
+        pairs.append({
+            "name": f"pair-{first.replace('_', '-')}-over-{second.replace('_', '-')}",
+            "description": f"One event breaks two rules, {first} and {second}: {what}; the rule listed first in the contract's "
+                           f"table gives the code",
+            "index": i, "first": first, "second": second,
+            "both": _changed(events, keys, i, both, key_a or key_b),
+            "first_only": _changed(events, keys, i, a, key_a),
+            "second_only": _changed(events, keys, i, b, key_b),
+        })
+
+    # CT-02: a repeated event_id (the table's sixth row) with each of the five rows before it.
+    pair("schema", "event_id_duplicate", 2, "a type the schema does not know, and an event_id already used", {"type": "x"}, duplicate)
+    pair("seq_gap", "event_id_duplicate", 2, "seq 9 after seq 2, and an event_id already used", {"seq": 9}, duplicate)
+    pair("prev_hash_mismatch", "event_id_duplicate", 2, "a prev_hash of 64 zeros, and an event_id already used",
+         {"prev_hash": "0" * 64}, duplicate)
+    pair("ts_backwards", "event_id_duplicate", 2, "a time a year before the previous event's, and an event_id already used",
+         {"ts": year_back}, duplicate)
+    pair("doc_mismatch", "event_id_duplicate", 2, "another document's doc_id, and an event_id already used",
+         {"doc_id": "11111111-1111-4111-8111-111111111111"}, duplicate)
+    # The Ledger's order test: the same rules met by other events.
+    opened = events[14]
+    pair("key_mismatch", "session_reopened", 14, "a session.open that reopens the closed first session, signed under a key_id "
+         "that is not its session's", {}, {"session_id": events[0]["session_id"]},
+         key_a=hashlib.sha256(b"another key").hexdigest())
+    merge = events[17]
+    pair("range_not_empty", "merge_not_adjacent", 17, "a merge with a non-empty range, joining a statement that is not the "
+         "next one", {"range": dict(merge["range"], start=0, end=1)},
+         {"payload": dict(merge["payload"], merged_statement_id="st-3")},
+         both={"range": dict(merge["range"], start=0, end=1), "payload": dict(merge["payload"], merged_statement_id="st-3")})
+    edit = events[5]
+    pair("statement_unknown", "range_empty", 5, "a tool.edit in a statement that does not exist, over an empty range",
+         {"range": dict(edit["range"], statement_id="st-9")}, {"range": dict(edit["range"], end=edit["range"]["start"])},
+         both={"range": dict(edit["range"], statement_id="st-9", end=edit["range"]["start"])})
+    split = events[2]
+    pair("statement_id_reused", "range_not_empty", 2, "a split naming a statement id already used, over a non-empty range",
+         {"payload": dict(split["payload"], new_statement_id="st-1")}, {"range": dict(split["range"], end=split["range"]["start"] + 1)},
+         both={"payload": dict(split["payload"], new_statement_id="st-1"),
+               "range": dict(split["range"], end=split["range"]["start"] + 1)})
+    assert opened["type"] == "session.open" and merge["type"] == "statement.merge"
+    assert edit["type"] == "tool.edit" and split["type"] == "statement.split"
+    return pairs

@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 45 of the 127 cases.
+command answering `valid` to everything conforms on 45 of the 136 cases.
 
 ## Layout
 
@@ -83,7 +83,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-127 cases, on 16 October 2026:
+136 cases, on 17 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -115,15 +115,43 @@ Check ids are this verifier's; another implementation is asked to match
   wrong file; and an issuer signing falsehoods, from the scope statement to
   the authorship totals and the anchor's times, or signing a position as a
   string.
-* Event chains (23, `ledger-event/v0` and v0.1): valid, tampered, back-dated
+* Event chains (32, `ledger-event/v0` and v0.1): valid, tampered, back-dated
   (one event, and the whole chain consistently, which the chain alone cannot
   detect), re-ordered (plainly, and re-signed), dropped, after close, wrong
   key, text in a payload, no events at all; a `capture.resync` (valid, not
   first, emptying the document); a version this verifier does not read
   (indeterminate); and disclosures (valid, one word changed, the wrong key,
-  one event given twice, text no hash covers, the signer's name changed).
+  one event given twice, text no hash covers, the signer's name changed);
+  and nine rule pairs, `pair-FIRST-over-SECOND` (below).
 * Hourly root records (6, `ledger-root/v0`): valid, an hour dropped, two
   swapped, one altered, another key, a later stretch alone.
+
+## The Provenance Ledger's suite
+
+The Provenance Ledger session's `validation-conformance/v0` names 28 cases
+for a verifier. Two kinds of them run here, in CI on every pull request, on
+main and nightly (`.github/workflows/conformance.yml`):
+
+* **Rule pairs (its CS-22).** Where one event breaks two chain rules, the
+  code reported is the one of the rule listed first in the contract's chain
+  rules table. The nine `chain/pair-*` cases are the five pairs of its CT-02
+  (a repeated `event_id` with each of the five rules before it) and the four
+  other pairs of the Ledger's own order test. `tools/chain_fixtures.py`
+  writes them from this repository's own chain, re-signing the changed event
+  and relinking the ones after it, so that nothing breaks but the two rules.
+  `tests/test_chain_pairs.py` checks that each rule broken alone gives its
+  own code. The Ledger's own validator gave the same answer on every pair
+  and every single-rule variant (its main 8711ff9, 17 October 2026, through
+  `tools/ledger_crosscheck/run.mts`).
+* **Live anchors (its CS-42 and CS-43)**, on the Ledger's public mirror at
+  its current head: `tools/mirror_conformance.py`. CS-42 requires every
+  anchor to hold, with its proofs and the link to the one before it; an
+  anchor whose Bitcoin proof is still pending must hold on everything else.
+  CS-43 changes one leaf's `sha256` in a copy of the newest confirmed anchor;
+  that anchor must be invalid, with the check that failed.
+
+The other cases run on fixtures in the Ledger's repository, which is
+private; they are run in this session's checkout, not in CI.
 
 ## Versioned releases
 
