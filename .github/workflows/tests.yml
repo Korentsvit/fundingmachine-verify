@@ -97,3 +97,32 @@ jobs:
           npm init -y > /dev/null
           npm install --silent playwright-core@1.56.1
           node check.mjs "$GITHUB_WORKSPACE" "$style"
+
+  page:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0, node24
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, node24
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]" build==1.6.1
+      - name: Build the anchors page (docs/HOSTED_PAGE.md, section 11)
+        run: |
+          mkdir -p "$RUNNER_TEMP/node" && cd "$RUNNER_TEMP/node"
+          npm init -y > /dev/null
+          npm install --silent pyodide@0.27.7 playwright-core@1.56.1
+          cd "$GITHUB_WORKSPACE"
+          python tools/build_page.py "$RUNNER_TEMP/site" --pyodide "$RUNNER_TEMP/node/node_modules/pyodide"
+      - name: In Chrome, under its own policy, against the mirror at 98e2443 and the headers its verdict relied on
+        run: |
+          git clone --quiet https://github.com/Korentsvit/fundingmachine-anchors "$RUNNER_TEMP/mirror"
+          git -C "$RUNNER_TEMP/mirror" checkout --quiet 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6
+          cp tools/pyodide/page/check.mjs "$RUNNER_TEMP/node/"
+          cd "$RUNNER_TEMP/node"
+          node check.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/mirror" 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6 \
+            "$GITHUB_WORKSPACE/verdicts/ledger-anchors/2026-10-17T1218Z/headers.txt"

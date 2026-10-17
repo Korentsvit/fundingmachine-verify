@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+from pathlib import PurePosixPath
 from typing import Any
 
 from . import __version__, anchors, certificate, ledger_events, merkle, ots, pki, rfc3161
@@ -157,6 +158,21 @@ def _run(req: dict):
         return ledger_anchors.verify_files(decoded, name=label or "", header_sources=_sources(req),
                                            network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
                                            extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")))
+    if kind == "ledger-anchor-set":
+        from . import ledger_anchors
+
+        files = req.get("files")
+        if not isinstance(files, dict):
+            raise RequestError("files must map each path under the anchors directory (index.jsonl, "
+                               "YYYY/MM/DD/HHMMSSZ/manifest.json, ...) to base64")
+        decoded = {path: _b64(value, f"files.{path}") for path, value in files.items()}
+        for path in decoded:
+            parts = PurePosixPath(path).parts
+            if not parts or PurePosixPath(path).is_absolute() or ".." in parts:
+                raise RequestError(f"files.{path}: not a relative path inside the anchors directory")
+        return ledger_anchors.verify_set_files(decoded, name=label or "", header_sources=_sources(req),
+                                               network=NETWORKS[req.get("network", "mainnet")], roots=_certs(req.get("roots"), "roots"),
+                                               extra_certs=_certs(req.get("chain"), "chain"), crls=_crls(req.get("crls")))
     if kind == "certificate":
         cert = req.get("certificate")
         if ("certificate_file" in req) == ("certificate" in req):
@@ -187,7 +203,7 @@ def _run(req: dict):
                 raise RequestError("disclosure must be an object with doc_key_hex and steps")
             return ledger_text.verify(events, req["disclosure"], subject=label)
         return ledger_events.verify(events, subject=label)
-    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, certificate, chain")
+    raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, ledger-anchor-set, certificate, chain")
 
 
 def _certificate_json(value: Any) -> dict | None:
@@ -224,6 +240,21 @@ def verify(request: dict) -> dict:
     except Exception as exc:  # a fault in the verifier: an error, never an outcome
         return {"api": API, "error": f"internal error ({type(exc).__name__}): a fault in the verifier, not a verdict",
                 "internal": True, "tool": {"name": "fm-verify", "version": __version__}}
+
+
+def bitcoin_heights(proofs: Any) -> dict:
+    """The Bitcoin block heights a list of OpenTimestamps proofs (base64) name, so a page can fetch those headers
+    and nothing else: ``{"heights": [...]}``, or ``{"error": ...}`` naming the proof that could not be read."""
+    if not isinstance(proofs, list):
+        return {"api": API, "error": "proofs must be a list of base64 OpenTimestamps proofs"}
+    found: set[int] = set()
+    for i, value in enumerate(proofs):
+        try:
+            proof = ots.parse(_b64(value, f"proofs[{i}]"))
+            found.update(leaf.attestation.height for leaf in ots.leaves(proof.timestamp) if leaf.attestation.kind == "bitcoin")
+        except (RequestError, ots.OtsError) as exc:
+            return {"api": API, "error": f"proofs[{i}]: {exc}"}
+    return {"api": API, "heights": sorted(found)}
 
 
 def verify_json(text: str) -> str:
