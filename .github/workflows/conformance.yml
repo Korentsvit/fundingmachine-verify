@@ -16,6 +16,11 @@ on:
 permissions:
   contents: read
 
+# A step's shell is bash with pipefail, so a failing command before `| tee` fails the step.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   suite:
     runs-on: ubuntu-24.04
@@ -45,6 +50,8 @@ jobs:
           {
             echo "### Conformance"
             echo
-            for f in suite harness; do [ -f "$RUNNER_TEMP/$f.txt" ] && echo "* $f: $(tail -n 1 "$RUNNER_TEMP/$f.txt")"; done
-            [ -f "$RUNNER_TEMP/live.txt" ] && sed 's/^/* /' "$RUNNER_TEMP/live.txt"
+            for f in suite harness; do
+              if [ -f "$RUNNER_TEMP/$f.txt" ]; then echo "* $f: $(tail -n 1 "$RUNNER_TEMP/$f.txt")"; fi
+            done
+            if [ -f "$RUNNER_TEMP/live.txt" ]; then sed 's/^/* /' "$RUNNER_TEMP/live.txt"; fi
           } >> "$GITHUB_STEP_SUMMARY"
