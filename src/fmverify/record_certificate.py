@@ -77,6 +77,10 @@ def _int(v: Any, least: int) -> bool:
     return isinstance(v, int) and not isinstance(v, bool) and least <= v <= 2**53 - 1
 
 
+def _events(n: object) -> str:
+    return f"{n} event" if n == 1 else f"{n} events"
+
+
 def shape_problems(c: Any) -> list[str]:
     """Where the certificate departs from the schema of record-certificate/v0."""
     if not isinstance(c, dict):
@@ -438,7 +442,7 @@ def verify(
     else:
         checks.append(Check("record_certificate.root_record", Status.PASS,
                             f"the issuer's key signed the hour's root record (ledger-root/v0, hour "
-                            f"{h['window']['start']}): root {h['root']}, {h['size']} events, SHA-256 {h['root_record_sha256']}"))
+                            f"{h['window']['start']}): root {h['root']}, {_events(h['size'])}, SHA-256 {h['root_record_sha256']}"))
 
     # 4. The root record in the anchored root.
     problem = inclusion_problem(a["record_to_anchor"], a["leaf_index"], a["size"])
@@ -552,7 +556,7 @@ def verify(
             if res.head != r["head"]["event_hash"]:
                 rs.append(f"the chain's head is {res.head}, the certificate states {r['head']['event_hash']}")
             if len(events) != r["events"] or events[-1].get("seq") != r["head"]["seq"]:
-                rs.append(f"the chain holds {len(events)} events to seq {events[-1].get('seq')}, the certificate states {r['events']} "
+                rs.append(f"the chain holds {_events(len(events))} to seq {events[-1].get('seq')}, the certificate states {r['events']} "
                           f"to seq {r['head']['seq']}")
             if events[-1].get("ts") != r["head"]["ts"]:
                 rs.append("the head's ts is not the last event's")
@@ -563,7 +567,7 @@ def verify(
                           f"{sorted(r['event_contracts'])}")
         checks.append(Check("record_certificate.chain", Status.FAIL if rs else Status.PASS,
                             "the chain does not match what the certificate states" if rs else
-                            f"the chain given verifies and is the record: {len(events)} events, record id {r['record_id']}, head "
+                            f"the chain given verifies and is the record: {_events(len(events))}, record id {r['record_id']}, head "
                             f"{r['head']['event_hash']}", reasons=rs))
     else:
         checks.append(Check("record_certificate.chain", Status.NOT_CHECKED,
@@ -581,7 +585,7 @@ def verify(
     toks = ", ".join(f"{t['authority']} at {t['gen_time']}" for t in a["rfc3161"])
     statements = {
         Outcome.VALID: (f"The issuer (key id {i['key_id']}) signed this record certificate for record {r['record_id']} "
-                        f"({r['events']} events, head at seq {r['head']['seq']}). The head is in the tenant's sealed hour "
+                        f"({_events(r['events'])}, head at seq {r['head']['seq']}). The head is in the tenant's sealed hour "
                         f"{h['window']['start']} (root {h['root']}), whose signed root record is in the anchored root {a['root']}. "
                         f"RFC 3161 tokens put that root at: {toks}. The anchored root existed no later than Bitcoin block "
                         f"{b['height']} ({b['block_hash']}), whose header gives the time {b['time']}."),

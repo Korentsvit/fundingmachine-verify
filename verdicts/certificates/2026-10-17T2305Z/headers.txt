@@ -1,0 +1,5 @@
+# Bitcoin block headers fetched 2026-10-17T23:04:44Z from https://mempool.space/api and https://blockstream.info/api;
+# every explorer gave the same header, and each hashes to the block hash given.
+# The verdict relies on these explorers for which block is at each height.
+# 971906: block 00000000000000000000815765314ea275621058cf1885debd0b11ca7c7764b8
+971906 00e03c22e221f570f6710e93ab9f53a433f5bc31f7d6dd15adf5000000000000000000009fba68960c223bf8da74faed27b013d84803073329604ead7c24528d6ef6b6ab4dded36a93000217d0f1de23

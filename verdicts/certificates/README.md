@@ -16,6 +16,7 @@ and its verdict is committed here:
 | Checked (UTC) | Contract | Certificate | Verdict |
 | --- | --- | --- | --- |
 | [2026-10-17 21:10](2026-10-17T2110Z) | `record-certificate/v0` | `urn:uuid:af6c889d-8204-45e8-bf9f-b4bff6279e1e`, block 971901 | valid |
+| [2026-10-17 23:05](2026-10-17T2305Z) | `record-certificate/v0` | `urn:uuid:ed65828a-9107-416d-924d-1b907e29702b`, block 971906 | valid |
 
 Each verdict is a directory named by the UTC time it was checked, holding:
 
