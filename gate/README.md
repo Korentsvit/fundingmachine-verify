@@ -11,17 +11,13 @@ Ordinary pull requests are not gated: sessions merge their own green pull reques
 
 ## Release paths here
 
-None is live. The `release-build` job builds the package on every pull request, and nothing publishes it. When a
-publish step lands (an upload to a package index, or a GitHub release from a tag `v*`), its workflow first runs
+| Path | What publishes | Where the gate sits |
+| --- | --- | --- |
+| `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive and the conformance fixture archive (nothing goes to a package index) | Job `gate` (`release-gate.yml`, release name = the tag) runs first; `build` needs `gate` and `publish` needs `build` |
 
-```yaml
-  gate:
-    uses: ./.github/workflows/release-gate.yml
-    with:
-      release: ${{ github.ref_name }}
-```
-
-and its publishing job `needs: gate`. The release name is the tag.
+The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag only after the
+record has merged: the tag ruleset on `v*` blocks deleting or moving a tag. A tag pushed early fails its `gate` job
+and publishes nothing; re-running that run after the record merges reads main again.
 
 ## How a release goes
 
