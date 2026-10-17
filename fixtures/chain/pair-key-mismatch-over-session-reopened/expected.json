@@ -1,0 +1,13 @@
+{
+ "description": "One event breaks two rules, key_mismatch and session_reopened: a session.open that reopens the closed first session, signed under a key_id that is not its session's; the rule listed first in the contract's table gives the code",
+ "outcome": "invalid",
+ "index": 14,
+ "code": "key_mismatch",
+ "breaks": [
+  "key_mismatch",
+  "session_reopened"
+ ],
+ "failing": [
+  "chain.rules"
+ ]
+}
