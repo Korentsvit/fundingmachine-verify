@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 48 of the 151 cases.
+command answering `valid` to everything conforms on 51 of the 156 cases.
 
 ## Layout
 
@@ -51,7 +51,7 @@ fixtures/
   anchors/<case>/            batch.json, root.ots, root.test-tsa.tsr, expected.json
   anchors/repo/, repo-changed/  the synthetic repository the batches list, as anchored and as later changed
   certificate/<case>/        certificate.json, exported.txt, events.json where step 7 runs, expected.json
-  record-certificate/<case>/ certificate.json and certificate.sig, or certificate.pdf ("certificate"), events.json where given, expected.json
+  record-certificate/<case>/ certificate.json and certificate.sig, or certificate.pdf ("certificate"), events.json and index.json where given, expected.json
   chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
   merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root" and "tree_size")
@@ -84,7 +84,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-151 cases, on 17 October 2026:
+156 cases, on 17 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -116,13 +116,16 @@ Check ids are this verifier's; another implementation is asked to match
   wrong file; and an issuer signing falsehoods, from the scope statement to
   the authorship totals and the anchor's times, or signing a position as a
   string.
-* Record certificates (15, `record-certificate/v0`): valid, in JSON with its
+* Record certificates (20, `record-certificate/v0`): valid, in JSON with its
   signature and in PDF form, with and without the events; no Bitcoin source
   of the reader's own (indeterminate); changed after signing; not in RFC 8785
   form; signed by another key; the scope statement altered; the head's steps
   claimed for another leaf; the hour's root record signed by another key; a
   token for another root; steps to the merkle root that are not the proof's;
-  a block time misstated; another block's header; an unknown version.
+  a block time misstated; another block's header; an unknown version; the
+  tokens' times written as the same instants otherwise (valid); a proof path
+  with an operation the steps cannot write; and the certificate's entry in
+  the public submission index (matching, misstating, not listed).
 * Event chains (32, `ledger-event/v0` and v0.1): valid, tampered, back-dated
   (one event, and the whole chain consistently, which the chain alone cannot
   detect), re-ordered (plainly, and re-signed), dropped, after close, wrong
@@ -160,6 +163,24 @@ main and nightly (`.github/workflows/conformance.yml`):
 
 The other cases run on fixtures in the Ledger's repository, which is
 private; they are run in this session's checkout, not in CI.
+
+Its record certificate cases (CS-60 to CS-70) name one result per check of
+the contract's own list. This verifier reports them as these check ids:
+
+| The suite's check | fm-verify check ids |
+| --- | --- |
+| form and signature | `record_certificate.form`, `record_certificate.schema`, `record_certificate.signature` |
+| scope | `record_certificate.scope_statement` |
+| inclusion | `record_certificate.head_to_root`, `record_certificate.record_to_anchor` |
+| root record | `record_certificate.root_record` |
+| rfc3161 | `record_certificate.rfc3161.N`, one per token |
+| opentimestamps | `record_certificate.opentimestamps` |
+| header | `record_certificate.block_header` |
+| block | `record_certificate.bitcoin_block` (not run, and the verdict indeterminate, without a source of the reader's own) |
+| index, match (CS-70) | `record_certificate.index` |
+
+An unknown contract version (CS-69) is `record_certificate.contract`, not
+run: the verdict is indeterminate, not invalid.
 
 ## Versioned releases
 

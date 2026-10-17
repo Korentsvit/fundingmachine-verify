@@ -219,6 +219,7 @@ def cmd_record_certificate(args: argparse.Namespace) -> Verdict:
     elif sig_path is None and path.suffix == ".json" and (path.parent / "certificate.sig").is_file():
         sig_path = str(path.parent / "certificate.sig")
     events = _events(args.events) if args.events else None
+    index = _read(args.index) if args.index else None
     return record_certificate.verify(
         _read(str(path)),
         _read(sig_path) if sig_path else None,
@@ -228,6 +229,7 @@ def cmd_record_certificate(args: argparse.Namespace) -> Verdict:
         extra_certs=_certs(args.chain, "--chain"),
         crls=_crls(args.crl),
         events=events,
+        index=index,
         subject=str(path),
     )
 
@@ -431,6 +433,8 @@ def build_parser() -> argparse.ArgumentParser:
                                         "holding them")
     rc.add_argument("--sig", help="certificate.sig, the issuer's 64-byte signature of certificate.json")
     rc.add_argument("--events", help="the document's event chain, to check the record's own statements against it")
+    rc.add_argument("--index", help="the public submission index (what GET /api/submission-index answers, or certificates/index.jsonl), "
+                                    "to check the certificate's entry there")
     _header_options(rc)
     rc.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
     rc.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")

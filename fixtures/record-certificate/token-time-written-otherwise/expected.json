@@ -1,0 +1,15 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/record-certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "The tokens' times written as the same instants without fractional seconds: they hold",
+ "outcome": "valid"
+}

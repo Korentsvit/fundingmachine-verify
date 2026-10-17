@@ -1,0 +1,19 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/record-certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "The index's entry for the certificate states another event count",
+ "outcome": "invalid",
+ "failing": [
+  "record_certificate.index"
+ ],
+ "index": "index.json"
+}

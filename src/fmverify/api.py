@@ -183,7 +183,8 @@ def _run(req: dict):
                                          _b64(req["signature"], "signature") if "signature" in req else None,
                                          header_sources=_sources(req), network=NETWORKS[req.get("network", "mainnet")],
                                          roots=_certs(req.get("roots"), "roots"), extra_certs=_certs(req.get("chain"), "chain"),
-                                         crls=_crls(req.get("crls")), events=events, subject=label)
+                                         crls=_crls(req.get("crls")), events=events, subject=label,
+                                         index=_index(req["index"]) if "index" in req else None)
     if kind == "certificate":
         cert = req.get("certificate")
         if ("certificate_file" in req) == ("certificate" in req):
@@ -216,6 +217,15 @@ def _run(req: dict):
         return ledger_events.verify(events, subject=label)
     raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, ledger-anchor-set, certificate, "
                        "record-certificate, chain")
+
+
+def _index(value: Any) -> list:
+    """The public submission index as GET /api/submission-index answers it, or a list of its entries."""
+    if isinstance(value, dict) and value.get("contract") == "submission-index/v0" and isinstance(value.get("entries"), list):
+        return value["entries"]
+    if isinstance(value, list):
+        return value
+    raise RequestError("index must be the submission index (submission-index/v0) or a list of its entries")
 
 
 def _certificate_json(value: Any) -> dict | None:

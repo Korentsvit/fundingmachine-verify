@@ -139,6 +139,7 @@ UNREAD = [
     ("disclosure.json", r"steps/\d+/resync_text/removed", "an optional copy of text the replay derives and checks against its hashes"),
     ("events.json", r"contract", "the fixture file's label: each event names its own contract"),
     ("batch.json", r"ots|rfc3161", "a batch's proof files are found by their suffix; the lists only name them"),
+    ("index.json", r"statement|scope_statement", "the index's own sentences: no proof covers them and no check reads their words"),
 ]
 
 
@@ -171,6 +172,15 @@ def explain(case: Path, rel: str, original: bytes, mutated: bytes) -> str | None
             extra = {i for i, s in enumerate(a["steps"]) if s["seq"] in (3, 99)}  # the steps that case adds
             if text and len(text) == len(paths) and all(int(p.split("/")[1]) in extra for p in text):
                 return "text no hash covers, already named in the disclosure.unused warning"
+        if name == "index.json" and isinstance(a, dict) and isinstance(b, dict) and isinstance(a.get("entries"), list):
+            import hashlib
+
+            mine = hashlib.sha256((case / "certificate.json").read_bytes()).hexdigest() if (case / "certificate.json").is_file() else None
+            own = [i for i, e in enumerate(a["entries"]) if isinstance(e, dict) and e.get("certificate_sha256") == mine]
+            others = [p for p in paths if re.fullmatch(r"entries/(\d+)(/.*)?", p) and int(p.split("/")[1]) not in own]
+            if paths and len(others) == len(paths) and [b["entries"][i] for i in own if i < len(b.get("entries", []))] == \
+                    [a["entries"][i] for i in own]:
+                return "an entry of the index for another certificate: the verdict is about this certificate's entry, unchanged"
         whys = []
         for p in paths:
             why = next((w for f, pat, w in UNREAD if f == name and re.fullmatch(pat, p)), None)
