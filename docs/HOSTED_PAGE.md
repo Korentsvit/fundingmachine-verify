@@ -101,7 +101,8 @@ Not in `hosted-page/0`:
 * Provenance Ledger anchors (`kind: ledger-anchor`, or "when did this file
   exist"). None is published yet. Also, the conformance kind `ledger-anchors`
   includes checkout comparisons and whole-tree searches the entry point
-  cannot take. They come in a later version.
+  cannot take. They come in a later version. (Since 17 October 2026 they are
+  published; `hosted-page/1` adds a page for them, section 11.)
 * Fetching a certificate from a URL.
 
 The page must refuse a file over 64 MiB before reading it, with a message
@@ -249,3 +250,136 @@ of the page itself:
   a given verdict, or that loosens sections 1 to 3. It is made here first.
 * Questions from the website side reach the Verifier session through
   Filipp's daily batch.
+
+## 11. The anchors page (`hosted-page/1`)
+
+`hosted-page/1` adds a second page: the Provenance Ledger's anchors, checked
+from its public mirror at a commit the reader names. Its implementation is
+`page/index.html` in this repository, assembled into a static site by
+`tools/build_page.py`. Sections 1, 2 and 4 to 10 apply to it with the
+changes below. The certificate page of `hosted-page/0` is unchanged.
+
+### 11.1 What it fetches
+
+1. **The mirror at the commit named**, a commit of
+   `Korentsvit/fundingmachine-anchors` given as 40 hexadecimal characters,
+   from `https://raw.githubusercontent.com/Korentsvit/fundingmachine-anchors/COMMIT/anchors/`:
+   * `index.jsonl`;
+   * for each anchor it lists, `manifest.json`;
+   * the files the manifest names (`root.preimage` and its proof files).
+     The page fetches only names beginning `root.preimage`.
+
+   The page states that this relies on GitHub to serve that commit's files.
+2. **The second source**, unless the reader turns it off: the Ledger's own
+   record at `https://fundingmachine-ledger.vercel.app/api/anchors`.
+   * The page asks the record for each file by its path and SHA-256
+     (`?path=P&sha256=H`).
+   * It shows whether the record held the same bytes for every file, and
+     lists every file it did not.
+   * The verdict is always on the mirror's bytes; the record's are only
+     compared.
+3. **Block headers**, as section 5, for the heights the proofs name
+   (`fmverify.api.bitcoin_heights`) and no others.
+
+The page asks GitHub's API for nothing, so the reader names the commit. The
+page's default is the commit of the newest verdict under
+`verdicts/ledger-anchors/` when the page was built.
+
+### 11.2 Verifying
+
+The page passes the files to the library entry point's `ledger-anchor-set`
+kind ([API.md](API.md)). That gives the verdict `fm-verify anchors DIR --all`
+gives on a checkout of the same commit:
+* `tests/test_anchor_set_api.py` checks the two agree on the fixtures;
+* on the mirror at 0a6189f, with the same headers and roots, they were
+  identical on 17 October 2026.
+
+### 11.3 What it loads, and the policy
+
+* **One HTML file.** Its own script and style are inline, one of each, and
+  allowed by their hashes. There is no other inline script or style.
+* **Beside it, from its own origin:**
+  * Pyodide's files, cryptography and what it depends on (section 2);
+  * the fm-verify wheel;
+  * `site.json`, which names the wheel with its SHA-256, the versions, the
+    roots with their provenance and the default commit;
+  * `roots.pem`.
+
+The page must send this policy as an HTTP header:
+
+```
+default-src 'none'; script-src 'self' 'wasm-unsafe-eval' SCRIPT_HASH; connect-src 'self' https://raw.githubusercontent.com https://fundingmachine-ledger.vercel.app https://mempool.space https://blockstream.info; style-src PAGE_STYLE_HASH REPORT_STYLE_HASH; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+```
+
+* `SCRIPT_HASH` and `PAGE_STYLE_HASH` are the hashes of the page's inline
+  script and style. `REPORT_STYLE_HASH` is `fmverify.report.CSP_STYLE_HASH`.
+* `tools/build_page.py` writes the filled policy to `csp.txt` and `_headers`,
+  with the other headers of section 3.
+* Against `hosted-page/0`, this is the loosening that makes it a new version:
+  * `connect-src` adds GitHub's raw host and the Ledger's record;
+  * the page's own script and style are inline by hash rather than files.
+
+  `style-src` no longer allows `'self'`. There is still no `'unsafe-eval'`
+  and no `'unsafe-inline'`.
+
+### 11.4 Roots
+
+The build fetches each root from its authority's own publication. It keeps
+a root only if its SHA-256 is the one pinned in `tools/build_page.py`:
+
+| Root | From | SHA-256 |
+| --- | --- | --- |
+| DigiCert Trusted Root G4 | `https://cacerts.digicert.com/DigiCertTrustedRootG4.crt` | `552f7bdc...` |
+| USERTrust RSA Certification Authority | `http://crt.usertrust.com/USERTrustRSACertificationAuthority.crt`, Sectigo's address for it, served over HTTP | `e793c9b0...` |
+
+* For the second root, the pin is what is trusted, not the transport.
+* The roots are third-party files, so they are fetched at build time and not
+  committed.
+* The page lists each root with its address, retrieval date and fingerprint,
+  says they are its choice, and lets the reader use PEM files of their own
+  (section 6).
+
+### 11.5 What it shows
+
+Everything section 7 requires, and:
+
+1. **The source:** the commit, and the result of the record comparison.
+2. **The headers relied on:** for each one, its height, its block hash
+   (computed by the page) and the header itself, offered for saving as
+   files the command line takes.
+3. **One row per anchor:** its outcome, and either its earliest Bitcoin
+   block with that block's header time, or "pending".
+4. **Every check,** with the checks of any anchor that has a warning or a
+   failure.
+5. **The command line,** with `roots.pem` and the header files offered for
+   saving:
+
+```sh
+git clone https://github.com/Korentsvit/fundingmachine-anchors
+git -C fundingmachine-anchors checkout COMMIT
+fm-verify anchors fundingmachine-anchors/anchors --all --headers headers-mempool.space.txt --headers headers-blockstream.info.txt --roots roots.pem
+```
+
+### 11.6 Conformance of the page
+
+The `page` job in `.github/workflows/tests.yml` builds the site and runs
+`tools/pyodide/page/check.mjs` in Chrome, under the site's own policy. Its
+inputs are the mirror at 98e2443 and the headers committed with
+`verdicts/ledger-anchors/2026-10-17T1218Z`, and it answers the four hosts
+from those copies. It checks five cases:
+
+* the plain run: valid, with the record comparison stated;
+* one explorer giving another block's header: invalid;
+* the record lacking a file: the difference shown;
+* a commit the mirror lacks: "Could not check";
+* a 390-pixel screen: no sideways scrolling.
+
+On 17 October 2026 the built page also ran against the real hosts, from the
+Verifier session. It reached the command line's verdict (32 anchors, 31
+confirmed in Bitcoin), the record holding the same bytes for all 161
+files, in 26 seconds and with no policy violation.
+
+### 11.7 Release
+
+The page stays in this repository until the owner releases it. Nothing here
+deploys it.

@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def _doc_policy() -> str:
     doc = (ROOT / "docs" / "HOSTED_PAGE.md").read_text(encoding="utf-8")
     blocks = re.findall(r"```\n(default-src [^\n]*)\n```", doc)
-    assert len(blocks) == 1
+    assert len(blocks) == 2  # hosted-page/0, section 3, and the anchors page of hosted-page/1, section 11
     return blocks[0]
 
 

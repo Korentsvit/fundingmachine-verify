@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Anchors verifier</title>
+<style>
+:root{--bg:#fbfbf9;--fg:#1d1d1b;--muted:#5d5d58;--line:#d9d8d2;--panel:#ffffff;--accent:#1f4f8a;--bad:#8a1f1f;--warn:#7a5200;--ok:#1d5e2e;--code:#f1f0ea}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#ecebe6;--muted:#a6a59e;--line:#3a3934;--panel:#1f1f1c;--accent:#8db7ee;--bad:#f0a0a0;--warn:#e8c070;--ok:#9fd8ad;--code:#2a2925}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:60rem;margin:0 auto;padding:1.5rem 1rem 4rem;overflow-wrap:anywhere}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 .5rem}
+h2{font-size:1.2rem;margin:2rem 0 .5rem}
+h3{font-size:1rem;margin:1.25rem 0 .25rem}
+p,li{max-width:46rem}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+code,pre,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.86rem}
+code{background:var(--code);padding:0 .2em;border-radius:3px;overflow-wrap:anywhere}
+pre{background:var(--code);padding:.75rem;border-radius:6px;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere}
+form,.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:1rem;margin:1rem 0}
+fieldset{border:1px solid var(--line);border-radius:6px;margin:1rem 0;padding:.5rem .75rem .75rem}
+legend{font-weight:600;padding:0 .25rem}
+label{display:block;margin:.35rem 0}
+input[type=text]{width:100%;font:inherit;font-family:ui-monospace,Menlo,Consolas,monospace;padding:.45rem .5rem;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)}
+input[type=file]{max-width:100%}
+button{font:inherit;font-weight:600;padding:.55rem 1.1rem;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--bg);cursor:pointer}
+button.secondary{background:transparent;color:var(--accent)}
+button:disabled{opacity:.55;cursor:default}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.outcome{border:2px solid var(--line);border-radius:8px;padding:1rem;margin:1rem 0}
+.outcome .word{font-size:1.6rem;font-weight:700;letter-spacing:.04em}
+.outcome.valid{border-color:var(--ok)}.outcome.invalid{border-color:var(--bad)}.outcome.indeterminate{border-color:var(--warn)}
+.status{font-weight:700;text-transform:uppercase;font-size:.8rem;letter-spacing:.05em}
+.status.fail{color:var(--bad)}.status.warn{color:var(--warn)}.status.pass{color:var(--ok)}
+.table{width:100%;border-collapse:collapse;font-size:.92rem}
+.table th,.table td{border-bottom:1px solid var(--line);padding:.35rem .4rem;text-align:left;vertical-align:top}
+.table td.mono{overflow-wrap:normal;white-space:nowrap}
+.scroll{overflow-x:auto}
+details{border-top:1px solid var(--line);padding:.35rem 0}
+summary{cursor:pointer}
+#log{max-height:14rem;overflow-y:auto}
+#log li{font-size:.9rem}
+iframe{width:100%;height:32rem;border:1px solid var(--line);border-radius:6px;background:#fff}
+.err{border:2px solid var(--bad);border-radius:8px;padding:1rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Provenance Ledger anchors, verified in this browser</h1>
+<p>This page checks every anchor in the Provenance Ledger's public mirror, at a commit you name, with
+<a href="https://github.com/Korentsvit/fundingmachine-verify">fm-verify</a> running here in your browser. No server
+checks anything. It shows the verdict, the Bitcoin block headers the verdict relied on, and everything else it
+relied on. The command line gives the same verdict, and remains the proof.</p>
+
+<form id="form" novalidate>
+  <label for="commit"><strong>Mirror commit</strong>: a 40-character commit of
+    <a href="https://github.com/Korentsvit/fundingmachine-anchors">Korentsvit/fundingmachine-anchors</a></label>
+  <input type="text" id="commit" name="commit" autocomplete="off" spellcheck="false" inputmode="latin" maxlength="40"
+         aria-describedby="commit-hint">
+  <p class="muted" id="commit-hint"></p>
+
+  <fieldset>
+    <legend>Bitcoin block headers</legend>
+    <label><input type="radio" name="headers" value="both" checked> Fetch them from mempool.space and from blockstream.info,
+      and let the verifier compare the two</label>
+    <label><input type="radio" name="headers" value="https://mempool.space"> Fetch them from mempool.space alone, trusted outright</label>
+    <label><input type="radio" name="headers" value="https://blockstream.info"> Fetch them from blockstream.info alone, trusted outright</label>
+    <label><input type="radio" name="headers" value="file"> Use a headers file I hold (<code>HEIGHT HEX</code> lines)</label>
+    <input type="file" id="headers-file" aria-label="Headers file" disabled>
+  </fieldset>
+
+  <fieldset>
+    <legend>Roots of trust for the time-stamping authorities</legend>
+    <label><input type="radio" name="roots" value="shipped" checked> The two roots this page ships (listed at the foot of the page)</label>
+    <label><input type="radio" name="roots" value="file"> PEM files of my own</label>
+    <input type="file" id="roots-file" aria-label="Root certificate files" multiple disabled>
+  </fieldset>
+
+  <label><input type="checkbox" id="crosscheck" checked> Compare every file with the Ledger's own record at
+    fundingmachine-ledger.vercel.app, as a second source</label>
+
+  <details>
+    <summary>What this page fetches, and who learns what</summary>
+    <ul>
+      <li><strong>GitHub</strong> (raw.githubusercontent.com) serves the mirror's files at the commit named. It learns the commit, your IP
+        address and that this page asked.</li>
+      <li><strong>The Ledger's record</strong> (fundingmachine-ledger.vercel.app), if the box is ticked, is asked for each file by its
+        SHA-256. It learns the same.</li>
+      <li><strong>The explorers</strong> (mempool.space, blockstream.info) are asked for the blocks the proofs name. They learn the
+        block heights, which show roughly when the anchors were made, your IP address, and that the request comes from this page.</li>
+      <li>Nothing else leaves this page. It keeps no record of what was checked, and a reload forgets everything.</li>
+    </ul>
+  </details>
+  <p><button type="submit" id="go" disabled>Loading the verifier</button></p>
+</form>
+
+<section aria-live="polite">
+  <ol id="log"></ol>
+</section>
+
+<section id="result" hidden></section>
+
+<footer class="panel" id="build">
+  <h2>This page</h2>
+  <p class="muted" id="build-text">Reading the build.</p>
+</footer>
+</main>
+<script type="module">
+// The verifier runs here: Pyodide, cryptography and the fm-verify wheel, every file from this page's own origin
+// (site.json names them). Fetched from elsewhere: the mirror's files, the Ledger's record and the block headers,
+// and only those, under the page's Content Security Policy.
+const MIRROR = "https://raw.githubusercontent.com/Korentsvit/fundingmachine-anchors";
+const RECORD = "https://fundingmachine-ledger.vercel.app/api/anchors";
+const EXPLORERS = ["https://mempool.space", "https://blockstream.info"];
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v; else e.setAttribute(k, v);
+  }
+  for (const k of kids) e.append(k);
+  return e;
+};
+const log = (text) => { $("log").append(el("li", { text })); $("log").scrollTop = 1e9; };
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const sha256 = async (bytes) => hex(await crypto.subtle.digest("SHA-256", bytes));
+const b64 = (bytes) => {
+  let s = "";
+  const u = new Uint8Array(bytes);
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const SAFE_NAME = /^root\.preimage[A-Za-z0-9._-]*$/;
+const ANCHOR_PATH = /^\d{4}\/\d{2}\/\d{2}\/\d{6}Z$/;
+
+async function get(url, { allow404 = false, tries = 3 } = {}) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetch(url, { credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
+      if (r.status === 404 && allow404) return null;
+      if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+      return await r.arrayBuffer();
+    } catch (e) {
+      last = e;
+      await new Promise((ok) => setTimeout(ok, 500 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
+async function pool(items, n, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); }
+  }));
+  return out;
+}
+
+// The build: site.json, written by tools/build_page.py.
+const site = await (await fetch("site.json", { cache: "no-store" })).json();
+let wheelHash = "";
+const pyodide = (async () => {
+  const { loadPyodide } = await import("./pyodide.mjs");
+  const py = await loadPyodide({ indexURL: new URL(".", import.meta.url).href });
+  await py.loadPackage(["cryptography"]);
+  const wheel = await get(site.wheel.file);
+  wheelHash = await sha256(wheel);
+  py.unpackArchive(wheel, "wheel");
+  py.runPython("from fmverify.api import verify_json, bitcoin_heights\nimport json");
+  return py;
+})();
+
+function showBuild() {
+  const t = $("build-text");
+  t.replaceChildren();
+  const rows = [
+    ["fm-verify", `${site.fmverify.version}${site.fmverify.tag ? `, tag ${site.fmverify.tag}` : ", not a tagged release"}, built from ` +
+      (site.fmverify.changed ? `a checkout with changes, on commit ${site.fmverify.commit}` : `commit ${site.fmverify.commit}`)],
+    ["Its wheel", `${site.wheel.file}, SHA-256 ${site.wheel.sha256}` + (wheelHash ? (wheelHash === site.wheel.sha256 ? " (this page hashed what it loaded: the same)" : ` (what this page loaded hashes to ${wheelHash}: NOT the same)`) : "")],
+    ["Pyodide", `${site.pyodide.version}, with cryptography ${site.pyodide.cryptography}`],
+  ];
+  const dl = el("dl");
+  for (const [k, v] of rows) dl.append(el("dt", { text: k }), el("dd", { class: "mono", text: v }));
+  t.append(dl, el("p", { text: "Anyone can rebuild the wheel from the commit with tools/build_release.py and compare its SHA-256; " +
+    "the hash shown comes from the same host as the page, so the independent checks are that rebuild and the command line." }));
+  t.append(el("h3", { text: "The roots this page ships" }), el("p", { text: "Chosen by this page, not by you; you can use PEM files of your own instead." }));
+  const ul = el("ul");
+  for (const r of site.roots) ul.append(el("li", {}, el("span", { text: `${r.name}: from ` }), el("code", { text: r.url }),
+    el("span", { text: `, retrieved ${r.retrieved}, SHA-256 ` }), el("code", { text: r.sha256 })));
+  t.append(ul);
+}
+showBuild();
+
+const params = new URLSearchParams(location.search);
+const fromUrl = (params.get("commit") || "").toLowerCase();
+$("commit").value = /^[0-9a-f]{40}$/.test(fromUrl) ? fromUrl : (site.default_commit || "");
+$("commit-hint").textContent = site.default_commit
+  ? `The commit of the newest verdict in this repository's verdicts/ is ${site.default_commit}. Any later commit of the mirror can be named.`
+  : "Name a commit of the mirror.";
+for (const r of document.querySelectorAll("input[name=headers]")) r.addEventListener("change", () => { $("headers-file").disabled = r.value !== "file" || !r.checked; });
+for (const r of document.querySelectorAll("input[name=roots]")) r.addEventListener("change", () => { $("roots-file").disabled = r.value !== "file" || !r.checked; });
+
+pyodide.then(() => { $("go").disabled = false; $("go").textContent = "Verify"; showBuild(); },
+  (e) => { $("go").textContent = "The verifier could not load"; log(`The verifier could not load: ${e}`); });
+
+// The mirror at the commit: index.jsonl, then each anchor's manifest and the files it names.
+async function readMirror(commit) {
+  const base = `${MIRROR}/${commit}/anchors`;
+  const files = new Map();
+  const index = await get(`${base}/index.jsonl`, { allow404: true });
+  if (index === null) throw new Error(`the mirror has no anchors/index.jsonl at commit ${commit}`);
+  files.set("index.jsonl", index);
+  const paths = new TextDecoder().decode(index).split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l).path);
+  const bad = paths.filter((p) => typeof p !== "string" || !ANCHOR_PATH.test(p));
+  if (bad.length) throw new Error(`index.jsonl names paths that are not anchors: ${bad.slice(0, 3).join(", ")}`);
+  log(`index.jsonl at ${commit.slice(0, 12)} lists ${paths.length} anchors.`);
+  let done = 0;
+  await pool(paths, 6, async (p) => {
+    const manifest = await get(`${base}/${p}/manifest.json`, { allow404: true });
+    if (manifest === null) return;
+    files.set(`${p}/manifest.json`, manifest);
+    let named = ["root.preimage"];
+    try {
+      const m = JSON.parse(new TextDecoder().decode(manifest));
+      const pr = m.proofs || {};
+      named = [pr.preimage, pr.opentimestamps && pr.opentimestamps.file, ...((pr.rfc3161 || []).map((t) => t && t.file)), "root.preimage"];
+    } catch { /* the verifier reports an unreadable manifest */ }
+    for (const name of new Set(named.filter((n) => typeof n === "string" && SAFE_NAME.test(n)))) {
+      const data = await get(`${base}/${p}/${name}`, { allow404: true });
+      if (data !== null) files.set(`${p}/${name}`, data);
+    }
+    if (++done % 10 === 0 || done === paths.length) log(`Fetched ${done} of ${paths.length} anchors from the mirror.`);
+  });
+  return files;
+}
+
+// The second source: each file asked of the Ledger's record by its SHA-256.
+async function crossCheck(files) {
+  const rows = [...files.entries()];
+  const differ = [];
+  await pool(rows, 6, async ([path, data]) => {
+    const h = await sha256(data);
+    const got = await get(`${RECORD}?path=${encodeURIComponent(path)}&sha256=${h}`, { allow404: true });
+    if (got === null) differ.push(`${path}: the record holds no version with this SHA-256`);
+    else if (await sha256(got) !== h) differ.push(`${path}: the record answered with other bytes`);
+  });
+  return { checked: rows.length, differ: differ.sort() };
+}
+
+async function headersFrom(origin, heights) {
+  const lines = [`# Bitcoin block headers fetched ${new Date().toISOString()} by this page from ${origin}/api`];
+  for (const h of heights) {
+    const hash = new TextDecoder().decode(await get(`${origin}/api/block-height/${h}`)).trim();
+    if (!/^[0-9a-f]{64}$/.test(hash)) throw new Error(`${origin}: height ${h} answered ${hash.slice(0, 80)}`);
+    const header = new TextDecoder().decode(await get(`${origin}/api/block/${hash}/header`)).trim();
+    if (!/^[0-9a-f]{160}$/.test(header)) throw new Error(`${origin}: block ${hash} answered a header of the wrong shape`);
+    lines.push(`# ${h}: block ${hash}`, `${h} ${header}`);
+  }
+  return lines.join("\n") + "\n";
+}
+
+const blockHash = async (headerHex) => {
+  const bytes = new Uint8Array(headerHex.match(/../g).map((x) => parseInt(x, 16)));
+  const once = await crypto.subtle.digest("SHA-256", bytes);
+  return hex(await crypto.subtle.digest("SHA-256", once)).match(/../g).reverse().join("");
+};
+
+const STATUS_WORDS = { pass: "pass", fail: "fail", warn: "warning", not_checked: "not checked", info: "information" };
+
+function checkList(checks) {
+  const wrap = el("div");
+  for (const c of checks) {
+    const d = el("details");
+    if (c.status === "fail" || c.status === "warn") d.open = true;
+    d.append(el("summary", {}, el("span", { class: `status ${c.status}`, text: STATUS_WORDS[c.status] || c.status }),
+      el("span", { text: ` ${c.id}: ${c.summary}` })));
+    if ((c.reasons || []).length) d.append(el("ul", {}, ...c.reasons.map((r) => el("li", { text: r }))));
+    wrap.append(d);
+  }
+  return wrap;
+}
+
+function listSection(title, items) {
+  return [el("h3", { text: title }), el("ul", {}, ...items.map((t) => el("li", { text: t })))];
+}
+
+function download(name, text, type) {
+  const a = el("a", { href: URL.createObjectURL(new Blob([text], { type })), download: name, text: name });
+  return a;
+}
+
+async function render(verdict, ctx) {
+  const out = $("result");
+  out.replaceChildren();
+  out.hidden = false;
+  out.append(el("h2", { text: "The verdict" }));
+  const box = el("div", { class: `outcome ${verdict.outcome}` },
+    el("div", { class: "word", text: verdict.outcome.toUpperCase() }), el("p", { text: verdict.statement }),
+    el("p", { class: "muted", text: `Checked at ${verdict.checked_at} by this computer's clock, with fm-verify ${verdict.tool && verdict.tool.version}.` }));
+  out.append(box);
+  out.append(...listSection("Relied on", [
+    `The mirror's files at commit ${ctx.commit}, as GitHub served them (raw.githubusercontent.com)` +
+      (ctx.cross ? (ctx.cross.differ.length
+        ? `; the Ledger's record did NOT hold the same bytes for ${ctx.cross.differ.length} of ${ctx.cross.checked} files (below)`
+        : `; the Ledger's own record held the same bytes for all ${ctx.cross.checked} files`) : "; not compared with the Ledger's record"),
+    ...(verdict.relies_on || []),
+  ]));
+  out.append(...listSection("Does not establish", verdict.does_not_establish || []));
+  if (ctx.cross && ctx.cross.differ.length) out.append(el("div", { class: "err" }, el("strong", { text: "The two sources differ" }),
+    el("ul", {}, ...ctx.cross.differ.slice(0, 50).map((t) => el("li", { text: t })))));
+
+  out.append(el("h2", { text: "The Bitcoin block headers relied on" }));
+  out.append(el("p", { text: ctx.headerNote }));
+  const ht = el("table", { class: "table" }, el("thead", {}, el("tr", {}, el("th", { text: "Height" }), el("th", { text: "Block" }), el("th", { text: "Header" }))));
+  const tb = el("tbody");
+  for (const row of ctx.headerRows) tb.append(el("tr", {}, el("td", { class: "mono", text: String(row.height) }),
+    el("td", { class: "mono", text: row.hash }), el("td", { class: "mono", text: row.header })));
+  ht.append(tb);
+  out.append(el("div", { class: "scroll" }, ht));
+  out.append(el("p", {}, el("span", { text: "Save them: " }), ...ctx.headerFiles.map(([n, t]) => [download(n, t, "text/plain"), el("span", { text: " " })]).flat()));
+
+  out.append(el("h2", { text: "Each anchor" }));
+  const at = el("table", { class: "table" }, el("thead", {}, el("tr", {}, el("th", { text: "Anchor" }), el("th", { text: "Verdict" }), el("th", { text: "Bitcoin" }))));
+  const ab = el("tbody");
+  for (const c of verdict.checks.filter((c) => c.id.startsWith("anchor_set.") && c.data && c.data.verdict)) {
+    const v = c.data.verdict;
+    const ots = (v.checks || []).find((x) => x.id === "ledger_anchor.ots");
+    const m = ots && ots.status === "pass" && ots.summary.match(/Bitcoin block (\d+) \(([0-9a-f]{64})\), whose header gives the time (\S+?)\.?$/);
+    const btc = !ots ? "no proof" : m ? `block ${m[1]}, its header's time ${m[3]}`
+      : ots.status === "not_checked" ? "pending: no Bitcoin attestation yet" : ots.summary;
+    ab.append(el("tr", {}, el("td", { class: "mono", text: c.id.slice("anchor_set.".length) }),
+      el("td", {}, el("span", { class: `status ${c.status}`, text: v.outcome })), el("td", { text: btc })));
+  }
+  at.append(ab);
+  out.append(el("div", { class: "scroll" }, at));
+
+  out.append(el("h2", { text: "Every check" }), checkList(verdict.checks));
+  for (const c of verdict.checks.filter((c) => c.data && c.data.verdict && (c.status === "fail" || c.status === "warn"))) {
+    out.append(el("h3", { text: c.id.slice("anchor_set.".length) }), checkList(c.data.verdict.checks));
+  }
+
+  out.append(el("h2", { text: "The same check on the command line" }));
+  out.append(el("pre", { text: [
+    "git clone https://github.com/Korentsvit/fundingmachine-anchors",
+    `git -C fundingmachine-anchors checkout ${ctx.commit}`,
+    `python -m pip install ./fundingmachine-verify   # a checkout of the verifier at commit ${site.fmverify.commit}`,
+    `fm-verify anchors fundingmachine-anchors/anchors --all ${ctx.headerArgs} --roots roots.pem`,
+  ].join("\n") }));
+  out.append(el("p", {}, el("span", { text: "Save: " }), download("verdict.json", JSON.stringify(verdict, null, 1), "application/json"),
+    el("span", { text: " " }), download("roots.pem", ctx.roots.join("\n"), "application/x-pem-file")));
+
+  if (ctx.html) {
+    out.append(el("h2", { text: "The verifier's report" }));
+    const f = el("iframe", { sandbox: "", title: "The verifier's report" });
+    f.srcdoc = ctx.html;
+    out.append(f);
+  }
+}
+
+$("form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const commit = $("commit").value.trim().toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(commit)) { $("commit-hint").textContent = "A commit is 40 hexadecimal characters."; $("commit").focus(); return; }
+  $("go").disabled = true;
+  $("log").replaceChildren();
+  $("result").hidden = true;
+  try {
+    const py = await pyodide;
+    const mode = document.querySelector("input[name=headers]:checked").value;
+    const rootsMode = document.querySelector("input[name=roots]:checked").value;
+    let roots;
+    if (rootsMode === "file") {
+      const fs = [...$("roots-file").files];
+      if (!fs.length) throw new Error("choose one or more PEM files, or use the roots this page ships");
+      roots = await Promise.all(fs.map((f) => f.text()));
+    } else {
+      roots = [new TextDecoder().decode(await get(site.roots_file))];
+    }
+    log(`Reading the mirror at ${commit}.`);
+    const files = await readMirror(commit);
+    let cross = null;
+    if ($("crosscheck").checked) {
+      log(`Comparing ${files.size} files with the Ledger's record.`);
+      cross = await crossCheck(files);
+      log(cross.differ.length ? `The record differs on ${cross.differ.length} files.` : `The record holds the same bytes for all ${cross.checked} files.`);
+    }
+    const proofs = [...files.entries()].filter(([p]) => p.endsWith(".ots")).map(([, d]) => b64(d));
+    py.globals.set("PROOFS", JSON.stringify(proofs));
+    const hs = JSON.parse(py.runPython("json.dumps(bitcoin_heights(json.loads(PROOFS)))"));
+    if (hs.error) throw new Error(hs.error);
+    const heights = hs.heights;
+    log(`The proofs name ${heights.length} Bitcoin blocks.`);
+    const headers = [];
+    const headerFiles = [];
+    let headerNote;
+    let headerArgs;
+    if (mode === "file") {
+      const f = $("headers-file").files[0];
+      if (!f) throw new Error("choose a headers file, or fetch the headers");
+      headers.push({ kind: "sparse", text: await f.text(), name: f.name });
+      headerNote = `From the file you gave, ${f.name}.`;
+      headerArgs = `--headers ${f.name}`;
+    } else {
+      const origins = mode === "both" ? EXPLORERS : [mode];
+      for (const o of origins) {
+        log(`Fetching ${heights.length} headers from ${o}.`);
+        const text = await headersFrom(o, heights);
+        const host = new URL(o).host;
+        headers.push({ kind: "sparse", text, name: `${host}, fetched by this page` });
+        headerFiles.push([`headers-${host}.txt`, text]);
+      }
+      headerNote = origins.length === 2
+        ? "Fetched from mempool.space and from blockstream.info. Both answers were given to the verifier, which compares them: a header the two disagree on makes the verdict invalid. The verdict relies on these explorers for which block is at each height."
+        : `Fetched from ${new URL(origins[0]).host} alone, trusted outright: nothing compared its answers.`;
+      headerArgs = headerFiles.map(([n]) => `--headers ${n}`).join(" ");
+    }
+    const headerRows = [];
+    const seen = new Map();
+    for (const h of headers) for (const line of h.text.split("\n")) {
+      const m = line.match(/^(\d+)\s+([0-9a-fA-F]{160})\s*$/);
+      if (m && !seen.has(m[1])) seen.set(m[1], m[2].toLowerCase());
+    }
+    for (const [height, header] of [...seen.entries()].sort((a, b) => a[0] - b[0])) headerRows.push({ height, header, hash: await blockHash(header) });
+    log("Verifying.");
+    await new Promise((ok) => setTimeout(ok, 30));
+    const req = { kind: "ledger-anchor-set", label: `Korentsvit/fundingmachine-anchors at ${commit}`, headers, roots, render: "html", files: {} };
+    for (const [p, d] of files) req.files[p] = b64(d);
+    py.globals.set("REQUEST", JSON.stringify(req));
+    const answer = JSON.parse(py.runPython("verify_json(REQUEST)"));
+    if (answer.error) {
+      const box = el("div", { class: "err" }, el("strong", { text: "Could not check" }), el("p", { text: answer.error }));
+      if (answer.internal) box.append(el("p", {}, el("span", { text: "This is a fault in the verifier, not a verdict. Please report it: " }),
+        el("a", { href: "https://github.com/Korentsvit/fundingmachine-verify/blob/main/docs/SECURITY_NOTE.md", text: "SECURITY_NOTE.md, Reporting a problem" })));
+      $("result").replaceChildren(box);
+      $("result").hidden = false;
+    } else {
+      const html = answer.html;
+      delete answer.html;
+      await render(answer, { commit, cross, headerNote, headerRows, headerFiles, headerArgs, roots, html });
+      log("Done.");
+      window.VERDICT = answer;
+    }
+  } catch (e) {
+    const box = el("div", { class: "err" }, el("strong", { text: "Could not check" }), el("p", { text: String(e && e.message || e) }));
+    $("result").replaceChildren(box);
+    $("result").hidden = false;
+    log(`Stopped: ${e && e.message || e}`);
+    window.VERDICT = { error: String(e && e.message || e) };
+  } finally {
+    $("go").disabled = false;
+  }
+});
+</script>
+</body>
+</html>

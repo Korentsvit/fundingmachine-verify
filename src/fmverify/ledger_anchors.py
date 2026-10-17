@@ -32,7 +32,7 @@ import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from . import der, jcs, merkle, ots, rfc3161
 from .bitcoin import MAINNET, HeaderSource, Network
@@ -665,13 +665,32 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
     anchor here with that time, root and size; times increase; each link is
     to the line before; and every anchor directory here is listed."""
     base = Path(root)
+    rels = {d.resolve(): d.relative_to(base).as_posix() for d in dirs}
+
+    def anchor_of(rel: str) -> str | None:
+        return rels.get(base.joinpath(*PurePosixPath(rel).parts).resolve())
+
+    def manifest_of(rel: str) -> bytes | None:
+        try:
+            return (base.joinpath(*PurePosixPath(rel).parts) / "manifest.json").read_bytes()
+        except OSError:
+            return None
+
+    return index_check((base / "index.jsonl").read_bytes(), list(rels.values()), anchor_of, manifest_of)
+
+
+def index_check(index: bytes, anchors: Sequence[str], anchor_of: Callable[[str], str | None],
+                manifest_of: Callable[[str], bytes | None]) -> Check:
+    """The index check on the bytes of index.jsonl: ``anchors`` are the anchor
+    directories present (relative paths), ``anchor_of`` maps a path an index
+    line gives to one of them (or None), ``manifest_of`` gives that anchor's
+    manifest.json bytes (or None)."""
     problems: list[str] = []
     try:
-        lines = read_index(base / "index.jsonl")
+        lines = [json.loads(line) for line in index.decode("utf-8").splitlines() if line.strip()]
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return Check("anchor_set.index", Status.FAIL, "index.jsonl is not one JSON object per line", reasons=[str(exc)])
-    listed: set[Path] = set()
-    anchors = {x.resolve() for x in dirs}
+    listed: set[str] = set()
     before: dict | None = None
     for i, line in enumerate(lines, 1):
         if not isinstance(line, dict) or set(line) != INDEX_KEYS:
@@ -684,15 +703,18 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
             problems.append(f"line {i}: path {rel!r} is not a relative path inside the anchors directory")
             before = line
             continue
-        d = base.joinpath(*parts)
-        listed.add(d.resolve())
-        if d.resolve() not in anchors:
+        anchor = anchor_of(rel)
+        if anchor is None:
             problems.append(f"line {i}: {rel} is not an anchor here (no root.preimage), so nothing proves it")
             before = line
             continue
+        listed.add(anchor)
+        raw = manifest_of(anchor)
         try:
-            m = jcs.loads((d / "manifest.json").read_text(encoding="utf-8"))
-        except (OSError, jcs.JcsError, UnicodeDecodeError):
+            if raw is None:
+                raise jcs.JcsError("absent")
+            m = jcs.loads(raw.decode("utf-8"))
+        except (jcs.JcsError, UnicodeDecodeError):
             problems.append(f"line {i}: {rel} has no readable manifest.json")
             before = line
             continue
@@ -708,7 +730,7 @@ def check_index(root: str | Path, dirs: Sequence[Path]) -> Check:
                 and not line["created"] > before["created"]:
             problems.append(f"line {i}: created {line['created']} is not after the line before ({before['created']})")
         before = line
-    unlisted = [d.relative_to(base).as_posix() for d in dirs if d.resolve() not in listed]
+    unlisted = [a for a in anchors if a not in listed]
     data = {"lines": len(lines), "unlisted": unlisted}
     if problems:
         return Check("anchor_set.index", Status.FAIL, "index.jsonl and the anchors' links do not agree",
@@ -753,22 +775,49 @@ def _anchor_row(v: Verdict, summary: str) -> tuple[Status, str]:
 def verify_all(root: str | Path, checked_at: str | None = None, **kwargs) -> Verdict:
     """Verify every anchor directory under ``root``; one check per anchor."""
     dirs = find_anchor_dirs(root)
+    rows = [(d.relative_to(Path(root)).as_posix() or ".", verify_dir(d, checked_at=checked_at, **kwargs)) for d in dirs]
+    index = check_index(root, dirs) if (Path(root) / "index.jsonl").is_file() else None
+    return _set_verdict(rows, index, str(root), checked_at)
+
+
+@guarded("anchor-set", "anchor_set.read", "anchor set")
+def verify_set_files(files: Mapping[str, bytes], name: str = "", checked_at: str | None = None, **kwargs) -> Verdict:
+    """The same as ``verify_all``, on an anchors directory held in memory: ``files`` maps each path under it
+    (``index.jsonl``, ``YYYY/MM/DD/HHMMSSZ/manifest.json``, ...) to its bytes. Only index.jsonl and each anchor
+    directory's own files (manifest.json, root.preimage*) are read; no checkout is compared."""
+    by_dir: dict[str, dict[str, bytes]] = {}
+    for path, data in files.items():
+        p = PurePosixPath(path)
+        if p.is_absolute() or ".." in p.parts or not p.parts:
+            raise ValueError(f"{path!r} is not a relative path inside the anchors directory")
+        if p.name == "manifest.json" or p.name.startswith("root.preimage"):
+            by_dir.setdefault(p.parent.as_posix(), {})[p.name] = data
+    anchors = sorted(d for d, fs in by_dir.items() if "root.preimage" in fs)
+    rows = [(d, verify_files(by_dir[d], name=d if re.fullmatch(r"\d{4}/\d{2}/\d{2}/\d{6}Z", d) else PurePosixPath(d).name,
+                             checked_at=checked_at, **kwargs)) for d in anchors]
+    index = None
+    if "index.jsonl" in files:
+        index = index_check(files["index.jsonl"], anchors,
+                            lambda rel: (lambda n: n if n in by_dir and "root.preimage" in by_dir[n] else None)(PurePosixPath(rel).as_posix()),
+                            lambda rel: by_dir.get(rel, {}).get("manifest.json"))
+    return _set_verdict(rows, index, name or "the anchors given", checked_at)
+
+
+def _set_verdict(rows: Sequence[tuple[str, Verdict]], index: Check | None, root: str, checked_at: str | None) -> Verdict:
     checks: list[Check] = []
     outcomes = {o: 0 for o in Outcome}
     warned = 0
-    for d in dirs:
-        v = verify_dir(d, checked_at=checked_at, **kwargs)
+    for rel, v in rows:
         outcomes[v.outcome] += 1
-        rel = d.relative_to(Path(root)).as_posix() or "."
         status, summary = _anchor_row(v, f"{rel}: {v.outcome.value}")
         warned += status is Status.WARN
         checks.append(Check(f"anchor_set.{rel}", status, summary, reasons=_anchor_reasons(v),
                             relies_on=v.relies_on, data={"verdict": v.to_dict()}))
-    if not dirs:
+    if not rows:
         checks.append(Check("anchor_set.read", Status.NOT_CHECKED, f"no anchor directory (with root.preimage) under {root}"))
-    if (Path(root) / "index.jsonl").is_file():
-        checks.append(check_index(root, dirs))
-    n = len(dirs)
+    if index is not None:
+        checks.append(index)
+    n = len(rows)
     statements = {
         Outcome.VALID: f"All {n} anchors under {root} hold" + (f"; {warned} of them with warnings (see their checks)." if warned else "."),
         Outcome.INVALID: ((f"{outcomes[Outcome.INVALID]} of {n} anchors under {root} do not hold; "
