@@ -1,0 +1,87 @@
+{
+  "contract": "ledger-event/v0",
+  "description": "The event at seq 2 is stamped a year before the previous event (ts_backwards) and is an edit.insert whose range is not empty (range_not_empty); ts_backwards comes first in the contract's table, so it is the failure to report. Keys: fixtures/ledger-event/v0/keys.json.",
+  "breaks": [
+    "ts_backwards",
+    "range_not_empty"
+  ],
+  "expect": {
+    "ok": false,
+    "index": 1,
+    "seq": 2,
+    "code": "ts_backwards"
+  },
+  "events": [
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "66ad588a-3d06-42c8-9b9c-f7793e07044a",
+      "type": "session.open",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 1,
+      "ts": "2026-10-16T08:00:00.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": null,
+      "content_hash": null,
+      "doc_hash": "bcb35389cb9c355273afbd997ba13fdcd11246460cd20e364da7f47b12be8475",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "capture_fidelity": "live",
+      "payload": {
+        "client": {
+          "name": "reference-writer",
+          "version": "0.1.0"
+        },
+        "client_key": {
+          "alg": "ed25519",
+          "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        },
+        "genesis": {
+          "statement_id": "st-1",
+          "section_id": "technology",
+          "section_ref": "call:eic_accelerator_step1/technology",
+          "key_commitment": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd"
+        }
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "tXbw4UlTsq3PQftXXRWIgs8m7yF3UV0uYx0YsYBkDyKIrSjj7qAmiNV6wIXqccBEthtCVJA1E8JzxG8TGRrkDg"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "ccbcf977-1dc4-47f5-9099-8d9111d87872",
+      "type": "edit.insert",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 2,
+      "ts": "2025-10-16T08:00:00.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-1",
+        "start": 0,
+        "end": 1
+      },
+      "content_hash": "06d363924d7a5478daf755f817a27c2ab07178fd207a7052dfd807141fcaf725",
+      "doc_hash": "dde202bc9cbf876f4bb29150fd4adba0ecfbc679a392b01c457d41401268781a",
+      "prev_hash": "3450c8f05008cf97a8318eead0f8e63d282fd56032008b0fb36f59f2fb2a3cab",
+      "capture_fidelity": "live",
+      "payload": {
+        "length": 53
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "NJF0ts02WgVKwlPOuCXngKeIVPEZYNvJW5kiNDo-HjfN1YEk7opqAZGWzLOXEQPW_Gu3_2AttO48jUz35CiWBg"
+      }
+    }
+  ]
+}

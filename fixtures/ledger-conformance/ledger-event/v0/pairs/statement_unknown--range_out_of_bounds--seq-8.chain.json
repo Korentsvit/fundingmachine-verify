@@ -1,0 +1,289 @@
+{
+  "contract": "ledger-event/v0",
+  "description": "The event at seq 8 deletes from a statement that does not exist (statement_unknown) and deletes past the end of its statement (range_out_of_bounds); statement_unknown comes first in the contract's table, so it is the failure to report. Keys: fixtures/ledger-event/v0/keys.json.",
+  "breaks": [
+    "statement_unknown",
+    "range_out_of_bounds"
+  ],
+  "expect": {
+    "ok": false,
+    "index": 7,
+    "seq": 8,
+    "code": "statement_unknown"
+  },
+  "events": [
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "66ad588a-3d06-42c8-9b9c-f7793e07044a",
+      "type": "session.open",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 1,
+      "ts": "2026-10-16T08:00:00.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": null,
+      "content_hash": null,
+      "doc_hash": "bcb35389cb9c355273afbd997ba13fdcd11246460cd20e364da7f47b12be8475",
+      "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "capture_fidelity": "live",
+      "payload": {
+        "client": {
+          "name": "reference-writer",
+          "version": "0.1.0"
+        },
+        "client_key": {
+          "alg": "ed25519",
+          "public_key": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo"
+        },
+        "genesis": {
+          "statement_id": "st-1",
+          "section_id": "technology",
+          "section_ref": "call:eic_accelerator_step1/technology",
+          "key_commitment": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd"
+        }
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "tXbw4UlTsq3PQftXXRWIgs8m7yF3UV0uYx0YsYBkDyKIrSjj7qAmiNV6wIXqccBEthtCVJA1E8JzxG8TGRrkDg"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "ccbcf977-1dc4-47f5-9099-8d9111d87872",
+      "type": "edit.insert",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 2,
+      "ts": "2026-10-16T08:00:07.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-1",
+        "start": 0,
+        "end": 0
+      },
+      "content_hash": "06d363924d7a5478daf755f817a27c2ab07178fd207a7052dfd807141fcaf725",
+      "doc_hash": "dde202bc9cbf876f4bb29150fd4adba0ecfbc679a392b01c457d41401268781a",
+      "prev_hash": "3450c8f05008cf97a8318eead0f8e63d282fd56032008b0fb36f59f2fb2a3cab",
+      "capture_fidelity": "live",
+      "payload": {
+        "length": 53
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "ZajpUTZ79WjArHuxIN21SwcUcSRtJmvqlpqgcK9ynmdKrPQ7k5mvtK8X9yV-Ar7aUBfK0jlVue6F9eraZs8VCw"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "3529611a-bd34-496b-89f5-a7432a05f395",
+      "type": "statement.split",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 3,
+      "ts": "2026-10-16T08:00:14.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-1",
+        "start": 53,
+        "end": 53
+      },
+      "content_hash": null,
+      "doc_hash": "2f65ef93e50f2a82efcd0b158bb87fc0187187a361e63e0cdcb02f542f20b342",
+      "prev_hash": "598dd08e192fc8ea2c0b5cc354b340ad33e7efd9e1ad68505768763192f7e83d",
+      "capture_fidelity": "live",
+      "payload": {
+        "new_statement_id": "st-2",
+        "section_id": null,
+        "section_ref": null
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "szRsgpplkDzX-8oLkndmIUcAmeOld2ky0RHc3_93irwJ58fWE_VupSn_-YQ2A6pTm2yXI1ZXINzzYJHpyo-jCw"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "d2f2ec05-dbd6-43ee-8e30-d6d6fa15da70",
+      "type": "import.paste",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 4,
+      "ts": "2026-10-16T08:00:21.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-2",
+        "start": 0,
+        "end": 0
+      },
+      "content_hash": "f7014d66c068efcfd8799de917e5bff63919ff28dad92382006f1a9a3e3c83d4",
+      "doc_hash": "a9561ce088d5642a16ff339efb69797173f1055efece3543404aea372ea15129",
+      "prev_hash": "3c021a8e4d78bce46bb2369e693afe353f1f0a36394c0cd97471b7eccb7141de",
+      "capture_fidelity": "live",
+      "payload": {
+        "length": 33,
+        "removed_hash": null,
+        "source": {
+          "kind": "web",
+          "ref_hash": "8d6344a1a41049c42292dd31ea6c0fde0f720198d01c92d9a7019a7cf43357c5"
+        }
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "Y_x4q7sacdHY9e25Hj-D6fJ2unzmCo5uZNPicndW7hdUz0-43HGmqCO4i6NtZwg48aAOF_5tSwSbEfC-DcZeAA"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "cb582747-16ca-4b30-b49c-8e12d2417cfb",
+      "type": "tool.generate",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 5,
+      "ts": "2026-10-16T08:00:28.000Z",
+      "actor": {
+        "kind": "tool",
+        "id": "tool:assist-1",
+        "tool_name": "Example Assistant",
+        "model_id": "example-model-1"
+      },
+      "range": {
+        "statement_id": "st-2",
+        "start": 33,
+        "end": 33
+      },
+      "content_hash": "8a223da1e2e65d9d0fb93c473bc29030c34c785b03428a299e0fff745e87f580",
+      "doc_hash": "68786f4a66d54e57d3cb94b832c6c05e1db9f97f3e44802ffa5a06cce01bc03d",
+      "prev_hash": "46b905de28986a585ab2e9ef24dda19a3ecbb62a07e26b7a6377f530de21ebba",
+      "capture_fidelity": "tool_report",
+      "payload": {
+        "length": 33,
+        "removed_hash": null,
+        "prompt_hash": "75c0e991f89017ffe9559034eaf4409c7d04414a6f32e9458abb45ab3c42e21f",
+        "accepted_by": "person:7f3a"
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "dCeSxFIBy8gUqMtZUCiO0VL8Vrm-R1znhPe2CNGrqifmS6DBtq2y0GeCsIa31j4FxHblSlZJS4JCv8D3oEucCQ"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "bfe13a94-7964-4d94-baa4-f2dcfcb3842b",
+      "type": "tool.edit",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 6,
+      "ts": "2026-10-16T08:00:35.000Z",
+      "actor": {
+        "kind": "tool",
+        "id": "tool:assist-1",
+        "tool_name": "Example Assistant",
+        "model_id": "example-model-1"
+      },
+      "range": {
+        "statement_id": "st-2",
+        "start": 43,
+        "end": 53
+      },
+      "content_hash": "0f7b0f76026556a1996c2442f7f6e8f2ddde788004e32599fa3c85c57086c9d0",
+      "doc_hash": "1d0eb6c4c281db2780bb564f5702bf35cdb0551ac3fe8fc5e7775a328ba893b8",
+      "prev_hash": "445f8f17525bed1d5367cecef4b577cf9385d0625489532acf50896b41471df4",
+      "capture_fidelity": "tool_report",
+      "payload": {
+        "length": 10,
+        "removed_hash": "0bfdc8fe66903f003e085f85ccdb8287c35e4d56d758fb2a15ee4cefc0b07fc5",
+        "prompt_hash": "4a919022c9bd10cb32a63c450fc52b4ae536bedc99b561b0fe8b119bc4154fca",
+        "accepted_by": "person:7f3a"
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "xYIXAuTiCAcTX4Oahey4hdjpxoYvtW2m0OazL3gDm1PeY6LhHl5RxYGcrtn-7CuTuw3a0_bi5K82GmKDzVL0Dw"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "7489ee71-faf6-4559-8d60-69db9c91f95c",
+      "type": "edit.replace",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 7,
+      "ts": "2026-10-16T08:00:42.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-1",
+        "start": 41,
+        "end": 52
+      },
+      "content_hash": "9b783c63901dae797d77aa76c59c354c3c780bb8919a27478a0b1a88fef69201",
+      "doc_hash": "1c98e8a6640fd4a2756c653b06c342186755a604d8b9dc518931e02e24aa8e6a",
+      "prev_hash": "3ddcf0f6a56e14cd9c0b15f5c332bdbec71979b42958d736b544e9ca33745e6d",
+      "capture_fidelity": "live",
+      "payload": {
+        "length": 15,
+        "removed_hash": "b87e593c5905739e8bf0df33fb4eb3926fb6399317dade4ac19b6f9f08655985"
+      },
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "7qAvochrFzDhoZStuX0psa_zCHc2sAcuqwMZCeAUDQ5Pznx-FDuMVd8gAw4bX8BPc825s5-H-4613yV6wdclAg"
+      }
+    },
+    {
+      "contract": "ledger-event/v0",
+      "event_id": "ce8827be-500e-4cbc-b950-505d4d98f9b0",
+      "type": "edit.delete",
+      "doc_id": "7ef6a025-d528-44a9-aeb0-97cdf7ae1b9b",
+      "tenant_id": "demo",
+      "session_id": "4efbcb1f-d037-4c6e-9558-8ef7a7438db1",
+      "seq": 8,
+      "ts": "2026-10-16T08:00:49.000Z",
+      "actor": {
+        "kind": "human",
+        "id": "person:7f3a"
+      },
+      "range": {
+        "statement_id": "st-9",
+        "start": 24,
+        "end": 500
+      },
+      "content_hash": "7a92c8939fd95290c4cb7b7aafac2b8b7bb8a8f4f1e8c795b3aa061914c170dc",
+      "doc_hash": "117b80718ce27786763eda18ba80e1bab6b048ef2ff143d78a54b8d44921a438",
+      "prev_hash": "38036d5917ef282c0e48401e66358f873634be03aec9b2325f653b6e01c4c702",
+      "capture_fidelity": "live",
+      "payload": {},
+      "client_sig": {
+        "alg": "ed25519",
+        "key_id": "21fe31dfa154a261626bf854046fd2271b7bed4b6abe45aa58877ef47f9721b9",
+        "sig": "y-YnRepDfvIa-yJK4sODWqDNeBPiwTkZUnqTiBk2a3KJR2v9TJZnEF9WwSJA14qMoBOnFsW5K9KMcTrNfkJYBw"
+      }
+    }
+  ]
+}

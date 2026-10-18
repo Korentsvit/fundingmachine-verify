@@ -23,7 +23,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
@@ -33,6 +35,9 @@ from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
 KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "record-certificate", "chain", "roots")
+# The Provenance Ledger conformance suite's CS-22 pair fixtures, copied unchanged with their LICENSE
+# (fixtures/ledger-conformance/README.md). Each is one file, not a case directory; it runs as a chain case.
+LEDGER_PAIRS = Path("ledger-conformance") / "ledger-event" / "v0" / "pairs"
 
 
 @dataclass
@@ -204,6 +209,21 @@ def cases(fixtures: Path) -> list[tuple[str, Path]]:
     return out
 
 
+def ledger_pairs(fixtures: Path) -> list[Path]:
+    return sorted((fixtures / LEDGER_PAIRS).glob("*.chain.json"))
+
+
+def ledger_pair(path: Path) -> tuple[dict, list]:
+    """A Ledger pair fixture in this suite's terms: what it expects (its expect.code at its expect.index, the chain
+    rules failing), and its events."""
+    d = json.loads(path.read_text(encoding="utf-8"))
+    e = d["expect"]
+    exp = {"description": d.get("description", ""), "outcome": "valid" if e["ok"] else "invalid"}
+    if not e["ok"]:
+        exp.update(code=e["code"], index=e["index"], failing=["chain.rules"])
+    return exp, d["events"]
+
+
 def run_suite(fixtures: str | Path, implementation: Sequence[str] | None = None, check_ids: bool = False,
               kinds: Sequence[str] | None = None, timeout: float = 60) -> tuple[list[str], list[CaseResult]]:
     """Every case (of ``kinds``, when given), run by this verifier or, with
@@ -228,6 +248,25 @@ def run_suite(fixtures: str | Path, implementation: Sequence[str] | None = None,
                                       exp.get("description", "")))
         except Exception as exc:  # a crash is a conformance failure, reported, never hidden
             results.append(CaseResult(kind, case.name, "?", "error", False, [f"{type(exc).__name__}: {exc}"]))
+    for path in ledger_pairs(fixtures) if not kinds or "chain" in kinds else []:
+        name = "ledger-pair/" + path.name.removesuffix(".chain.json")
+        try:
+            exp, events = ledger_pair(path)
+            if implementation:
+                # Another implementation is given a chain case directory, as for every other chain case.
+                with tempfile.TemporaryDirectory() as tmp:
+                    (Path(tmp) / "expected.json").write_text(json.dumps(exp, indent=1) + "\n", encoding="utf-8")
+                    shutil.copyfile(path, Path(tmp) / "events.json")
+                    verdict, problems = run_external(implementation, "chain", Path(tmp), timeout)
+                if verdict is not None:
+                    problems = compare_external(exp, verdict, check_ids)
+                got = verdict["outcome"] if verdict else "error"
+            else:
+                v = ledger_events.verify(events)
+                problems, got = compare(exp, v), v.outcome.value
+            results.append(CaseResult("chain", name, exp["outcome"], got, not problems, problems, exp["description"]))
+        except Exception as exc:  # as above
+            results.append(CaseResult("chain", name, "?", "error", False, [f"{type(exc).__name__}: {exc}"]))
     return check_manifest(fixtures), results
 
 

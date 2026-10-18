@@ -2,8 +2,9 @@ name: conformance
 
 # The full conformance suite, on every pull request, on main and nightly: this verifier's cases
 # (docs/CONFORMANCE.md), with the Provenance Ledger conformance suite's rule pairs (CS-22) among them,
-# run in process and through the harness a third party uses; then the Ledger suite's two live cases
-# (CS-42, CS-43) on its public anchors mirror at its current head, with headers from two explorers.
+# this repository's nine and the Ledger suite's own 86 (fixtures/ledger-conformance/), run in process
+# and through the harness a third party uses; then the Ledger suite's two live cases (CS-42, CS-43)
+# on its public anchors mirror at its current head, with headers from two explorers.
 
 on:
   pull_request:
