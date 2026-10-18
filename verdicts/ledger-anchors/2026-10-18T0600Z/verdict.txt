@@ -1,0 +1,121 @@
+VALID: All 71 anchors under fundingmachine-anchors/anchors hold; 1 of them with warnings (see their checks).
+Subject: anchors under fundingmachine-anchors/anchors
+
+Checks:
+  [pass] anchor_set.2026/10/16/232709Z: 2026/10/16/232709Z: valid
+  [pass] anchor_set.2026/10/16/233452Z: 2026/10/16/233452Z: valid
+  [pass] anchor_set.2026/10/16/234029Z: 2026/10/16/234029Z: valid
+  [pass] anchor_set.2026/10/16/234111Z: 2026/10/16/234111Z: valid
+  [pass] anchor_set.2026/10/16/234518Z: 2026/10/16/234518Z: valid
+  [pass] anchor_set.2026/10/16/234552Z: 2026/10/16/234552Z: valid
+  [pass] anchor_set.2026/10/17/001612Z: 2026/10/17/001612Z: valid
+  [pass] anchor_set.2026/10/17/001953Z: 2026/10/17/001953Z: valid
+  [pass] anchor_set.2026/10/17/002826Z: 2026/10/17/002826Z: valid
+  [pass] anchor_set.2026/10/17/003200Z: 2026/10/17/003200Z: valid
+  [pass] anchor_set.2026/10/17/003729Z: 2026/10/17/003729Z: valid
+  [pass] anchor_set.2026/10/17/004503Z: 2026/10/17/004503Z: valid
+  [pass] anchor_set.2026/10/17/004730Z: 2026/10/17/004730Z: valid
+  [pass] anchor_set.2026/10/17/005019Z: 2026/10/17/005019Z: valid
+  [pass] anchor_set.2026/10/17/005158Z: 2026/10/17/005158Z: valid
+  [pass] anchor_set.2026/10/17/005526Z: 2026/10/17/005526Z: valid
+  [pass] anchor_set.2026/10/17/005854Z: 2026/10/17/005854Z: valid
+  [pass] anchor_set.2026/10/17/005947Z: 2026/10/17/005947Z: valid
+  [pass] anchor_set.2026/10/17/044207Z: 2026/10/17/044207Z: valid
+  [pass] anchor_set.2026/10/17/055804Z: 2026/10/17/055804Z: valid
+  [pass] anchor_set.2026/10/17/092037Z: 2026/10/17/092037Z: valid
+  [pass] anchor_set.2026/10/17/092449Z: 2026/10/17/092449Z: valid
+  [pass] anchor_set.2026/10/17/092636Z: 2026/10/17/092636Z: valid
+  [pass] anchor_set.2026/10/17/092720Z: 2026/10/17/092720Z: valid
+  [pass] anchor_set.2026/10/17/093026Z: 2026/10/17/093026Z: valid
+  [pass] anchor_set.2026/10/17/093420Z: 2026/10/17/093420Z: valid
+  [pass] anchor_set.2026/10/17/094450Z: 2026/10/17/094450Z: valid
+  [pass] anchor_set.2026/10/17/111126Z: 2026/10/17/111126Z: valid
+  [pass] anchor_set.2026/10/17/111302Z: 2026/10/17/111302Z: valid
+  [pass] anchor_set.2026/10/17/111338Z: 2026/10/17/111338Z: valid
+  [pass] anchor_set.2026/10/17/111706Z: 2026/10/17/111706Z: valid
+  [pass] anchor_set.2026/10/17/120758Z: 2026/10/17/120758Z: valid
+  [pass] anchor_set.2026/10/17/134912Z: 2026/10/17/134912Z: valid
+  [pass] anchor_set.2026/10/17/152102Z: 2026/10/17/152102Z: valid
+  [pass] anchor_set.2026/10/17/152800Z: 2026/10/17/152800Z: valid
+  [pass] anchor_set.2026/10/17/153234Z: 2026/10/17/153234Z: valid
+  [pass] anchor_set.2026/10/17/155317Z: 2026/10/17/155317Z: valid
+  [pass] anchor_set.2026/10/17/160404Z: 2026/10/17/160404Z: valid
+  [pass] anchor_set.2026/10/17/160703Z: 2026/10/17/160703Z: valid
+  [pass] anchor_set.2026/10/17/161244Z: 2026/10/17/161244Z: valid
+  [pass] anchor_set.2026/10/17/182238Z: 2026/10/17/182238Z: valid
+  [pass] anchor_set.2026/10/17/191225Z: 2026/10/17/191225Z: valid
+  [pass] anchor_set.2026/10/17/194259Z: 2026/10/17/194259Z: valid
+  [pass] anchor_set.2026/10/17/195058Z: 2026/10/17/195058Z: valid
+  [pass] anchor_set.2026/10/17/195437Z: 2026/10/17/195437Z: valid
+  [pass] anchor_set.2026/10/17/200715Z: 2026/10/17/200715Z: valid
+  [pass] anchor_set.2026/10/17/201032Z: 2026/10/17/201032Z: valid
+  [pass] anchor_set.2026/10/17/201535Z: 2026/10/17/201535Z: valid
+  [pass] anchor_set.2026/10/17/201829Z: 2026/10/17/201829Z: valid
+  [pass] anchor_set.2026/10/17/201941Z: 2026/10/17/201941Z: valid
+  [pass] anchor_set.2026/10/17/202232Z: 2026/10/17/202232Z: valid
+  [pass] anchor_set.2026/10/17/202900Z: 2026/10/17/202900Z: valid
+  [pass] anchor_set.2026/10/17/203225Z: 2026/10/17/203225Z: valid
+  [pass] anchor_set.2026/10/17/203313Z: 2026/10/17/203313Z: valid
+  [pass] anchor_set.2026/10/17/203711Z: 2026/10/17/203711Z: valid
+  [pass] anchor_set.2026/10/17/204017Z: 2026/10/17/204017Z: valid
+  [pass] anchor_set.2026/10/17/204443Z: 2026/10/17/204443Z: valid
+  [pass] anchor_set.2026/10/17/204712Z: 2026/10/17/204712Z: valid
+  [pass] anchor_set.2026/10/17/205021Z: 2026/10/17/205021Z: valid
+  [pass] anchor_set.2026/10/17/205529Z: 2026/10/17/205529Z: valid
+  [pass] anchor_set.2026/10/17/210303Z: 2026/10/17/210303Z: valid
+  [pass] anchor_set.2026/10/17/211735Z: 2026/10/17/211735Z: valid
+  [pass] anchor_set.2026/10/17/222751Z: 2026/10/17/222751Z: valid
+  [pass] anchor_set.2026/10/17/230555Z: 2026/10/17/230555Z: valid
+  [pass] anchor_set.2026/10/18/000107Z: 2026/10/18/000107Z: valid
+  [pass] anchor_set.2026/10/18/000656Z: 2026/10/18/000656Z: valid
+  [pass] anchor_set.2026/10/18/001521Z: 2026/10/18/001521Z: valid
+  [pass] anchor_set.2026/10/18/011339Z: 2026/10/18/011339Z: valid
+  [pass] anchor_set.2026/10/18/031348Z: 2026/10/18/031348Z: valid
+  [pass] anchor_set.2026/10/18/041240Z: 2026/10/18/041240Z: valid
+  [warn] anchor_set.2026/10/18/053052Z: 2026/10/18/053052Z: valid, with 1 warning
+      - ledger_anchor.policy: docs/ANCHORING.md anchors each root with OpenTimestamps and two RFC 3161 authorities; shown valid here: OpenTimestamps no, RFC 3161 2
+  [pass] anchor_set.index: index.jsonl lists all 71 anchors in time order, and each manifest links to the anchor before it
+      - the links and the index are the manifests' own statements: no anchor's proofs cover them, so an anchor removed with its successor's link rewritten would not show here
+
+Relied on:
+  - the header at height 971788 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000007bfe16511c65e5fd9e77321ed60653d6a6f96fea41 with any independent source
+  - SHA-256 (and any other hash on the path) is second-preimage resistant
+  - the header at height 971785 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000d8b68a4cff4c5ba26e8edec90557329042c5c94fed6d with any independent source
+  - the header at height 971803 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001284e87d8c9e046c51eeb217261783a6b066785119ceb with any independent source
+  - the header at height 971782 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000ffe44ab0d93df7ce3c8f2990a112b2387d8acc0dcaf1 with any independent source
+  - CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US (SHA-256 552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+  - the authority's certificates were not revoked for key compromise
+  - CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US (SHA-256 e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+  - the header at height 971786 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001b4b07f936083814a47c3e2dc9c4aebc4b4ec3a2b3bca with any independent source
+  - the header at height 971813 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000069da472c047850903a4724ad81db3c9e31ea2b68b3b2 with any independent source
+  - the header at height 971814 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000056e9ab17c6ad9151ad4f7c8091d6f1a17f231f10802d with any independent source
+  - the header at height 971818 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000001d9558854e7cb4be4d3c01e7414d45ffcfc14610633d with any independent source
+  - the header at height 971817 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000184c9ed82079a0641b104c857b1ae26efcb5384216c36 with any independent source
+  - the header at height 971838 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001af214f0c903da0591510135e40391fca6fac8f971a17 with any independent source
+  - the header at height 971835 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000b75d3a5546c5ac0b968a88e694478d4726e4f5a66d11 with any independent source
+  - the header at height 971836 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001f4369c0dde716b0be824a1637a0e5efb01ecb7cab5b6 with any independent source
+  - the header at height 971847 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000007e5e5682650eedfb3c384eaabdfa01da1f16d1791b69 with any independent source
+  - the header at height 971849 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000b8eec6a3ae739be2c130990da0bcb149526899d0ecc5 with any independent source
+  - the header at height 971860 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000008da692407202f946d6b23cd2df5a377f22ced948d182 with any independent source
+  - the header at height 971858 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000075b2c70445c8f61bca16cd54e758b4be5de7bda062e0 with any independent source
+  - the header at height 971870 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000007d7516ecda27d3056e5064dd7359dda78480f24adacb with any independent source
+  - the header at height 971884 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000e4828b0b36acd0241113e49fb478d50d6ff87b29e678 with any independent source
+  - the header at height 971886 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000267e502249c3ac8f9d697f9a45d752707c7ca38c4af6 with any independent source
+  - the header at height 971885 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000152cb449820c4646404173b8cb558347b1f167809d3f1 with any independent source
+  - the header at height 971901 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000006614a392a9b920a3b604e01496aeec809341051ef248 with any independent source
+  - the header at height 971902 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000833e88a4efe7b3971a37948290b8a51c940be160dacd with any independent source
+  - the header at height 971906 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000815765314ea275621058cf1885debd0b11ca7c7764b8 with any independent source
+  - the header at height 971914 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001265dc9413206291d78170b6c8f42b1cd939187234e9b with any independent source
+  - the header at height 971910 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001bb658d29aba5f881209d04079821a9f1dfc1081b88f9 with any independent source
+  - the header at height 971923 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 0000000000000000000048bf07b3f23ca385f9d580b16085cc21f5e6853f92e4 with any independent source
+  - the header at height 971922 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000011aca7482be3e8776a4f98b631e65fea4eccdcd8e8719 with any independent source
+  - the header at height 971932 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 000000000000000000005c383c0a9c46bca080a0c0720218df6162818b717231 with any independent source
+  - the header at height 971941 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001cefecc7317ddaf64dbddaab943d7800e3773e7a55b2f with any independent source
+  - the header at height 971945 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001fabd3ef05d3fbc24c3e7e7c6796c7da232a7492fa1b3 with any independent source
+
+Does not establish:
+  - who wrote the content, or how it was written
+  - that the content is true, original, or free of AI assistance
+  - that the content did not exist earlier than the anchor (an anchor bounds existence from above only)
+
+fm-verify 0.1.0, checked at 2026-10-18T06:00:49Z
