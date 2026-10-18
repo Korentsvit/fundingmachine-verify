@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 51 of the 156 cases.
+command answering `valid` to everything conforms on 51 of the 242 cases.
 
 ## Layout
 
@@ -57,6 +57,7 @@ fixtures/
   merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root" and "tree_size")
   ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
   ledger-anchors/set-*/      an anchors directory: index.jsonl and anchors under YYYY/MM/DD/HHMMSSZ/, expected.json
+  ledger-conformance/        the Provenance Ledger suite's pair fixtures, unchanged, with their LICENSE (below)
 ```
 
 ## expected.json
@@ -84,7 +85,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-156 cases, on 17 October 2026:
+242 cases, on 18 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -134,14 +135,16 @@ Check ids are this verifier's; another implementation is asked to match
   (indeterminate); and disclosures (valid, one word changed, the wrong key,
   one event given twice, text no hash covers, the signer's name changed);
   and nine rule pairs, `pair-FIRST-over-SECOND` (below).
+* The Provenance Ledger suite's rule pairs (86, `chain/ledger-pair/*`), its
+  own fixture files, run as chain cases (below).
 * Hourly root records (6, `ledger-root/v0`): valid, an hour dropped, two
   swapped, one altered, another key, a later stretch alone.
 
 ## The Provenance Ledger's suite
 
-The Provenance Ledger session's `validation-conformance/v0` names 28 cases
-for a verifier. Two kinds of them run here, in CI on every pull request, on
-main and nightly (`.github/workflows/conformance.yml`):
+The Provenance Ledger session's `validation-conformance/v0` names 39 cases
+for a verifier (its main c8fcfee). Two kinds of them run here, in CI on every
+pull request, on main and nightly (`.github/workflows/conformance.yml`):
 
 * **Rule pairs (its CS-22).** Where one event breaks two chain rules, the
   code reported is the one of the rule listed first in the contract's chain
@@ -154,6 +157,15 @@ main and nightly (`.github/workflows/conformance.yml`):
   own code. The Ledger's own validator gave the same answer on every pair
   and every single-rule variant (its main 8711ff9, 17 October 2026, through
   `tools/ledger_crosscheck/run.mts`).
+* **Its own pair fixtures (CS-22 as it writes it).** Since 18 October 2026 the
+  suite's fixture files are licensed Apache-2.0 (copyright NW PharmaTech Ltd),
+  and its 86 pair files are under `fixtures/ledger-conformance/`, unchanged
+  from the Ledger's `docs/validation/conformance/fixtures/` at 0e5d016, with
+  their LICENSE and a README naming the source. `fm-verify conformance` runs
+  each as the chain case `chain/ledger-pair/<name>`: invalid, only
+  `chain.rules` failing, and the chain stopping at the file's `expect.index`
+  with its `expect.code`. All 86 conform. With `--implementation`, another
+  implementation is given each as a chain case directory.
 * **Live anchors (its CS-42 and CS-43)**, on the Ledger's public mirror at
   its current head: `tools/mirror_conformance.py`. CS-42 requires every
   anchor to hold, with its proofs and the link to the one before it; an

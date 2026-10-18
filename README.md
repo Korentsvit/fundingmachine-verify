@@ -288,4 +288,8 @@ relied on.
 
 ## Licence
 
-Apache-2.0, see [LICENSE](LICENSE).
+Apache-2.0, see [LICENSE](LICENSE). The files under
+[`fixtures/ledger-conformance/`](fixtures/ledger-conformance) are the
+Provenance Ledger conformance suite's own fixtures, copyright NW PharmaTech
+Ltd, also Apache-2.0, with their own LICENSE and a README naming their
+source.
