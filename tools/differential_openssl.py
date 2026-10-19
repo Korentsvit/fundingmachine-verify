@@ -15,6 +15,14 @@ one of the two this verifier makes by design, established from the token:
   signed with. OpenSSL ignores it and verifies by the key's own algorithm;
   this verifier refuses an algorithm the token does not name, so a
   signature is never checked under an algorithm other than the stated one.
+* The signer's hash parameters are not NULL. No signature covers them and
+  SHA-2 takes none, so this verifier holds the token valid with a warning
+  (docs/SECURITY_NOTE.md); OpenSSL refuses parameters it cannot parse.
+* The signer identifier spells its issuer name otherwise than the
+  certificate does (another string type, other spacing or case). This
+  verifier compares the two byte for byte and does not find the signer, so
+  the token is indeterminate; OpenSSL compares names as RFC 5280 (section
+  7.1) does and finds it.
 
 Any other difference is printed and the run fails.
 """
@@ -55,7 +63,28 @@ def by_design(original: bytes, changed: bytes, ours: bool, openssl: bool, verdic
         return "digestAlgorithms omits the signer's hash: a warning here, refused by OpenSSL"
     if not ours and openssl and sb.sig_oid != sa.sig_oid and failing == ["rfc3161.signature"]:
         return "the signature algorithm is not the one signed with: refused here, ignored by OpenSSL"
+    warned = {c.id for c in verdict.checks if c.status.value == "warn"}
+    if ours and not openssl and sa.digest_params_ok and not sb.digest_params_ok and "rfc3161.hash_parameters" in warned:
+        return "the signer's hash parameters are not NULL: a warning here, refused by OpenSSL where it cannot parse them"
+    unchecked = [c.id for c in verdict.checks if c.status.value == "not_checked"]
+    if (not ours and openssl and verdict.outcome.value == "indeterminate" and unchecked == ["rfc3161.signer_cert"]
+            and sb.sid_serial == sa.sid_serial and sb.sid_issuer != sa.sid_issuer
+            and _loose_name(sb.sid_issuer) == _loose_name(sa.sid_issuer)):
+        return ("the signer identifier spells its issuer name otherwise: indeterminate here, compared byte for byte; "
+                "OpenSSL compares names as RFC 5280 does")
     return None
+
+
+def _loose_name(raw: bytes | None) -> list | None:
+    """A Name's attributes with string types, case and runs of spaces ignored, as RFC 5280 (section 7.1)
+    compares them; None if it is not a Name of strings."""
+    from fmverify import der
+
+    try:
+        return [(der.oid(atv.children()[0]), " ".join(atv.children()[1].content.decode("utf-8").split()).casefold())
+                for rdn in der.parse(raw).children() for atv in rdn.children()]
+    except (der.DerError, IndexError, UnicodeDecodeError, TypeError):
+        return None
 
 
 def run(rounds: int, openssl: str = "openssl") -> dict:

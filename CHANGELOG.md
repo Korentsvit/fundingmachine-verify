@@ -51,6 +51,12 @@ verdict; the suite only grows.
   at the release's scale (4,000 changed bytes per token); 0.1.0 read such a
   token as if the tag were right. No signature covers that tag, so no time
   or digest could be changed this way, but the token was not valid DER.
+  The same run, deepened to 20,000 changed bytes per token, found two more
+  differences, both by design and now named by the run: hash parameters it
+  cannot parse are refused by OpenSSL and a warning here, as any non-NULL
+  hash parameters are; and the signer is found by its issuer name compared
+  byte for byte, so a name spelled otherwise is indeterminate here, with
+  that reason, where OpenSSL compares names as RFC 5280 does.
 * **CI.** Runners are pinned to ubuntu-24.04, and actions to their Node 24
   releases by commit.
 * **Reproducible release.** As in 0.1.0: the wheel, the source archive and

@@ -493,8 +493,12 @@ def _verify(
     pool = list(tok.certificates) + list(extra_certs) + list(roots)
     signer = _find_signer_cert(si, pool)
     if signer is None:
+        near = si.sid_ski is None and any(c.serial_number == si.sid_serial for c in pool)
         checks.append(Check("rfc3161.signer_cert", Status.NOT_CHECKED, "the signing certificate is neither in the token nor among those supplied",
-                            reasons=["pass the authority's certificate with --chain"]))
+                            reasons=["a certificate given has the serial number the token names, but not byte for byte the issuer name "
+                                     "it names; this verifier compares the two byte for byte, not as RFC 5280 (section 7.1) "
+                                     "compares names, ignoring string types, case and spacing"] if near else
+                            ["pass the authority's certificate with --chain"]))
         return make_verdict("rfc3161", subject, checks, _statements(tst, None, None, when, acc), ANCHOR_LIMITS, checked_at)
     checks.append(Check("rfc3161.signer_cert", Status.PASS, f"signed by {pki.describe(signer)}",
                         data={"subject": signer.subject.rfc4514_string(), "sha256": pki.fingerprint(signer),
