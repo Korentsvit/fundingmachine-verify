@@ -34,7 +34,8 @@ image is loaded from anywhere else.
 | The page's own HTML, scripts and styles | the website side | its build |
 | Pyodide: `pyodide.mjs`, `pyodide.asm.js`, `pyodide.asm.wasm`, `python_stdlib.zip`, `pyodide-lock.json` | the `pyodide` npm package of the pinned version | the page's npm lock file |
 | `cryptography` and what it depends on (for Pyodide 0.27.7: cffi, openssl, pycparser, six) | Pyodide's distribution for that version | the SHA-256 values in `pyodide-lock.json`; `tools/pyodide/policy/fetch_packages.py` keeps no other file |
-| The fm-verify wheel | `tools/build_release.py` at a tagged commit of this repository | its SHA-256, which anyone can rebuild |
+| The fm-verify wheel | the wheel published with a tagged release of this repository, built there by `tools/build_release.py` | its SHA-256, which anyone can rebuild; the anchors page's build pins it (section 11.7) |
+| `NOTICE`, and the licence texts it names that a package does not carry (Pyodide's, CPython's and OpenSSL's) | each project's own repository, at the version served | the SHA-256 values in `tools/build_page.py` (section 11.3) |
 
 * The tested combination is Pyodide 0.27.7 (Python 3.12) with cryptography
   42.0.5, the oldest version the package accepts. Before another version of
@@ -44,8 +45,9 @@ image is loaded from anywhere else.
   rebuilt (README, "Independence"). A reader who does not trust the
   host can compare that hash with a build of their own, or use the command
   line.
-* The page pins a tagged release. None exists yet: the tag of v0.1.0 waits on
-  the owner.
+* The page pins a tagged release. v0.1.0 (18 October 2026) predates the
+  anchors page and lacks what it imports, so the first release the anchors
+  page can pin is v0.2.0 (section 11.7).
 
 Loading takes three calls: `loadPyodide({indexURL})` with the page's own
 path, `loadPackage(["cryptography"])` (resolved through the lock file, from
@@ -300,10 +302,22 @@ gives on a checkout of the same commit:
   allowed by their hashes. There is no other inline script or style.
 * **Beside it, from its own origin:**
   * Pyodide's files, cryptography and what it depends on (section 2);
-  * the fm-verify wheel;
-  * `site.json`, which names the wheel with its SHA-256, the versions, the
-    roots with their provenance and the default commit;
-  * `roots.pem`.
+  * the fm-verify wheel of the release it pins (section 11.7);
+  * `site.json`, which names the wheel with its SHA-256 and its address in
+    the release, the versions, the roots with their provenance and the
+    default commit;
+  * `roots.pem`;
+  * `NOTICE`: every third-party file served, its version, the licence its
+    own package states, where its licence text is, and its source. The
+    wheels carry their licence files inside them. For the files that do
+    not, the build fetches `LICENSE-pyodide.txt`, `LICENSE-python.txt` and
+    `LICENSE-openssl.txt` from each project's own repository at the version
+    served (Pyodide 0.27.7, CPython 3.12.7, OpenSSL 1.1.1w), keeping each
+    only if its SHA-256 is the one pinned in `tools/build_page.py`. The
+    build refuses a Pyodide whose lock file states other versions. No
+    licence text accompanies the two roots at their publishers' addresses;
+    `NOTICE` says so, and serves them by the owner's decision of 19 October
+    2026.
 
 The page must send this policy as an HTTP header:
 
@@ -383,3 +397,31 @@ files, in 26 seconds and with no policy violation.
 
 The page stays in this repository until the owner releases it. Nothing here
 deploys it.
+
+A released page serves a tagged release's own wheel, not a build of a
+checkout:
+
+1. After the release is published, `page/release.json` is committed by pull
+   request. It names the tag, the full commit it is on, the wheel's file
+   name and the SHA-256 of the wheel the release published.
+2. The site is built with the pin:
+
+   ```sh
+   python tools/build_page.py SITE --pyodide DIR --release page/release.json [--wheel FILE]
+   ```
+
+   The build downloads the wheel from the release's own address (or takes
+   the local copy given with `--wheel`). It refuses the wheel unless its
+   name and SHA-256 are the pinned ones. It also refuses a release whose
+   wheel does not define what the page imports (`verify_json` and
+   `bitcoin_heights` in `fmverify/api.py`, read without running it).
+3. The page then shows the release by its tag, its address and its commit.
+   Its command line installs that wheel by its address with the pinned hash
+   (`pip install "URL#sha256=HASH"`), which pip refuses if the bytes differ.
+
+Without `--release` the build makes the wheel from the checkout, and the
+page says it is not a tagged release. CI builds and checks the page that
+way (section 11.6). On 19 October 2026 the release path passed the five
+cases of section 11.6 in Chromium from the Verifier session, with a wheel
+built from main given by `--wheel`. The same day the build refused
+v0.1.0's published wheel, which lacks `bitcoin_heights`.

@@ -72,7 +72,9 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   you name, in your browser. It compares each file with the Ledger's own
   record and fetches headers from two explorers, then shows the verdict and
   the headers it relied on. `tools/build_page.py` assembles it with Pyodide
-  and the wheel. It is not deployed from here (`docs/HOSTED_PAGE.md`,
+  and the wheel of a tagged release, pinned by its SHA-256
+  (`--release page/release.json`), with a `NOTICE` for every third-party
+  file it serves. It is not deployed from here (`docs/HOSTED_PAGE.md`,
   section 11).
 
 ## Verdicts
