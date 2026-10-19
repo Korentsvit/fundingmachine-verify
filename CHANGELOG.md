@@ -57,6 +57,13 @@ verdict; the suite only grows.
   hash parameters are; and the signer is found by its issuer name compared
   byte for byte, so a name spelled otherwise is indeterminate here, with
   that reason, where OpenSSL compares names as RFC 5280 does.
+* **PDF.** A certificate PDF whose attachment a cross-reference table or
+  stream places at an offset where it cannot be read is refused, as one
+  replaced by an incremental update is. In 0.1.0, one changed byte in an
+  update's `obj` keyword hid the update from this reader, which took the
+  first `certificate.json`, while pypdf, following the update's table, took
+  the second. Found by the PDF differential at 20,000 changed copies per
+  file.
 * **CI.** Runners are pinned to ubuntu-24.04, and actions to their Node 24
   releases by commit.
 * **Reproducible release.** As in 0.1.0: the wheel, the source archive and

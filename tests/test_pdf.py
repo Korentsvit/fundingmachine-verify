@@ -92,6 +92,7 @@ def test_many_unterminated_objects_parse_in_one_pass():
 
 CLASSIC = Path(__file__).resolve().parent.parent / "fixtures" / "certificate" / "pdf-classic" / "certificate.pdf"
 UPDATED = Path(__file__).resolve().parent.parent / "fixtures" / "certificate" / "pdf-updated-attachment" / "certificate.pdf"
+COMPRESSED = Path(__file__).resolve().parent.parent / "fixtures" / "certificate" / "pdf-compressed" / "certificate.pdf"
 
 
 def test_a_stream_found_by_searching_loses_only_the_end_of_line_before_endstream():
@@ -131,3 +132,28 @@ def test_an_attachment_defined_twice_is_refused_even_where_one_definition_is_unr
     assert doc.headers[11] == 2 and doc.readable.get(11) == 1
     with pytest.raises(pdf.PdfError, match="defined more than once"):
         pdf.extract(broken)
+
+
+def test_a_definition_a_cross_reference_places_where_it_cannot_be_read_is_refused():
+    """Found by the PDF differential at 20,000 rounds, before v0.2.0: one byte of the update's "obj" keyword
+    changed hid the update from this reader, which took the first definition, while pypdf, following the update's
+    cross-reference table to that offset, took the second."""
+    data = UPDATED.read_bytes()
+    second = data.index(b"11 0 obj", data.index(b"%%EOF"))
+    assert b"%010d 00000 n" % second in data[second:]  # the update's own table places it there
+    for at, value in ((second + 6, 0xFD), (second + 7, 0xB8)):
+        broken = data[:at] + bytes([value]) + data[at + 1:]
+        doc = pdf.Document(broken)
+        assert doc.headers[11] == 1 and 11 in doc.misplaced
+        with pytest.raises(pdf.PdfError, match="where it cannot be read"):
+            pdf.extract(broken)
+
+
+def test_a_cross_reference_stream_is_read_too():
+    data = COMPRESSED.read_bytes()
+    doc = pdf.Document(data)
+    assert not doc.misplaced and pdf.extract(data)
+    embedded = next(n for n, o in doc.objects.items() if isinstance(o, pdf.Stream) and doc.resolve(o.dict.get("Type")) == pdf.Name("EmbeddedFile"))
+    header = data.index(b"%d 0 obj" % embedded)
+    broken = data[:header] + b"x" + data[header:]  # the stream's offset for it now holds a stray byte
+    assert embedded in pdf.Document(broken).misplaced

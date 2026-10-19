@@ -10,7 +10,10 @@ and an embedded file whose objects are defined more than once with different
 content, or more than once where one definition cannot be read (an
 incremental update replacing it, or a definition no cross-reference table
 lists), since readers differ on which definition holds, and a viewer could
-show one while this reader checks another.
+show one while this reader checks another. A definition counts as one that
+cannot be read wherever a cross-reference section (a table or a stream)
+places the object at an offset that does not hold it: a reader that follows
+the table, as viewers do, may still take what is there.
 """
 
 from __future__ import annotations
@@ -46,6 +49,9 @@ class Stream:
 _WS = b"\x00\t\n\x0c\r "
 _DELIM = b"()<>[]{}/%"
 _OBJ = re.compile(rb"(?<![0-9])(\d+)\s+(\d+)\s+obj\b")
+_XREF = re.compile(rb"(?<![A-Za-z])xref[ \t]*\r?\n")
+_XREF_SUB = re.compile(rb"\s*(\d+)[ \t]+(\d+)[ \t]*\r?\n")
+_XREF_ENTRY = re.compile(rb"\s*(\d{10})[ \t]+(\d{5})[ \t]+([nf])")
 
 
 class _Lexer:
@@ -247,6 +253,8 @@ class Document:
         self.redefined: set[int] = set()  # object numbers defined more than once, differently
         self.headers: dict[int, int] = {}  # per object number, its definitions in the file, readable or not
         self.readable: dict[int, int] = {}  # and those this reader could read
+        self.misplaced: set[int] = set()  # object numbers a cross-reference section places where they are not read
+        spans: list[tuple[int, int]] = []  # the objects read: what is inside them is data
         skip_until = 0
         for m in _OBJ.finditer(data):
             if m.start() < skip_until:
@@ -262,6 +270,7 @@ class Document:
                 skip_until = len(data) if close < 0 else close
                 continue
             skip_until = end
+            spans.append((m.start(), end))
             self.readable[num] = self.readable.get(num, 0) + 1
             if num in self.objects and self.objects[num] != value:
                 self.redefined.add(num)
@@ -269,6 +278,49 @@ class Document:
         for num, obj in list(self.objects.items()):
             if isinstance(obj, Stream) and self.resolve(obj.dict.get("Type")) == Name("ObjStm"):
                 self._open_object_stream(obj)
+        for num, offset in self._xref_entries(spans):
+            m = _OBJ.match(data, offset + len(data[offset:offset + 64]) - len(data[offset:offset + 64].lstrip()))
+            if m is None or int(m.group(1)) != num:
+                self.misplaced.add(num)
+
+    def _xref_entries(self, spans: list[tuple[int, int]]):
+        """(object number, offset) of every in-use entry in every cross-reference section: the tables outside the
+        objects read, and the cross-reference streams (entries of type 1; type 2 is inside an object stream)."""
+        inside = lambda pos: any(a <= pos < b for a, b in spans)  # noqa: E731
+        for m in _XREF.finditer(self.data):
+            if inside(m.start()):
+                continue
+            pos = m.end()
+            while (sub := _XREF_SUB.match(self.data, pos)) is not None:
+                start, count = int(sub.group(1)), int(sub.group(2))
+                pos = sub.end()
+                for i in range(count):
+                    entry = _XREF_ENTRY.match(self.data, pos)
+                    if entry is None:
+                        break
+                    pos = entry.end()
+                    if entry.group(3) == b"n":
+                        yield start + i, int(entry.group(1))
+        for obj in list(self.objects.values()):
+            if not (isinstance(obj, Stream) and self.resolve(obj.dict.get("Type")) == Name("XRef")):
+                continue
+            widths = self.resolve(obj.dict.get("W"))
+            index = self.resolve(obj.dict.get("Index")) or [0, self.resolve(obj.dict.get("Size"))]
+            if not (isinstance(widths, list) and len(widths) == 3 and all(isinstance(w, int) and 0 <= w <= 8 for w in widths)
+                    and isinstance(index, list) and len(index) % 2 == 0 and all(isinstance(x, int) for x in index)):
+                raise PdfError("a cross-reference stream lacks its W or Index")
+            body, row, at = _decode(obj, self.resolve, self.budget), sum(widths), 0
+            for start, count in zip(index[::2], index[1::2]):
+                for i in range(count):
+                    if at + row > len(body):
+                        raise PdfError("a cross-reference stream is shorter than its Index says")
+                    fields, k = [], at
+                    for w in widths:
+                        fields.append(int.from_bytes(body[k:k + w], "big"))
+                        k += w
+                    at += row
+                    if (fields[0] if widths[0] else 1) == 1:
+                        yield start + i, fields[1]
 
     def resolve(self, value: Any, depth: int = 0) -> Any:
         while isinstance(value, Ref):
@@ -316,10 +368,12 @@ class Document:
             if not stream.measured and self.resolve(stream.dict.get("Length")) != len(stream.raw):
                 raise PdfError(f"the embedded file {name}'s stream does not end where its /Length says: the file is damaged, "
                                "and readers differ on where such a stream ends")
-            if any(n in self.redefined or self.headers.get(n, 0) > max(1, self.readable.get(n, 0)) for n in touched):
+            if any(n in self.redefined or n in self.misplaced or self.headers.get(n, 0) > max(1, self.readable.get(n, 0))
+                   for n in touched):
                 raise PdfError(f"the embedded file {name} is defined more than once in the PDF, with different content (an "
-                               "incremental update replacing it, or a definition no cross-reference lists): readers differ "
-                               "on which holds, and a verifier must not choose")
+                               "incremental update replacing it, a definition no cross-reference lists, or one a "
+                               "cross-reference places where it cannot be read): readers differ on which holds, and a "
+                               "verifier must not choose")
             out.append((str(name), _decode(stream, self.resolve, self.budget)))
         return out
 
