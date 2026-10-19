@@ -178,16 +178,21 @@ const pyodide = (async () => {
 function showBuild() {
   const t = $("build-text");
   t.replaceChildren();
+  const fm = site.fmverify;
   const rows = [
-    ["fm-verify", `${site.fmverify.version}${site.fmverify.tag ? `, tag ${site.fmverify.tag}` : ", not a tagged release"}, built from ` +
-      (site.fmverify.changed ? `a checkout with changes, on commit ${site.fmverify.commit}` : `commit ${site.fmverify.commit}`)],
+    ["fm-verify", fm.release ? `${fm.version}, the release tagged ${fm.tag} (${fm.release}), commit ${fm.commit}`
+      : `${fm.version}${fm.tag ? `, tag ${fm.tag}` : ", not a tagged release"}, built from ` +
+        (fm.changed ? `a checkout with changes, on commit ${fm.commit}` : `commit ${fm.commit}`)],
     ["Its wheel", `${site.wheel.file}, SHA-256 ${site.wheel.sha256}` + (wheelHash ? (wheelHash === site.wheel.sha256 ? " (this page hashed what it loaded: the same)" : ` (what this page loaded hashes to ${wheelHash}: NOT the same)`) : "")],
     ["Pyodide", `${site.pyodide.version}, with cryptography ${site.pyodide.cryptography}`],
   ];
   const dl = el("dl");
   for (const [k, v] of rows) dl.append(el("dt", { text: k }), el("dd", { class: "mono", text: v }));
-  t.append(dl, el("p", { text: "Anyone can rebuild the wheel from the commit with tools/build_release.py and compare its SHA-256; " +
-    "the hash shown comes from the same host as the page, so the independent checks are that rebuild and the command line." }));
+  t.append(dl, el("p", { text: (fm.release ? "This is the release's own wheel. Anyone can download it from the release, or rebuild it " +
+    "from the tag with tools/build_release.py, and compare its SHA-256; " : "Anyone can rebuild the wheel from the commit with " +
+    "tools/build_release.py and compare its SHA-256; ") + "the hash shown comes from the same host as the page, so the " +
+    "independent checks are that rebuild and the command line. NOTICE, beside this page, gives every third-party file it " +
+    "serves with its licence." }));
   t.append(el("h3", { text: "The roots this page ships" }), el("p", { text: "Chosen by this page, not by you; you can use PEM files of your own instead." }));
   const ul = el("ul");
   for (const r of site.roots) ul.append(el("li", {}, el("span", { text: `${r.name}: from ` }), el("code", { text: r.url }),
@@ -348,7 +353,9 @@ async function render(verdict, ctx) {
   out.append(el("pre", { text: [
     "git clone https://github.com/Korentsvit/fundingmachine-anchors",
     `git -C fundingmachine-anchors checkout ${ctx.commit}`,
-    `python -m pip install ./fundingmachine-verify   # a checkout of the verifier at commit ${site.fmverify.commit}`,
+    site.fmverify.release
+      ? `python -m pip install "${site.wheel.url}#sha256=${site.wheel.sha256}"   # the release's wheel; pip refuses other bytes`
+      : `python -m pip install ./fundingmachine-verify   # a checkout of the verifier at commit ${site.fmverify.commit}`,
     `fm-verify anchors fundingmachine-anchors/anchors --all ${ctx.headerArgs} --roots roots.pem`,
   ].join("\n") }));
   out.append(el("p", {}, el("span", { text: "Save: " }), download("verdict.json", JSON.stringify(verdict, null, 1), "application/json"),
