@@ -26,7 +26,9 @@ Each verdict is a directory named by the UTC time it was checked, holding:
   certificate's root is anchored;
 * `certificate.sha256`: the SHA-256 of the certificate as received, JSON or
   PDF. The certificate itself is committed only if its holder agrees, since
-  it names a tenant's document by its identifiers;
+  it names a tenant's document by its identifiers. The two record
+  certificates of 17 October are published, as the first public examples,
+  by the demo tenant's holder's decision of 19 October 2026;
 * `README.md`: where the certificate came from, what the verdict relied on,
   what it does not establish, and how to reproduce it.
 
