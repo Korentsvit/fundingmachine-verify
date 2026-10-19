@@ -236,7 +236,7 @@ def parse_token(data: bytes) -> Token:
             raise TokenError("the token is not CMS SignedData")
         if len(kids) != 2 or not (kids[1].is_context(0) and kids[1].constructed) or len(kids[1].children()) != 1:
             raise TokenError("ContentInfo does not hold its content as [0] EXPLICIT, as CMS requires")
-        sd = kids[1].children()[0].children()
+        sd = der.expect(kids[1].children()[0], der.SEQUENCE, "SignedData").children()
         der.integer(sd[0])  # SignedData version: read to check it is an integer; any value is accepted
         # digestAlgorithms is covered by no signature and only lists hashes: read
         # loosely here, and what it says is compared, as a warning, in verify().

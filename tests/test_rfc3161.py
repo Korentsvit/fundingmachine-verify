@@ -171,6 +171,20 @@ def test_content_info_must_be_a_sequence():
     assert v.outcome is Outcome.INVALID and "ContentInfo" in v.checks[0].reasons[0]
 
 
+def test_signed_data_must_be_a_sequence():
+    """Found by the differential fuzz at release scale (4,000 rounds a token):
+    SignedData under another tag was read as if it were the SEQUENCE; OpenSSL
+    refuses it."""
+    for case in ("valid-rsa", "valid-p256-chain-supplied"):
+        data = (FIX / case / "token.tsr").read_bytes()
+        oid = bytes.fromhex("06092a864886f70d010702")  # id-signedData, then [0] EXPLICIT, then SignedData
+        at = data.index(oid) + len(oid) + 4  # [0]'s header: a0 82 LL LL
+        assert data[at - 4] == 0xA0 and data[at] == 0x30
+        for tag in (0xA2, 0x78, 0x31):
+            v = rfc3161.verify(data[:at] + bytes([tag]) + data[at + 1:], roots=_roots())
+            assert v.outcome is Outcome.INVALID and "SignedData" in v.checks[0].reasons[0], (case, tag)
+
+
 def test_content_info_content_must_be_explicit_zero():
     data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
     oid = bytes.fromhex("06092a864886f70d010702")  # id-signedData, then [0] EXPLICIT

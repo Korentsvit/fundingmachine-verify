@@ -46,6 +46,11 @@ verdict; the suite only grows.
     checkout of the public mirror, with the headers and roots it relied on.
   * `tools/fetch_headers.py` also reads the heights a certificate's proof
     names, from its JSON or its PDF.
+* **RFC 3161.** A token whose SignedData sits under any tag but SEQUENCE is
+  refused, as OpenSSL refuses it. The differential against OpenSSL found it
+  at the release's scale (4,000 changed bytes per token); 0.1.0 read such a
+  token as if the tag were right. No signature covers that tag, so no time
+  or digest could be changed this way, but the token was not valid DER.
 * **CI.** Runners are pinned to ubuntu-24.04, and actions to their Node 24
   releases by commit.
 * **Reproducible release.** As in 0.1.0: the wheel, the source archive and
