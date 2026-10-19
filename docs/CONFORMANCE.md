@@ -173,8 +173,30 @@ pull request, on main and nightly (`.github/workflows/conformance.yml`):
   CS-43 changes one leaf's `sha256` in a copy of the newest confirmed anchor;
   that anchor must be invalid, with the check that failed.
 
+* **Certificate cases its recipes let a verifier derive (its CS-03, CS-08,
+  CS-11 and CS-12)**, from its `fixtures/certificate/v0/basic.certificate.json`
+  read in a checkout of its repository, not copied
+  (`tests/test_ledger_suite_certificate.py`, with `FM_LEDGER_REPO`):
+  * CS-03 and CS-08: the exported file is the bytes its fixture script signs,
+    checked against the certificate's `exported_sha256` and `byte_length`
+    before use. CS-08 changes one byte: `certificate.file` fails, nothing
+    else does.
+  * CS-11 and CS-12: the certificate gains an anchor (a pending
+    OpenTimestamps proof and two RFC 3161 tokens for the anchored root, from
+    this repository's two test authorities) and is re-signed with the
+    fixture's issuer key, which is a published test vector (RFC 8032
+    section 7.1, its `keys.json` "tenant"). Re-signing the unchanged
+    certificate gives its own proof byte for byte, so the signing is the
+    issuer's. CS-11 is valid with the pending proof not checked and not
+    failing; in CS-12 the token for another digest fails.
+  * All four agree, on the Ledger's main fc5ee1e (19 October 2026).
+
 The other cases run on fixtures in the Ledger's repository, which is
-private; they are run in this session's checkout, not in CI.
+private; they are run in this session's checkout, not in CI. Its record
+certificate cases CS-62 to CS-69 each re-sign a record certificate with the
+issuer's key. The Ledger has no record certificate fixture, and the live
+certificates are signed with its production key, so these eight wait on a
+fixture from the Ledger, signed with a published test key.
 
 Its record certificate cases (CS-60 to CS-70) name one result per check of
 the contract's own list. This verifier reports them as these check ids:
