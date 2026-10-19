@@ -69,13 +69,17 @@ the event chain). It does not, and cannot:
   carries as `certificate.json`, not what the pages show. It refuses to
   choose between versions: a PDF carrying two different `certificate.json`
   files, one whose attachment was replaced by an incremental update (or
-  defined again where no cross-reference lists it), and one whose
-  attachment stream does not end where its `/Length` says, since readers
-  differ on which version or which end holds, and a viewer could show one
-  while the verifier checks another (`tools/differential_pdf.py`: on 20,000
-  damaged copies, no `certificate.json` that pypdf and this reader both
-  took differs). Text on the pages that disagrees with the JSON is not
-  detected.
+  defined again where no cross-reference lists it, or placed by a
+  cross-reference table or stream at an offset where it cannot be read),
+  and one whose attachment stream does not end where its `/Length` says,
+  since readers differ on which version or which end holds, and a viewer
+  could show one while the verifier checks another
+  (`tools/differential_pdf.py`: on 100,000 damaged copies, 20,000 of each
+  PDF fixture, no `certificate.json` that pypdf and this reader both took
+  differs, since 19 October 2026; before then, one changed byte in an
+  update's `obj` keyword hid the update from this reader while pypdf,
+  following the update's table, took it). Text on the pages that disagrees
+  with the JSON is not detected.
 
 ## OpenTimestamps
 
