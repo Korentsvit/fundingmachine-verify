@@ -1,5 +1,57 @@
 # Change log
 
+## 0.2.0
+
+Adds the Provenance Ledger's record certificates, the anchors page and the
+Ledger's own conformance cases. Every case of 0.1.0 keeps its expected
+verdict; the suite only grows.
+
+* **Record certificates** (`record-certificate/v0`, the Ledger's
+  `docs/RECORD_CERTIFICATE.md`).
+  * `fm-verify record-certificate`: the JSON with its signature, or the PDF
+    carrying both. Each hash link from the record's head to the Bitcoin
+    block is reported on its own: the signature, the head to the hour's
+    root, the signed root record, the anchored root, the RFC 3161 tokens,
+    the OpenTimestamps path and the block header.
+  * `--index` checks the certificate's entry in the Ledger's public
+    submission index (`submission-index/v0`). `--events` checks the record's
+    own statements against the document's chain.
+  * The tenant pseudonym is checked against the issuer's key id
+    (`record_certificate.pseudonym`).
+  * The library entry point's `record-certificate` kind, run under Pyodide
+    in CI.
+* **The anchors page** (`hosted-page/1`,
+  [`docs/HOSTED_PAGE.md`](docs/HOSTED_PAGE.md) section 11).
+  * [`page/index.html`](page/index.html) checks every anchor in the Ledger's
+    public mirror, at a commit the reader names, in the browser. It compares
+    each file with the Ledger's own record and takes headers from two
+    explorers.
+  * The library entry point's `ledger-anchor-set` kind and
+    `fmverify.api.bitcoin_heights`, which the page needs. This is the first
+    release the page can pin.
+  * `tools/build_page.py` assembles the page under its Content Security
+    Policy, serves a tagged release's wheel pinned by its SHA-256, and
+    writes a `NOTICE` for every third-party file it serves. CI checks the
+    page in Chrome.
+* **Conformance.**
+  * 242 cases (127 in 0.1.0), every one an addition: record certificates,
+    and the Provenance Ledger suite's 86 rule-pair fixtures (its CS-22),
+    copied unchanged under `fixtures/ledger-conformance/` and licensed
+    Apache-2.0 by NW PharmaTech Ltd.
+  * The full suite runs on every pull request and nightly.
+  * The fixtures are published as `fm-verify-fixtures-0.2.0.tar`, which
+    rebuilds byte for byte.
+* **Tools for dated verdicts.**
+  * `tools/anchor_verdict.py` writes an anchor verdict's directory from a
+    checkout of the public mirror, with the headers and roots it relied on.
+  * `tools/fetch_headers.py` also reads the heights a certificate's proof
+    names, from its JSON or its PDF.
+* **CI.** Runners are pinned to ubuntu-24.04, and actions to their Node 24
+  releases by commit.
+* **Reproducible release.** As in 0.1.0: the wheel, the source archive and
+  the fixture archive rebuild byte for byte from this tag
+  (`tools/build_release.py`, `tools/fixture_archive.py 0.2.0`).
+
 ## 0.1.0
 
 The first release of fm-verify, the independent verifier for FundingMachine's
