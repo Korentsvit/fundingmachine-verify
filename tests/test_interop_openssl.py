@@ -189,3 +189,43 @@ def test_differential_fuzz_against_openssl():
     result = tool.run(150, OPENSSL)
     assert result["totals"]["agree"] > 250
     assert not result["other"], result["other"]
+
+
+def test_the_designed_differences_are_established_from_the_token(tmp_path):
+    """The differences tools/differential_openssl.py accepts are each seen here, on the token changed one way, with
+    OpenSSL's own answer: found at 20,000 rounds a token, before v0.2.0."""
+    import importlib.util
+    import json
+    import subprocess
+
+    from fmverify import pki, rfc3161
+
+    spec = importlib.util.spec_from_file_location("differential_openssl", ROOT / "tools" / "differential_openssl.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    case = ROOT / "fixtures" / "rfc3161" / "valid-p256-chain-supplied"
+    exp = json.loads((case / "expected.json").read_text(encoding="utf-8"))
+    roots = [c for r in exp["roots"] for c in pki.load_certificates((case / r).read_bytes())]
+    chain = [c for r in exp["chain"] for c in pki.load_certificates((case / r).read_bytes())]
+    data = (case / exp["file"]).read_bytes()
+    token = (case / "token.tsr").read_bytes()
+    # The signer identifier's issuer name (the issuing CA's, its first occurrence; the TSTInfo before it names the
+    # authority itself), and the signer's digest algorithm right after its serial number.
+    cn = token.index(b"\x0c\x19FM Verify Test Issuing CA")
+    org, space = token.rindex(b"\x0c\x20FundingMachine verifier test PKI", 0, cn), cn + 4
+    null = token.index(bytes.fromhex("020166300d0609608648016503040201") + b"\x05\x00") + 16
+    assert token[org] == 0x0C and token[space] == 0x20 and token[null] == 0x05
+    for at, value, ours_valid in ((org, 0x16, False), (space, 0x09, False), (null, 0x01, True)):
+        changed = token[:at] + bytes([value]) + token[at + 1:]
+        path = tmp_path / "token.tsr"
+        path.write_bytes(changed)
+        args = [OPENSSL, "ts", "-verify", "-in", str(path), "-data", str(case / exp["file"]), "-attime", tool.AT,
+                "-CAfile", str(case / exp["roots"][0]), "-untrusted", str(case / exp["chain"][0])]
+        theirs = "Verification: OK" in subprocess.run(args, capture_output=True, text=True).stdout
+        verdict = rfc3161.verify(changed, file_bytes=data, roots=roots, extra_certs=chain)
+        ours = verdict.outcome.value == "valid"
+        assert ours is ours_valid and theirs is not ours_valid, (at, value)
+        assert tool.by_design(token, changed, ours, theirs, verdict), (at, value)
+        if not ours:
+            row = next(c for c in verdict.checks if c.id == "rfc3161.signer_cert")
+            assert "byte for byte" in row.reasons[0]

@@ -203,6 +203,12 @@ before the fix:
   the signer's algorithm is a warning, as RFC 5652 allows it and OpenSSL
   refuses it; hash parameters other than NULL are a warning wherever they
   appear.
+* **The signer is found by the issuer name and serial number the token
+  names, compared byte for byte.** A token that spells the issuer name
+  otherwise than the certificate does (another string type, other spacing
+  or case) is indeterminate here, with that reason, never valid; OpenSSL,
+  comparing names as RFC 5280 (section 7.1) does, finds the signer. Found by
+  the differential against OpenSSL at 20,000 rounds a token.
 
 ## The implementation
 
