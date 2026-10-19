@@ -31,9 +31,14 @@ line differs.
   SHA-256 of each of the four files received: `certificate.json`,
   `certificate.sig`, `certificate.pdf` and `verify.sh`. Each matches the
   hash the Ledger session reported.
-* **Not committed.** The certificate is the tenant's to share. As agreed
-  with the Ledger session, only this verdict and the SHA-256 values are
-  committed.
+* **Published.** The certificate is the tenant's to share. At first, as
+  agreed with the Ledger session, only this verdict and the SHA-256 values
+  were committed. Since 19 October 2026 the certificate is published here, as
+  one of the first public examples, by the decision of the demo tenant's
+  holder (Filipp):
+  [`certificate.json`](certificate.json), [`certificate.sig`](certificate.sig)
+  and [`certificate.pdf`](certificate.pdf), byte for byte the files verified.
+  `verify.sh`, the Ledger's own script, is not published; only its SHA-256 is.
 * **Cross-check: the public submission index.**
   * Read from https://fundingmachine-ledger.vercel.app/api/submission-index at
     23:04 UTC. Its contract is `submission-index/v0`, it held two entries,
@@ -109,14 +114,15 @@ line differs.
   did.
 
 The hour's root record inside the certificate carries the tenant's id, as the
-Ledger signed it. This verdict does not repeat it.
+Ledger signed it. This verdict does not repeat it; the published certificate
+carries it, as issued.
 
 ## Reproduce
 
-With the certificate from its holder:
+In this directory:
 
 ```sh
-sha256sum -c certificate.sha256        # the files are the ones verified here
+sha256sum -c --ignore-missing certificate.sha256   # the files are the ones verified here
 curl -s https://fundingmachine-ledger.vercel.app/api/submission-index > index.json
 python tools/fetch_headers.py certificate.json headers.txt   # two explorers, compared
 fm-verify record-certificate certificate.json --headers headers.txt \

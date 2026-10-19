@@ -98,6 +98,28 @@ page adds the authorship map and the evidence coverage, each figure labelled
 as recomputed from the chain or read from the certificate, with the
 certificate's scope statement near the top.
 
+## Examples
+
+Two record certificates the live Provenance Ledger issued on 17 October 2026
+are published with their verdicts, so anyone can check a real one
+end to end. Each directory holds the certificate (JSON with its signature,
+and the PDF that carries both), the Bitcoin header the verdict relied on,
+the verdict, and a README with what it relied on and how to reproduce it:
+
+* [`verdicts/certificates/2026-10-17T2110Z`](verdicts/certificates/2026-10-17T2110Z):
+  `urn:uuid:af6c889d-8204-45e8-bf9f-b4bff6279e1e`, Bitcoin block 971901;
+* [`verdicts/certificates/2026-10-17T2305Z`](verdicts/certificates/2026-10-17T2305Z):
+  `urn:uuid:ed65828a-9107-416d-924d-1b907e29702b`, Bitcoin block 971906.
+
+```sh
+cd verdicts/certificates/2026-10-17T2110Z
+fm-verify record-certificate certificate.json --headers headers.txt --roots /etc/ssl/certs/ca-certificates.crt
+```
+
+Both are demo records (the Ledger's demo tenant), published by the decision
+of that tenant's holder. Fetch your own copy of the header from a source you
+trust rather than relying on the one committed here.
+
 ## Use
 
 ```sh
