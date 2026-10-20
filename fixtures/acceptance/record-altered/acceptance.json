@@ -1,0 +1,32 @@
+{
+ "event_hash": "0ea8d2aa3baf0f4bdb8a6bbaf146f0cbdca49ef14bf8bf89e14e1423fd806078",
+ "received_at": "2026-10-16T08:31:07.123456Z",
+ "record": {
+  "contract": "ledger-acceptance/v0",
+  "tenant_id": "fixture",
+  "window": {
+   "start": "2026-10-16T08:00:00.000Z",
+   "end": "2026-10-16T09:00:00.000Z"
+  },
+  "size": 5,
+  "root_record": "f1653cd993bfb6fb05526c8d048faee6481d5bcd59edd020cbc8b74177468c4d",
+  "accepted_root": "aca7347018c1824e821cc5e96a7a54841808f5d7ba2786d034073ac62068b0bf",
+  "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+  "sig": "EiTXqMYTJmyskw72lvz33pLTuibYTbToaMc0UNvDOx39ND4mE3SMHR07rhwGzEMtVL9VmpJmR4qe8i-JxuDvAQ"
+ },
+ "leaf_index": 2,
+ "audit_path": [
+  "f22083ca06544ab3a9e5033366b689ace9362f39d220a9c8875abf4ae210b6b2",
+  "d4208f0ef150978f1ab1d33d293c6067957d477f35f826c3dc00b6cb7d0df846",
+  "e0dd39ec9d14d47f3e36953e5919a83e3863c8f6dbea717a538f9378ad9b5e01"
+ ],
+ "anchor": {
+  "root": "717f5e3f966d12ebe0662abca0a0b511bdd1f1675f0a7f9fa357d34030e20426",
+  "size": 3,
+  "leaf_index": 1,
+  "audit_path": [
+   "2eff9a333f65231bbfbdc3210919cebfc6a8bc4eef69428ebfe6b7576263931d",
+   "153013b4347e06fb837dbd65244404082b5a1636d1ddaf4d7f2ad2bd59cfbce7"
+  ]
+ }
+}

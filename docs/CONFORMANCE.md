@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 52 of the 248 cases.
+command answering `valid` to everything conforms on 55 of the 262 cases.
 
 ## Layout
 
@@ -54,6 +54,7 @@ fixtures/
   record-certificate/<case>/ certificate.json and certificate.sig, or certificate.pdf ("certificate"), events.json and index.json where given, expected.json
   chain/<case>/              events.json ({"contract", "events"}), disclosure.json where the text is disclosed, expected.json
   roots/<case>/              roots.json ({"records"}), expected.json (with the tenant's did:key as "key")
+  acceptance/<case>/         acceptance.json, root-record.json and hour.json where given, expected.json ("key", "proof", "root_record", "hour")
   merkle/<case>/             proof.json, leaf.txt, expected.json (with "leaf_file" and, optionally, the anchored "root" and "tree_size")
   ledger-anchors/<case>/     manifest.json, root.preimage and its proofs, expected.json
   ledger-anchors/set-*/      an anchors directory: index.jsonl and anchors under YYYY/MM/DD/HHMMSSZ/, expected.json
@@ -79,13 +80,15 @@ fixtures/
 | `disclosure` | for chains: a disclosure file (document key and inserted texts) to replay |
 | `repos` | for Ledger anchors: checkouts to compare, `{"OWNER/NAME": path}` |
 | `all` | for Ledger anchors: the case is a whole anchors directory, verified as a set (`fm-verify anchors DIR --all`) |
+| `key` | for root records and acceptance proofs: the tenant's did:key; without it the signatures are not checked |
+| `proof`, `root_record`, `hour` | for acceptance proofs: what `GET /api/acceptance` answered, the hour's `ledger-root/v0` record, and what `GET /api/anchors?hour=` answered, each a file in the case |
 
 Check ids are this verifier's; another implementation is asked to match
 `outcome`, and may map its own reasons to `failing` as it sees fit.
 
 ## What the cases cover
 
-248 cases, on 20 October 2026:
+262 cases, on 20 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -141,6 +144,14 @@ Check ids are this verifier's; another implementation is asked to match
   own fixture files, run as chain cases (below).
 * Hourly root records (6, `ledger-root/v0`): valid, an hour dropped, two
   swapped, one altered, another key, a later stretch alone.
+* Acceptance proofs (14, `ledger-acceptance/v0`): valid with the root
+  record and the anchored hour's proofs, the answer alone, and an hour not
+  yet anchored; no tenant key and an hour with no acceptance record
+  (indeterminate); the time one microsecond later, written in milliseconds,
+  and outside its hour; the record altered and signed by another key;
+  another tenant's root record; an hour record of another root; an
+  authority stamping the root before the acceptance time; and a token's
+  time misstated.
 
 ## The Provenance Ledger's suite
 

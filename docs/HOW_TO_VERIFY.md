@@ -122,7 +122,32 @@ SHA-256 of its text without the final newline: pass that with
 `--prove-sha256`. The roots in the branch's `anchors/tsa/` are
 FundingMachine's copies; use your own system's bundle, as above.
 
-## 7. Read the verdict
+## 7. When did the ledger accept an event?
+
+A certificate's times are the capture client's (`ts`). The time the ledger
+itself accepted each event, by its own clock, is bound by the hour's
+acceptance record (`ledger-acceptance/v0`, hours sealed from 20 October
+2026), signed with the tenant key and anchored with the hour. The tenant
+asks the ledger for one event's proof, and anyone can fetch the anchored
+hour's public record:
+
+```sh
+curl -s -H "Authorization: Bearer $TOKEN" \
+    "https://fundingmachine-ledger.vercel.app/api/acceptance?event_hash=$EVENT" > acceptance.json
+curl -s "https://fundingmachine-ledger.vercel.app/api/anchors?hour=2026-10-20T09:00:00Z" > hour.json
+fm-verify acceptance acceptance.json --key did:key:z6Mk... --root-record certificate.json --hour hour.json \
+    --headers headers.txt --roots /etc/ssl/certs/ca-certificates.crt
+```
+
+The verdict checks the record's signature with the key a certificate of
+the tenant names, the event's time as a leaf of the signed
+`accepted_root`, that time inside the record's hour, the record as a leaf
+of the hour's anchored root, the anchored root's tokens and proof, and that
+no authority stamped the root before the event's time. It establishes that
+the ledger stated the time no later than the earliest token's; that the
+ledger's clock was right stays the ledger's claim.
+
+## 8. Read the verdict
 
 * `VALID` (exit 0): the statement holds, given what the verdict lists as
   relied on.

@@ -11,7 +11,7 @@ failing and warning check ids too. ``fm-verify conformance-case`` is that
 contract's reference: this verifier, one case at a time.
 
 Each case is a directory holding ``expected.json``: the kind (from the
-directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``, ``chain``), the inputs, the
+directory it sits under: ``ots``, ``rfc3161``, ``anchors``, ``certificate``, ``chain``, ``acceptance`` and the others of ``KINDS``), the inputs, the
 outcome the verifier must reach, the checks that must fail (``failing``,
 exactly) and those that must warn (``warning``, at least). The fixture
 manifest ``SHA256SUMS`` is checked first, so a run says whether the fixtures
@@ -34,7 +34,7 @@ from . import anchors, certificate, ledger_anchors, ledger_events, ots, pki, rfc
 from .bitcoin import NETWORKS, HeaderChain, HeaderSet
 from .verdict import Status, Verdict
 
-KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "record-certificate", "chain", "roots")
+KINDS = ("ots", "rfc3161", "merkle", "anchors", "ledger-anchors", "certificate", "record-certificate", "chain", "roots", "acceptance")
 # The Provenance Ledger conformance suite's CS-22 pair fixtures, copied unchanged with their LICENSE
 # (fixtures/ledger-conformance/README.md). Each is one file, not a case directory; it runs as a chain case.
 LEDGER_PAIRS = Path("ledger-conformance") / "ledger-event" / "v0" / "pairs"
@@ -137,6 +137,16 @@ def run_case(kind: str, case: Path) -> tuple[dict, Verdict]:
 
         records = json.loads((case / "roots.json").read_text(encoding="utf-8"))["records"]
         v = ledger_roots.verify(records, public_key=did_key_ed25519(exp["key"]) if "key" in exp else None)
+    elif kind == "acceptance":
+        from . import ledger_acceptance
+        from .base58 import did_key_ed25519
+
+        def load(name: str):
+            return json.loads((case / exp[name]).read_text(encoding="utf-8")) if name in exp else None
+
+        v = ledger_acceptance.verify(load("proof"), public_key=did_key_ed25519(exp["key"]) if "key" in exp else None,
+                                     root_record=load("root_record"), hour=load("hour"), header_sources=_sources(case, exp),
+                                     network=net, roots=roots, extra_certs=chain, crls=crls)
     else:
         raise ValueError(f"unknown kind {kind}")
     return exp, v

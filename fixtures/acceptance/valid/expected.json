@@ -1,0 +1,19 @@
+{
+ "key": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/acceptance-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "An event's acceptance time, its signed hourly record, the hour's root record, and the anchored root with two authorities' tokens and a proof in regtest block 3",
+ "outcome": "valid",
+ "proof": "acceptance.json",
+ "root_record": "root-record.json",
+ "hour": "hour.json"
+}

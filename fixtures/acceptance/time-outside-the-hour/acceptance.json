@@ -1,0 +1,22 @@
+{
+ "event_hash": "62f3193e9f318dff3ed220ddc9c86bbfac6e601d9d329ebff075d96ab5f02df9",
+ "received_at": "2026-10-16T09:00:00.000001Z",
+ "record": {
+  "contract": "ledger-acceptance/v0",
+  "tenant_id": "fixture",
+  "window": {
+   "start": "2026-10-16T08:00:00.000Z",
+   "end": "2026-10-16T09:00:00.000Z"
+  },
+  "size": 5,
+  "root_record": "f1653cd993bfb6fb05526c8d048faee6481d5bcd59edd020cbc8b74177468c4d",
+  "accepted_root": "7d2e50e6dd8f4f595c05fbf84f4f00be25e8658e7d14fb2b5c39684e7f409d1a",
+  "key_id": "9ad8a37e5a7f63bb83b8a51094e80202f1541e0be70b9a2012108856b44ed98b",
+  "sig": "SmRM6HvR-2byOomn20TzKvQAcHQUWFJF8b53uDMn4Ogh1KZNo04mQcHmJhG5IbdjUShd_MBnhIHKW3eZwLbtDQ"
+ },
+ "leaf_index": 4,
+ "audit_path": [
+  "62eb97a95ed81f73539511e575ea9a98a92dabf3d1954720d1f70a49ac4d11e0"
+ ],
+ "anchor": null
+}

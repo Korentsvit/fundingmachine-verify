@@ -81,6 +81,28 @@ the event chain). It does not, and cannot:
   following the update's table, took it). Text on the pages that disagrees
   with the JSON is not detected.
 
+## Acceptance times
+
+* **The acceptance time is the ledger's own clock.** The record binds what
+  the ledger stated; whether its database's clock was right is not
+  something a signature can show.
+* **The binding is no tighter than the anchor.** A record is built when its
+  hour is sealed and anchored after; the anchor's tokens bound the time the
+  ledger stated it from above. A token stamped before the event's stated
+  time is a failure (`acceptance.order`): the root cannot bind a later time.
+* **The key is the caller's evidence**, as for root records: the record
+  names its key by hash only. A certificate of the same tenant names the
+  key as a `did:key`.
+* **The window is checked here, beyond the Ledger's own check.** Its
+  `verifyAcceptance` takes the leaf and the root; a signed record holding a
+  time outside its hour holds there and fails here (`acceptance.window`),
+  as the Ledger's `docs/ANCHORING.md` states every event's time falls
+  inside its root's window.
+* **The hour's Bitcoin summary is not relied on.** The hour's public
+  record states the proof's status and attestations (`bitcoin`); the verdict
+  reads the proof itself, and a summary saying otherwise is a warning
+  (`acceptance.hour.bitcoin`).
+
 ## OpenTimestamps
 
 * **The header chain is relied on.** With a contiguous headers file, the

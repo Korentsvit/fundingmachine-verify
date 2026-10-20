@@ -5,7 +5,7 @@
 //
 //   node <repo>/tools/pyodide/check.mjs <repo>
 import { loadPyodide } from "pyodide";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const repo = process.argv[2];
@@ -70,6 +70,13 @@ const requests = [
     headers: json(`fixtures/ledger-anchors/${c}/expected.json`).headers_chain.map((h) => ({ kind: "chain", start: h.start,
       data: b64(join("fixtures/ledger-anchors", c, h.path)) })),
     roots: json(`fixtures/ledger-anchors/${c}/expected.json`).roots.map((r) => text(join("fixtures/ledger-anchors", c, r))) }]),
+  ...[["valid", "valid"], ["time-changed", "invalid"], ["token-before-acceptance", "invalid"]].map(([c, want]) => [`ledger-acceptance ${c}`, want, {
+    kind: "ledger-acceptance", network: "regtest", key: json(`fixtures/acceptance/${c}/expected.json`).key,
+    proof: json(`fixtures/acceptance/${c}/acceptance.json`),
+    ...(existsSync(join(repo, "fixtures/acceptance", c, "hour.json")) ? { hour: json(`fixtures/acceptance/${c}/hour.json`) } : {}),
+    ...(existsSync(join(repo, "fixtures/acceptance", c, "root-record.json")) ? { root_record: json(`fixtures/acceptance/${c}/root-record.json`) } : {}),
+    headers: [{ kind: "chain", data: b64("fixtures/bitcoin/regtest/acceptance-headers-0-5.bin") }],
+    roots: [text("fixtures/rfc3161/pki/root.pem"), text("fixtures/ledger-anchors/pki/second-root.pem")] }]),
 ];
 
 py.globals.set("REQUESTS", JSON.stringify(requests.map((r) => r[2])));

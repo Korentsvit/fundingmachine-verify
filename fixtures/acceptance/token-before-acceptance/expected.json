@@ -1,0 +1,21 @@
+{
+ "key": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/acceptance-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "An authority stamped the anchored root at 07:59, before the event's acceptance time",
+ "outcome": "invalid",
+ "failing": [
+  "acceptance.order"
+ ],
+ "proof": "acceptance.json",
+ "hour": "hour.json"
+}

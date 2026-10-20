@@ -13,6 +13,7 @@ verification result is a convenience on top of it.
 | A Provenance Ledger record certificate (`record-certificate/v0`), JSON with its signature or PDF: the signature over the RFC 8785 bytes, the scope statement, the head's inclusion in the sealed hour, the hour's signed root record, its inclusion in the anchored root, each RFC 3161 token, the OpenTimestamps steps to the Bitcoin block, the block header, and the block at that height from a source of your own; with the events, the record's own statements; with the public submission index, the certificate's entry there | `fm-verify record-certificate` |
 | A document's event chain (`ledger-event/v0`, and its proposed addition v0.1): every chain rule in the contract's order, with its failure codes; with a disclosed document key and text, every keyed hash replayed | `fm-verify chain` |
 | A tenant's hourly root records (`ledger-root/v0`) as a chain of their own: a dropped, swapped or altered hour shows | `fm-verify roots` |
+| When the ledger accepted an event (`ledger-acceptance/v0`): the hour's acceptance record signed by the tenant key, the event's time as its leaf and inside its hour, the hour's root record, the record under the anchored root, that root's RFC 3161 tokens and OpenTimestamps proof, and no token stamped before the time | `fm-verify acceptance` |
 | A Provenance Ledger anchor (`docs/ANCHORING.md`): descriptor leaves, `root.preimage`, its OpenTimestamps proof and RFC 3161 tokens, and a checkout compared; or a batch in this verifier's own format | `fm-verify anchors` |
 | An OpenTimestamps proof against Bitcoin block headers | `fm-verify ots` |
 | An RFC 3161 time-stamp token against the authority's certificate chain, with revocation lists if you have them | `fm-verify rfc3161` |
@@ -137,6 +138,10 @@ fm-verify chain events.json [--disclosure journal.json]
 
 # A tenant's hourly root records, with the tenant's key
 fm-verify roots records.json --key did:key:z6Mk...
+
+# When the ledger accepted an event: what GET /api/acceptance answered the tenant, with the anchored hour's public record
+fm-verify acceptance acceptance.json --key did:key:z6Mk... --root-record certificate.json --hour hour.json \
+    --headers headers.txt --roots /etc/ssl/certs/ca-certificates.crt
 
 # Every anchor on the Ledger's anchors branch, summarised
 fm-verify anchors anchors/ --all --headers-chain blockchain_headers --roots /etc/ssl/certs/ca-certificates.crt
