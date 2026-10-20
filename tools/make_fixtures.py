@@ -713,6 +713,24 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
                           if source == "tool_generated" else
                           "The issuer signed a document total crediting text changed while capture was off to the person; only the chain shows it"),
           "outcome": "invalid", "failing": ["certificate.authorship_map"]}, events_doc=chain_events)
+    if "meaning" in sign_ev["payload"]:
+        # ledger-certificate/v0.1 (the Ledger's docs/CERTIFICATE.md, Version 0.1): a sign event that carries a meaning
+        # is certified with it and the printed name's keyed hash in the signed block.
+        signed01 = {**subject["signed"], "meaning": sign_ev["payload"]["meaning"],
+                    "signer_name_hash": sign_ev["payload"].get("signer_name_hash")}
+        subject01 = {**subject, "contract": "ledger-certificate/v0.1", "signed": signed01}
+        case("cert-v0.1-valid-with-chain", issue(subject01),
+             {"description": "A ledger-certificate/v0.1 certificate, anchored, with the exported file and the event chain: the meaning "
+                             "and the printed name's hash are the sign event's", "outcome": "valid"}, events_doc=chain_events)
+        case("cert-v0.1-meaning-missing", issue({**subject01, "signed": {k: v for k, v in signed01.items() if k != "meaning"}}),
+             {"description": "A v0.1 certificate without the meaning its contract requires", "outcome": "invalid",
+              "failing": ["certificate.meaning"]})
+        case("cert-v0.1-name-hash-malformed", issue({**subject01, "signed": {**signed01, "signer_name_hash": "Alex Example"}}),
+             {"description": "A v0.1 certificate whose printed name hash is not a hash", "outcome": "invalid",
+              "failing": ["certificate.meaning"]})
+        case("cert-v0.1-meaning-misstated", issue({**subject01, "signed": {**signed01, "meaning": "approval"}}),
+             {"description": "The issuer signed a meaning the sign event does not record; only the chain shows it", "outcome": "invalid",
+              "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
     if core_only:
         return
     case("tools-omitted", issue(variant(tools=[])),
