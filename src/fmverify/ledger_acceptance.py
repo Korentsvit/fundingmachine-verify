@@ -46,6 +46,8 @@ ANCHOR_FIELDS = {"root", "size", "leaf_index", "audit_path"}
 ROOT_FIELDS = {"contract", "tenant_id", "window", "size", "root", "prev_root", "key_id", "sig"}
 RECEIVED_AT = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}Z")
 HOUR = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:00:00\.000Z")
+# The hour's public record names its hour as GET /api/anchors?hour= writes it (toISOString), or as that query is written.
+HOUR_START = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:00:00(?:\.000)?Z")
 TENANT = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}")
 HEX64 = re.compile(r"[0-9a-f]{64}")
 SIG = re.compile(r"[A-Za-z0-9_-]{86}")
@@ -200,7 +202,9 @@ def _hour_checks(anchor: dict, rec: dict, received_at: str, hour: dict, checks: 
         checks.append(Check("acceptance.hour", Status.FAIL, "the hour's record is not a JSON object"))
         return "", []
     try:
-        same_hour = _dt.datetime.fromisoformat(str(hour.get("window_start")).replace("Z", "+00:00")) == _instant(rec["window"]["start"])
+        start = hour.get("window_start")
+        same_hour = isinstance(start, str) and bool(HOUR_START.fullmatch(start)) \
+            and _dt.datetime.fromisoformat(start.replace("Z", "+00:00")) == _instant(rec["window"]["start"])
     except ValueError:
         same_hour = False
     if not same_hour:
