@@ -549,6 +549,153 @@ def build_roots() -> None:
                                        "outcome": "valid"})
 
 
+def build_acceptance() -> None:
+    """Acceptance proofs (ledger-acceptance/v0, the Provenance Ledger's docs/ANCHORING.md, "Acceptance records"), as
+    GET /api/acceptance answers a tenant, over one fixture hour with this repository's own test keys: the hour's root
+    record and acceptance record, anchored with another tenant's root record, the root stamped by both test
+    authorities and committed in regtest block 3 (``hour.json``, as GET /api/anchors?hour= answers it)."""
+    import base64
+    import copy
+    import datetime as _dt
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from fmverify import jcs, merkle
+    from fmverify.base58 import ed25519_did_key
+
+    out = FIX / "acceptance"
+    if out.exists():
+        shutil.rmtree(out)
+    tenant = Ed25519PrivateKey.from_private_bytes(sha256(b"fm-verify test tenant key"))
+    other = Ed25519PrivateKey.from_private_bytes(sha256(b"fm-verify test other key"))
+
+    def raw(k) -> bytes:
+        return k.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+
+    def b64url(b: bytes) -> str:
+        return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+
+    def signed(rec: dict, contract: str, k, key_of=None) -> dict:
+        rec = {x: y for x, y in rec.items() if x != "sig"}
+        rec["key_id"] = sha256(raw(key_of or k)).hex()
+        return {**rec, "sig": b64url(k.sign((contract + ":" + sha256(jcs.dumps(rec)).hex()).encode()))}
+
+    window = {"start": "2026-10-16T08:00:00.000Z", "end": "2026-10-16T09:00:00.000Z"}
+    events = [sha256(b"acceptance fixture event %d" % i).hex() for i in range(5)]
+    times = ["2026-10-16T08:02:11.004512Z", "2026-10-16T08:17:40.250000Z", "2026-10-16T08:31:07.123456Z",
+             "2026-10-16T08:44:59.999999Z", "2026-10-16T08:59:59.000001Z"]
+    target = 2
+
+    def leaf(e: str, t: str) -> bytes:
+        return bytes.fromhex(e) + t.encode()
+
+    root_record = signed({"contract": "ledger-root/v0", "tenant_id": "fixture", "window": window, "size": len(events),
+                          "root": merkle.tree_hash([bytes.fromhex(e) for e in events]).hex(), "prev_root": "0" * 64}, "ledger-root/v0", tenant)
+    other_root = signed({"contract": "ledger-root/v0", "tenant_id": "other", "window": window, "size": 2,
+                         "root": sha256(b"another tenant's hour").hex(), "prev_root": "0" * 64}, "ledger-root/v0", other)
+
+    def acceptance(evs: list[str], ts: list[str], k=tenant, key_of=None, root_rec: dict = root_record) -> dict:
+        return signed({"contract": "ledger-acceptance/v0", "tenant_id": "fixture", "window": window, "size": len(evs),
+                       "root_record": sha256(jcs.dumps(root_rec)).hex(),
+                       "accepted_root": merkle.tree_hash([leaf(e, t) for e, t in zip(evs, ts)]).hex()},
+                      "ledger-acceptance/v0", k, key_of)
+
+    record = acceptance(events, times)
+    # The hour's anchored tree: each tenant's root record, then its acceptance record, by tenant_id.
+    anchor_leaves = [sha256(jcs.dumps(root_record)), sha256(jcs.dumps(record)), sha256(jcs.dumps(other_root))]
+    anchor_root = merkle.tree_hash(anchor_leaves)
+    anchor = {"root": anchor_root.hex(), "size": 3, "leaf_index": 1, "audit_path": [h.hex() for h in merkle.inclusion_path(anchor_leaves, 1)]}
+
+    path_ops = [append(sha256(b"acceptance anchor nonce")[:16]), SHA256, prepend(sha256(b"acceptance calendar sibling")), SHA256,
+                prepend(bytes.fromhex("0100000001") + bytes(36) + bytes.fromhex("00ffffffff01") + bytes(8) + bytes.fromhex("226a20")),
+                append(bytes(4)), SHA256, SHA256] + merkle_ops([sha256d(b"acceptance block sibling")], 0)
+    prev, headers = bytes(32), []
+    for height in range(6):
+        h = mine_regtest(prev, run(anchor_root, path_ops) if height == 3 else sha256d(b"acceptance regtest %d" % height),
+                         1792141800 + 600 * height)
+        headers.append(h)
+        prev = sha256d(h)
+    (REG / "acceptance-headers-0-5.bin").write_bytes(b"".join(headers))
+    ots_proof = ots.DetachedTimestamp(SHA256, chain(anchor_root, path_ops, bitcoin_attestation(3))).serialize()
+
+    k1, c1, ica = tsa_fixtures.test_authority()
+    k2, c2, _ = tsa_fixtures.test_authority_second()
+
+    def hour_record(first_time=_dt.datetime(2026, 10, 16, 9, 5, 0, tzinfo=_dt.timezone.utc), stated_first: str | None = None,
+                    root: str | None = None) -> dict:
+        second_time = _dt.datetime(2026, 10, 16, 9, 5, 2, tzinfo=_dt.timezone.utc)
+        t1 = tsa_fixtures.token(k1, c1, [c1, ica], b"", serial=8101, sig="rsa", imprint_value=anchor_root, gen_time=first_time)
+        t2 = tsa_fixtures.token(k2, c2, [c2], b"", serial=8201, sig="ecdsa", imprint_value=anchor_root, gen_time=second_time)
+        return {"window_start": window["start"], "root": root or anchor_root.hex(), "size": 3,
+                "bitcoin": {"status": "attested", "attestations": [{"height": 3, "merkle_root": parse_header(headers[3]).merkle_root[::-1].hex()}],
+                            "pending_calendars": []},
+                "opentimestamps_b64": base64.b64encode(ots_proof).decode(),
+                "rfc3161": [{"authority": "FM Verify Test TSA RSA", "gen_time": stated_first or first_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                             "token_b64": base64.b64encode(t1).decode()},
+                            {"authority": "FM Verify Second Test TSA", "gen_time": "2026-10-16T09:05:02.000Z",
+                             "token_b64": base64.b64encode(t2).decode()}]}
+
+    def proof(rec=record, at: str = times[target], anchored: dict | None = anchor, evs=events, ts=times, index: int = target) -> dict:
+        return {"event_hash": evs[index], "received_at": at, "record": rec, "leaf_index": index,
+                "audit_path": [h.hex() for h in merkle.inclusion_path([leaf(e, t) for e, t in zip(evs, ts)], index)], "anchor": anchored}
+
+    did = ed25519_did_key(raw(tenant))
+    common = {"key": did, "network": "regtest", "headers_chain": [{"path": "../../bitcoin/regtest/acceptance-headers-0-5.bin", "start": 0}],
+              "roots": ["../../rfc3161/pki/root.pem", "../../ledger-anchors/pki/second-root.pem"]}
+
+    def case(name: str, p: dict, expected: dict, root_rec: dict | None = None, hour: dict | None = None) -> None:
+        d = out / name
+        d.mkdir(parents=True)
+        exp = {**common, **expected, "proof": "acceptance.json"}
+        (d / "acceptance.json").write_text(json.dumps(p, indent=1) + "\n", encoding="utf-8")
+        if root_rec is not None:
+            (d / "root-record.json").write_text(json.dumps(root_rec, indent=1) + "\n", encoding="utf-8")
+            exp["root_record"] = "root-record.json"
+        if hour is not None:
+            (d / "hour.json").write_text(json.dumps(hour, indent=1) + "\n", encoding="utf-8")
+            exp["hour"] = "hour.json"
+        (d / "expected.json").write_text(json.dumps({k: v for k, v in exp.items() if v is not None}, indent=1) + "\n", encoding="utf-8")
+
+    case("valid", proof(), {"description": "An event's acceptance time, its signed hourly record, the hour's root record, and the anchored "
+                                           "root with two authorities' tokens and a proof in regtest block 3", "outcome": "valid"},
+         root_record, hour_record())
+    case("valid-proof-only", proof(), {"description": "The answer alone, with the tenant key: the anchored root's proofs and the root "
+                                                      "record were not given", "outcome": "valid"})
+    case("valid-not-anchored", proof(anchored=None), {"description": "The hour is sealed but not anchored yet", "outcome": "valid"},
+         root_record)
+    case("no-key", proof(), {"description": "No tenant key: the signature is not checked", "outcome": "indeterminate", "key": None})
+    case("no-record", {**proof(), "record": None, "leaf_index": None, "audit_path": None, "anchor": None},
+         {"description": "An hour sealed before acceptance records began: nothing binds the time", "outcome": "indeterminate"})
+    case("time-changed", proof(at="2026-10-16T08:31:07.123457Z"),
+         {"description": "The acceptance time one microsecond later than the ledger signed", "outcome": "invalid",
+          "failing": ["acceptance.inclusion"]})
+    case("time-written-otherwise", proof(at="2026-10-16T08:31:07.123Z"),
+         {"description": "The acceptance time in milliseconds, not as the record binds it", "outcome": "invalid", "failing": ["acceptance.form"]})
+    late = times[:4] + ["2026-10-16T09:00:00.000001Z"]
+    case("time-outside-the-hour", proof(rec=acceptance(events, late), at=late[4], ts=late, index=4, anchored=None),
+         {"description": "A signed record binding an event to a time after its hour", "outcome": "invalid", "failing": ["acceptance.window"]})
+    altered = copy.deepcopy(record)
+    altered["accepted_root"] = sha256(b"another hour's times").hex()
+    case("record-altered", proof(rec=altered),
+         {"description": "The record's accepted_root changed after signing", "outcome": "invalid",
+          "failing": ["acceptance.signature", "acceptance.inclusion", "acceptance.anchor_inclusion"]})
+    case("signed-by-another-key", proof(rec=acceptance(events, times, k=other, key_of=tenant), anchored=None),
+         {"description": "A record naming the tenant key, signed by another", "outcome": "invalid", "failing": ["acceptance.signature"]})
+    case("another-root-record", proof(), {"description": "The root record given is another tenant's", "outcome": "invalid",
+                                          "failing": ["acceptance.root_record"]}, other_root)
+    case("hour-of-another-root", proof(), {"description": "The hour's public record names another anchored root", "outcome": "invalid",
+                                           "failing": ["acceptance.hour"]},
+         hour=hour_record(root=sha256(b"another anchored root").hex()))
+    case("token-before-acceptance", proof(),
+         {"description": "An authority stamped the anchored root at 07:59, before the event's acceptance time", "outcome": "invalid",
+          "failing": ["acceptance.order"]},
+         hour=hour_record(first_time=_dt.datetime(2026, 10, 16, 7, 59, 0, tzinfo=_dt.timezone.utc)))
+    case("token-time-misstated", proof(), {"description": "The hour's record states another time than its first token's",
+                                           "outcome": "invalid", "failing": ["acceptance.rfc3161.0.gen_time"]},
+         hour=hour_record(stated_first="2026-10-16T09:04:00.000Z"))
+
+
 def build_certificates(writer, prefix: str = "", headers_name: str = "certificate-headers-0-5.bin", fresh: bool = True,
                        core_only: bool = False) -> None:
     """ledger-certificate/v0 credentials, issued here from the Provenance Ledger
@@ -1156,6 +1303,7 @@ def main() -> None:
     build_record_certificates(writer)
     build_roots()
     build_merkle()
+    build_acceptance()
 
     manifest = {}
     for p in sorted(FIX.rglob("*")):

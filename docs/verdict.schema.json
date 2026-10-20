@@ -7,7 +7,7 @@
  "additionalProperties": false,
  "required": ["kind", "subject", "outcome", "statement", "checks", "relies_on", "does_not_establish", "checked_at", "tool"],
  "properties": {
-  "kind": {"enum": ["merkle-inclusion", "opentimestamps", "rfc3161", "anchor-batch", "ledger-anchor", "anchor-set", "certificate", "event-chain", "text-disclosure", "root-chain", "anchor-proof", "record-certificate"]},
+  "kind": {"enum": ["merkle-inclusion", "opentimestamps", "rfc3161", "anchor-batch", "ledger-anchor", "anchor-set", "certificate", "event-chain", "text-disclosure", "root-chain", "anchor-proof", "record-certificate", "ledger-acceptance"]},
   "subject": {"type": "string"},
   "outcome": {"enum": ["valid", "invalid", "indeterminate"]},
   "statement": {"type": "string", "minLength": 1},

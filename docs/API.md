@@ -30,7 +30,7 @@ Common fields:
 | Field | Meaning |
 | --- | --- |
 | `api` | `fm-verify/0` (optional; any other value is refused) |
-| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `ledger-anchor`, `ledger-anchor-set`, `certificate`, `record-certificate` or `chain` |
+| `kind` | `ots`, `rfc3161`, `merkle`, `anchors`, `ledger-anchor`, `ledger-anchor-set`, `certificate`, `record-certificate`, `chain` or `ledger-acceptance` |
 | `label` | the subject's name, shown in the verdict (optional) |
 | `network` | `mainnet` (default) or `regtest` |
 | `headers` | block headers: `{"kind": "chain", "data": <base64 of 80-byte headers>, "start": 0, "name": ...}` or `{"kind": "sparse", "text": "HEIGHT HEX lines or JSON", "name": ...}` |
@@ -56,6 +56,7 @@ By kind:
 | `certificate` | `certificate` (the certificate's JSON object), or `certificate_file` (base64 of the file as received, JSON or PDF, read by this verifier's own PDF reader, so a page reaches the verdict the command line reaches for the same file); `file` (base64 of the exported document), optional; `events` (the document's ledger-event/v0 or v0.1 events), optional, for step 7 |
 | `record-certificate` | `certificate_file` (base64 of `certificate.json`, or of the PDF form, which carries `certificate.json` and `certificate.sig`); `signature` (base64 of `certificate.sig`), with the JSON; `events`, optional: the record's own statements checked against the chain; `index`, optional: the public submission index (`submission-index/v0`, as `GET /api/submission-index` answers) or a list of its entries, to check the certificate's entry there |
 | `chain` | `events` (a list of ledger-event/v0 or v0.1 events); `disclosure` (`{"doc_key_hex", "steps": [{"seq", "content_text"}]}`), optional: replays the chain and checks every keyed hash; the text is never echoed |
+| `ledger-acceptance` | `proof` (what `GET /api/acceptance?event_hash=` answered the tenant: the event's time, the hour's `ledger-acceptance/v0` record, the event's leaf index and audit path, and the record's place under the anchored root); `key` (the tenant's did:key, or its raw public key in hex), without which the record's signature is not checked; `root_record` (the hour's `ledger-root/v0` record), optional; `hour` (what `GET /api/anchors?hour=` answers for that hour), optional, for the anchored root's RFC 3161 tokens and OpenTimestamps proof |
 
 ### Which headers to fetch
 

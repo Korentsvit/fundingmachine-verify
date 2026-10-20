@@ -1,0 +1,21 @@
+{
+ "key": "did:key:z6MkoGSevtRX7xk5UxVTQLgmu1WwhE2SMErWJk8LFA1Sc2Pu",
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/acceptance-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem",
+  "../../ledger-anchors/pki/second-root.pem"
+ ],
+ "description": "The hour's public record names another anchored root",
+ "outcome": "invalid",
+ "failing": [
+  "acceptance.hour"
+ ],
+ "proof": "acceptance.json",
+ "hour": "hour.json"
+}

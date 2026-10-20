@@ -215,8 +215,28 @@ def _run(req: dict):
                 raise RequestError("disclosure must be an object with doc_key_hex and steps")
             return ledger_text.verify(events, req["disclosure"], subject=label)
         return ledger_events.verify(events, subject=label)
+    if kind == "ledger-acceptance":
+        from . import ledger_acceptance
+
+        key = None
+        if isinstance(req.get("key"), str) and req["key"].startswith("did:key:"):
+            from .base58 import EncodingError, did_key_ed25519
+
+            try:
+                key = did_key_ed25519(req["key"])
+            except EncodingError as exc:
+                raise RequestError(f"key: {exc}") from exc
+        elif "key" in req:
+            key = _hex(req["key"], "key", 32)
+        for name in ("root_record", "hour"):
+            if name in req and not isinstance(req[name], dict):
+                raise RequestError(f"{name} must be a JSON object")
+        return ledger_acceptance.verify(req.get("proof"), public_key=key, root_record=req.get("root_record"), hour=req.get("hour"),
+                                        header_sources=_sources(req), network=NETWORKS[req.get("network", "mainnet")],
+                                        roots=_certs(req.get("roots"), "roots"), extra_certs=_certs(req.get("chain"), "chain"),
+                                        crls=_crls(req.get("crls")), subject=label)
     raise RequestError("kind must be one of ots, rfc3161, merkle, anchors, ledger-anchor, ledger-anchor-set, certificate, "
-                       "record-certificate, chain")
+                       "record-certificate, chain, ledger-acceptance")
 
 
 def _index(value: Any) -> list:

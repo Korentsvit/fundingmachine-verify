@@ -1,0 +1,13 @@
+{
+ "contract": "ledger-root/v0",
+ "tenant_id": "other",
+ "window": {
+  "start": "2026-10-16T08:00:00.000Z",
+  "end": "2026-10-16T09:00:00.000Z"
+ },
+ "size": 2,
+ "root": "dfc0278ff14e3836f2393ce649222ddfea4e4c33d68de288b5dba29bf83da7ac",
+ "prev_root": "0000000000000000000000000000000000000000000000000000000000000000",
+ "key_id": "f8d20a6ea710bb3bf10063b93dafab5bf0c90b214ba2438b4a8d40ffeb71d1ad",
+ "sig": "oT4Tqu6i3J5OTDpqmAAetIpjcqmEcNvJpS0qYazYGLi0tXmZPmg67mdMaGSGMLhew2pVE_nCfpHl4Muf3aZODA"
+}

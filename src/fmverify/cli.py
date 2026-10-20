@@ -262,7 +262,6 @@ def cmd_chain(args: argparse.Namespace) -> Verdict:
 
 def cmd_roots(args: argparse.Namespace) -> Verdict:
     from . import ledger_roots
-    from .base58 import EncodingError, did_key_ed25519
 
     try:
         doc = json.loads(_read(args.records).decode("utf-8"))
@@ -271,15 +270,53 @@ def cmd_roots(args: argparse.Namespace) -> Verdict:
     records = doc.get("records") if isinstance(doc, dict) else doc
     if not isinstance(records, list):
         raise UsageError(f"{args.records} must hold a JSON array of records, or an object with 'records'")
-    key = None
-    if args.key:
-        try:
-            key = did_key_ed25519(args.key) if args.key.startswith("did:key:") else bytes.fromhex(args.key)
-        except (EncodingError, ValueError) as exc:
-            raise UsageError(f"--key: {exc}") from exc
-        if len(key) != 32:
-            raise UsageError("--key is not a 32-byte Ed25519 key")
-    return ledger_roots.verify(records, public_key=key)
+    return ledger_roots.verify(records, public_key=_tenant_key(args.key))
+
+
+def _json_file(path: str, what: str):
+    try:
+        return json.loads(_read(path).decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
+        raise UsageError(f"{what} {path} is not JSON: {exc}") from exc
+
+
+def _tenant_key(value: str | None) -> bytes | None:
+    from .base58 import EncodingError, did_key_ed25519
+
+    if not value:
+        return None
+    try:
+        key = did_key_ed25519(value) if value.startswith("did:key:") else bytes.fromhex(value)
+    except (EncodingError, ValueError) as exc:
+        raise UsageError(f"--key: {exc}") from exc
+    if len(key) != 32:
+        raise UsageError("--key is not a 32-byte Ed25519 key")
+    return key
+
+
+def cmd_acceptance(args: argparse.Namespace) -> Verdict:
+    from . import ledger_acceptance
+
+    root_record = None
+    if args.root_record:
+        root_record = _json_file(args.root_record, "--root-record")
+        if isinstance(root_record, dict) and isinstance(root_record.get("credentialSubject"), dict):
+            # A ledger certificate of the hour: its root record.
+            root_record = (root_record["credentialSubject"].get("ledger_root") or {}).get("record")
+            if root_record is None:
+                raise UsageError("--root-record: the certificate carries no hourly root record")
+    return ledger_acceptance.verify(
+        _json_file(args.proof, "the proof"),
+        public_key=_tenant_key(args.key),
+        root_record=root_record,
+        hour=_json_file(args.hour, "--hour") if args.hour else None,
+        header_sources=header_sources(args),
+        network=NETWORKS[args.network],
+        roots=_certs(args.roots, "--roots"),
+        extra_certs=_certs(args.chain, "--chain"),
+        crls=_crls(args.crl),
+        subject=args.proof,
+    )
 
 
 def _header_options(p: argparse.ArgumentParser) -> None:
@@ -458,6 +495,22 @@ def build_parser() -> argparse.ArgumentParser:
     ro.add_argument("--json", action="store_true")
     ro.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
     ro.set_defaults(func=cmd_roots)
+
+    ac = sub.add_parser("acceptance", help="when the Provenance Ledger accepted an event (ledger-acceptance/v0): the tenant's "
+                                           "acceptance proof, its signed hourly record and the anchored root")
+    ac.add_argument("proof", help="what GET /api/acceptance?event_hash=... answered the tenant, as JSON")
+    ac.add_argument("--key", help="the tenant's key: its did:key (its certificates name it), or the raw public key in hex")
+    ac.add_argument("--root-record", metavar="FILE", help="the hour's ledger-root/v0 record, or a ledger certificate of that hour, which "
+                                                          "carries it")
+    ac.add_argument("--hour", metavar="FILE", help="the anchored hour's public record, what GET /api/anchors?hour=... answers, for the "
+                                                   "anchored root's RFC 3161 tokens and OpenTimestamps proof")
+    _header_options(ac)
+    ac.add_argument("--roots", action="append", metavar="PEM", help="certificates you trust as time-stamping roots (repeatable)")
+    ac.add_argument("--chain", action="append", metavar="PEM", help="intermediate or signer certificates not in the tokens (repeatable)")
+    ac.add_argument("--crl", action="append", metavar="FILE", help="certificate revocation lists you hold, PEM or DER (repeatable)")
+    ac.add_argument("--json", action="store_true")
+    ac.add_argument("--html", metavar="PATH", help="also write the verdict as a self-contained HTML page")
+    ac.set_defaults(func=cmd_acceptance)
 
     c = sub.add_parser("conformance", help="run every published fixture case and compare the verdicts with the expected ones")
     c.add_argument("fixtures", nargs="?", default="fixtures", help="the fixtures directory (default ./fixtures)")

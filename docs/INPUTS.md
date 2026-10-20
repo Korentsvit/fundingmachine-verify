@@ -68,6 +68,20 @@ fundingmachine-ledger, and read by this verifier from those documents:
   another version stops the check, indeterminate. With `--disclosure`, the
   journal's resync texts, quotations, declaration and signer's name are
   checked against their hashes as well.
+* Acceptance records (`ledger-acceptance/v0`, `docs/ANCHORING.md`,
+  "Acceptance records", on the Ledger's main from 20 October 2026):
+  `fm-verify acceptance PROOF --key DID` reads what
+  `GET /api/acceptance?event_hash=` answers the tenant: `event_hash`,
+  `received_at` (UTC with microseconds and `Z`), the hour's `record`,
+  `leaf_index` and `audit_path` under its `accepted_root`, and `anchor`
+  (`root`, `size`, `leaf_index`, `audit_path`: the record's place under the
+  hour's anchored root), or `null` where the hour is not anchored yet. The
+  leaf is `SHA-256(0x00 || event_hash || received_at)`, the record's hash in
+  the anchored tree `SHA-256(JCS(record))`. `--root-record` takes the hour's
+  `ledger-root/v0` record, or a ledger certificate of the hour that carries
+  it; `--hour` takes what `GET /api/anchors?hour=` answers, whose RFC 3161
+  tokens and OpenTimestamps proof are checked over the anchored root, and
+  each token's time against the acceptance time.
 * Artefact anchoring (`docs/ANCHORING.md`): `fm-verify anchors DIR` reads an
   anchor directory (`manifest.json`, `root.preimage`, `root.preimage.ots`,
   `root.preimage.<authority>.tsr`). Leaves are the RFC 8785 JSON of each
