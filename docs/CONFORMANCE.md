@@ -193,12 +193,27 @@ pull request, on main and nightly (`.github/workflows/conformance.yml`):
     failing; in CS-12 the token for another digest fails.
   * All four agree, on the Ledger's main fc5ee1e (19 October 2026).
 
+* **Record certificate cases on its test vector (its CS-71, and CS-61 to
+  CS-69 derived from it)**, from `fixtures/record-certificate/v0` in a
+  checkout of its repository, not copied (`tests/test_ledger_suite_record.py`,
+  with `FM_LEDGER_REPO`):
+  * The vector is synthetic: issuer, root record and acceptance record
+    signed with its `keys.json` "tenant" (RFC 8032 TEST 3), tokens from two
+    test authorities whose roots it carries, and a regtest block
+    (`headers.txt`). Re-signing it unchanged gives its own signature.
+  * CS-71 is valid with every check passing; without the header file the
+    block is not run, and the verdict is indeterminate.
+  * Each derived case fails exactly the checks its table names. CS-63 (the
+    head stated as another leaf) fails `head_to_root`. CS-64 (a root record
+    signed by another key) fails `root_record` and `record_to_anchor`,
+    since the anchored root commits to the issuer's record. CS-66 (the
+    token times without fractional seconds) holds. CS-69 (an unknown
+    version) is not verified.
+  * All agree, on the Ledger's main of 20 October 2026. Its CS-60 and CS-61
+    ran on the first certificate the live Ledger issued (17 October).
+
 The other cases run on fixtures in the Ledger's repository, which is
-private; they are run in this session's checkout, not in CI. Its record
-certificate cases CS-62 to CS-69 each re-sign a record certificate with the
-issuer's key. The Ledger has no record certificate fixture, and the live
-certificates are signed with its production key, so these eight wait on a
-fixture from the Ledger, signed with a published test key.
+private; they are run in this session's checkout, not in CI.
 
 Its record certificate cases (CS-60 to CS-70) name one result per check of
 the contract's own list. This verifier reports them as these check ids:
