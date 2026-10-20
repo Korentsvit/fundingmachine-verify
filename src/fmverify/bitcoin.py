@@ -381,10 +381,14 @@ class HeaderSet(HeaderSource):
             linked.append(f"height {height + 1} links to it")
         if linked:
             checks[0].reasons.append("in the same file, " + " and ".join(linked))
-        relies = [
-            f"the header at height {height} in {self.name} is the block at that height on Bitcoin's most-work chain: "
-            f"its proof of work was checked, its place in the chain was not; compare block {h.hash_hex} with any independent source"
-        ]
+        if self.network.test_only:
+            relies = [f"the header at height {height} in {self.name} is the {self.network.name} block the proof was made on "
+                      "(a test network: it proves nothing about real time)"]
+        else:
+            relies = [
+                f"the header at height {height} in {self.name} is the block at that height on Bitcoin's most-work chain: "
+                f"its proof of work was checked, its place in the chain was not; compare block {h.hash_hex} with any independent source"
+            ]
         return HeaderEvidence(height, h, self.name, checks, relies)
 
 

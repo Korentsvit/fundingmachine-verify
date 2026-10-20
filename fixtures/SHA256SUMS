@@ -363,7 +363,7 @@ b970be99800e5637ac5d55a637bb4a899503d05438c25aeb70a0a2b24be5d168  ledger-anchors
 675411e20301695dae1db90e133cd879581f46908690ea8a2d570003422e82a0  ledger-anchors/valid/root.preimage.test-p256.tsr
 46fc14fa7397715dcbadb9b73e8d0bf340c38eb974382bbabc0a301bf90729ee  ledger-anchors/valid/root.preimage.test-rsa.tsr
 f3f79cacce7e39a944775eab926596cd850d45ddfb4c4c29edb497184f0fd566  ledger-conformance/LICENSE
-677b62716e2c3e5042668b26d6716d66c75b774ee41888e64397677842f72015  ledger-conformance/README.md
+1c19b1f0ab8ff467645959a3f0e00e59f8d429d81a0966e12a5afe5de53d7461  ledger-conformance/README.md
 30808db2f8ba454fc1703bce437fcbe81a546f400096b7eb91901065e0e0a9d4  ledger-conformance/ledger-event/v0/pairs/bad_signature--range_not_empty--seq-2.chain.json
 231399fe64e11c8a90970e579dfc0bab2d4cb1595e85c7babc227df6eb350b9f  ledger-conformance/ledger-event/v0/pairs/bad_signature--statement_unknown--seq-2.chain.json
 5220ef5f5e2350cd7e0a21189f382ca7505128cd934d40856df31f0484eabb86  ledger-conformance/ledger-event/v0/pairs/doc_mismatch--bad_signature--seq-2.chain.json
@@ -425,6 +425,8 @@ c8939c4bdc61ee972c9a19ef0a61193a1c3149a010ea32f15eb912221d67af88  ledger-conform
 2cb4355adf838f443d6f48b79f87a9abf469cbc0827742fde47daa7285aed9bc  ledger-conformance/ledger-event/v0/pairs/seq_gap--tenant_mismatch--seq-2.chain.json
 45a0e10ece83ac1d95d8d7300548c41bcc518d08778480a7f8a84b2a5d558352  ledger-conformance/ledger-event/v0/pairs/seq_gap--ts_backwards--seq-2.chain.json
 0bd00dab4f60fc0640412bb0005734269a35e4a7246f8216035adf19b7af9f83  ledger-conformance/ledger-event/v0/pairs/seq_gap--ts_backwards--seq-4.chain.json
+c7a58f7a4fdeb0aaabab3f87cdd6d1d0d4c84f1fc00968a0876d4e477c16f34d  ledger-conformance/ledger-event/v0/pairs/session_unknown--bad_signature--seq-2.chain.json
+478bee2a70e1164952b9e25da3c2027313081422da85779963a4abc5903be68d  ledger-conformance/ledger-event/v0/pairs/session_unknown--key_mismatch--seq-2.chain.json
 e2bd244027bf3133e9d244e322d9382cc0437465bf7a17f234f1f1f5a33df629  ledger-conformance/ledger-event/v0/pairs/session_unknown--range_not_empty--seq-2.chain.json
 ee4ff0777c43d4a4f86c34f18bd7c05289feb6978120a2014bc8e58ee35a3cca  ledger-conformance/ledger-event/v0/pairs/session_unknown--statement_unknown--seq-2.chain.json
 22d7c94eb7f93d828d38c1a780754919c54a27cca6951c6bbddb4d23600b99e1  ledger-conformance/ledger-event/v0/pairs/statement_unknown--range_empty--seq-8.chain.json

@@ -113,10 +113,10 @@ def test_the_ledger_suites_pair_fixtures_run_as_chain_cases(tmp_path):
     stops at its expect.index with its expect.code, in process and through the outside-implementation harness, and an
     expectation changed in a copy is reported."""
     pairs = conformance.ledger_pairs(FIX)
-    assert len(pairs) == 86
+    assert len(pairs) == 88
     _, results = conformance.run_suite(FIX, kinds=["chain"])
     ledger = [r for r in results if r.name.startswith("ledger-pair/")]
-    assert len(ledger) == 86 and all(r.ok and r.got == "invalid" for r in ledger), [r.problems for r in ledger if not r.ok]
+    assert len(ledger) == 88 and all(r.ok and r.got == "invalid" for r in ledger), [r.problems for r in ledger if not r.ok]
     one = pairs[0].name
     copy = tmp_path / "fixtures"
     (copy / conformance.LEDGER_PAIRS).mkdir(parents=True)
