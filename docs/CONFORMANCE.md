@@ -277,8 +277,16 @@ time of its own, so it rebuilds byte for byte:
 
 ```sh
 python -m pip install fundingmachine_verify-VERSION-py3-none-any.whl
-python tools/scoreboard.py VERSION OUT --commit TAGGED_COMMIT --fixtures fm-verify-fixtures-VERSION   # from a checkout of the tag
+python tools/scoreboard.py VERSION OUT --commit TAGGED_COMMIT --fixtures fm-verify-fixtures-VERSION --run RUN_ID   # from a checkout of the tag
 ```
+
+Each figure names the run it traces to (`trace`, and `run_id` on each
+section and certificate): the conformance run on main at the tagged commit,
+which existed before the release. Its log shows the passing count, the
+newest anchor verdict with its counts, and each certificate verdict filed
+(`tools/verdict_summary.py`). The release finds that run, records its id,
+and refuses to publish unless the run's log shows every figure
+(`tools/scoreboard.py --check-log LOG FILE`).
 
 The Provenance Ledger's own suite is not in it: that runs from a checkout of
 the Ledger's repository, which a release does not depend on.

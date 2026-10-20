@@ -66,3 +66,32 @@ def test_bad_arguments_are_refused():
         scoreboard.build("v1.0", COMMIT, ROOT / "fixtures")
     with pytest.raises(scoreboard.ScoreboardError):
         scoreboard.build("1.0.0", "abc", ROOT / "fixtures")
+
+
+def _run_log(board: dict) -> str:
+    """What the conformance run prints, as its steps print it: the suite's last line and the filed verdicts."""
+    done = subprocess.run([sys.executable, str(ROOT / "tools/verdict_summary.py")], cwd=ROOT, capture_output=True, text=True, check=False)
+    s = board["conformance"]
+    return f"... {s['passing']} of {s['total']} cases conform\n" + done.stdout
+
+
+def test_each_figure_carries_the_run_that_shows_it():
+    board = scoreboard.build("9.9.9", COMMIT, ROOT / "fixtures", run=123456)
+    assert board["trace"] == {"run_id": 123456, "url": scoreboard.RUNS + "123456", "workflow": "conformance",
+                              "event": "push to main", "commit": COMMIT}
+    assert board["anchors"]["run_id"] == board["certificates"]["run_id"] == board["conformance"]["run_id"] == 123456
+    assert all(c["run_id"] == 123456 for c in board["certificates"]["verdicts"])
+    assert "each figure shown by run 123456" in scoreboard.line(board)
+    assert scoreboard.build("9.9.9", COMMIT, ROOT / "fixtures")["trace"] is None
+
+
+@pytest.mark.skipif(not Path("/etc/ssl/certs/ca-certificates.crt").is_file(), reason="the summary verifies the published certificates again")
+def test_a_runs_log_shows_every_figure_or_the_check_says_which_not():
+    board = scoreboard.build("9.9.9", COMMIT, ROOT / "fixtures", run=1)
+    log = _run_log(board)
+    assert scoreboard.check_log(log, board) == []
+    first = board["certificates"]["verdicts"][0]["certificate"]
+    without = "\n".join(line for line in log.splitlines() if first not in line)
+    assert scoreboard.check_log(without, board) == [l for l in scoreboard.shown(board) if first in l]
+    fewer = log.replace(f"{board['conformance']['passing']} of", f"{board['conformance']['passing'] - 1} of")
+    assert any("cases conform" in m for m in scoreboard.check_log(fewer, board))
