@@ -333,3 +333,64 @@ def test_a_manifest_naming_no_descriptor_is_a_warning(tmp_path):
         row = next(c for c in v.checks if c.id == "ledger_anchor.leaves")
         assert v.outcome is Outcome.VALID and row.status is Status.WARN and "names no descriptor" in row.summary
         assert v.statement.startswith("Root ")
+
+
+def _case(tmp_path, name):
+    import shutil
+
+    case = tmp_path / "ledger-anchors" / name
+    shutil.copytree(FIX / "ledger-anchors" / name, case)
+    for d in ("rfc3161/pki", "ledger-anchors/pki", "bitcoin/regtest"):
+        shutil.copytree(FIX / d, tmp_path / d)
+    return case
+
+
+def test_a_stated_time_that_is_no_instant_is_refused(tmp_path):
+    """Found by tools/tamper_audit.py at 800 rounds: a token's stated gen_time with month 80 passed the manifest's
+    form check, and its comparison with the token, unable to read it, said nothing."""
+    from fmverify import conformance
+    from fmverify.verdict import Outcome
+
+    case = _case(tmp_path, "authorities-not-independent")
+    m = json.loads((case / "manifest.json").read_text())
+    for key, bad in (("gen_time", "2026-80-17T08:04:12.000Z"), ("created", "2026-02-30T08:04:11.000Z")):
+        changed = json.loads(json.dumps(m))
+        if key == "gen_time":
+            changed["proofs"]["rfc3161"][0]["gen_time"] = bad
+        else:
+            changed["created"] = bad
+        (case / "manifest.json").write_bytes(jcs.dumps(changed))
+        _, v = conformance.run_case("ledger-anchors", case)
+        assert v.outcome is Outcome.INVALID, key
+        assert any("not a UTC time to the millisecond" in r for c in v.checks for r in c.reasons), key
+    assert ledger_anchors._ms_time("2026-10-17T08:04:12.000Z") and not ledger_anchors._ms_time("2026-10-17T24:04:12.000Z")
+
+
+def test_a_manifest_naming_no_authority_is_a_warning(tmp_path):
+    """Found by tools/tamper_audit.py at 800 rounds: an empty authority name was passed over in silence."""
+    from fmverify import conformance
+    from fmverify.verdict import Status
+
+    case = _case(tmp_path, "checkout-later")
+    m = json.loads((case / "manifest.json").read_text())
+    m["proofs"]["rfc3161"][0]["authority"] = ""
+    (case / "manifest.json").write_bytes(jcs.dumps(m))
+    _, v = conformance.run_case("ledger-anchors", case)
+    row = next(c for c in v.checks if c.id == "ledger_anchor.authorities")
+    assert row.status is Status.WARN and any("names no authority" in r for r in row.reasons)
+
+
+def test_an_unlisted_anchor_is_still_linked(tmp_path):
+    """Found by tools/tamper_audit.py at 800 rounds: the link of an anchor index.jsonl does not list was never checked,
+    though its row says the link is checked when the whole set is verified."""
+    import shutil
+
+    shutil.copytree(FIX / "ledger-anchors" / "set-unlisted", tmp_path / "set")
+    second = tmp_path / "set" / "2026" / "10" / "17" / "090411Z" / "manifest.json"
+    c = ledger_anchors.check_index(tmp_path / "set", ledger_anchors.find_anchor_dirs(tmp_path / "set"))
+    assert c.status.value == "warn"  # as committed: unlisted, its link to the first anchor holds
+    m = json.loads(second.read_text())
+    for prev in ({**m["previous"], "path": "2026B10/17/080411Z"}, {**m["previous"], "root": "0" * 64}):
+        second.write_bytes(jcs.dumps({**m, "previous": prev}))
+        c = ledger_anchors.check_index(tmp_path / "set", ledger_anchors.find_anchor_dirs(tmp_path / "set"))
+        assert c.status.value == "fail" and any("does not list" in r for r in c.reasons), prev

@@ -94,6 +94,17 @@ def preimage_for(leaves: Sequence[bytes]) -> bytes:
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 _HEX40 = re.compile(r"[0-9a-f]{40}")
 _MS_TIME = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z")
+
+
+def _ms_time(s: Any) -> bool:
+    """A UTC time to the millisecond that is a real instant: the form, and a date and time that exist."""
+    if not (isinstance(s, str) and _MS_TIME.fullmatch(s)):
+        return False
+    try:
+        _dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return True
 _REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 
 
@@ -127,7 +138,7 @@ def v0_problems(m: Any) -> list[str]:
     if not obj(m, {"contract", "created", "root", "size", "leaves", "sources", "previous", "proofs"}, "the manifest"):
         return out
     want(m["contract"] == MANIFEST_CONTRACT, "contract is not anchor-manifest/v0")
-    want(is_str(m["created"]) and bool(_MS_TIME.fullmatch(m["created"])), "created is not a UTC time to the millisecond")
+    want(_ms_time(m["created"]), "created is not a UTC time to the millisecond")
     want(is_str(m["root"]) and bool(_HEX64.fullmatch(m["root"])), "root is not 64 lower-case hex characters")
     want(is_int(m["size"]) and m["size"] >= 1, "size is not a whole number of at least 1")
     if not isinstance(m["leaves"], list) or not m["leaves"]:
@@ -191,7 +202,7 @@ def v0_problems(m: Any) -> list[str]:
             for j, t in enumerate(r):
                 if obj(t, {"authority", "url", "file", "gen_time", "serial", "policy"}, f"proofs.rfc3161 {j}"):
                     want(all(is_str(t[k]) for k in t), f"proofs.rfc3161 {j}: a field is not a string")
-                    want(is_str(t["gen_time"]) and bool(_MS_TIME.fullmatch(t["gen_time"])), f"proofs.rfc3161 {j}: gen_time is not a UTC time to the millisecond")
+                    want(_ms_time(t["gen_time"]), f"proofs.rfc3161 {j}: gen_time is not a UTC time to the millisecond")
                     want(is_str(t["serial"]) and bool(re.fullmatch(r"[0-9a-f]+", t["serial"])), f"proofs.rfc3161 {j}: serial is not lower-case hex")
     return out
 
@@ -260,7 +271,9 @@ def _authority_checks(manifest: dict, subs: Sequence[tuple[str, str, Verdict]]) 
         subject, org = sc.data.get("subject", ""), sc.data.get("organization")
         signed.append((t["file"], org or subject, chain.data.get("root_sha256") if chain else None))
         auth = t.get("authority")
-        if isinstance(auth, str) and _norm(auth) and _norm(auth) not in _norm(subject):
+        if isinstance(auth, str) and not _norm(auth):
+            named.append(f"{t['file']}: the manifest names no authority; the token was signed by {subject}")
+        elif isinstance(auth, str) and _norm(auth) not in _norm(subject):
             named.append(f"{t['file']}: the manifest names {auth}; the token was signed by {subject}")
     out = []
     if named:
@@ -731,6 +744,26 @@ def index_check(index: bytes, anchors: Sequence[str], anchor_of: Callable[[str],
             problems.append(f"line {i}: created {line['created']} is not after the line before ({before['created']})")
         before = line
     unlisted = [a for a in anchors if a not in listed]
+    # An anchor the index does not list is still linked: its previous must name an anchor here, with that anchor's root.
+    for a in unlisted:
+        raw = manifest_of(a)
+        try:
+            m = jcs.loads(raw.decode("utf-8")) if raw is not None else None
+        except (jcs.JcsError, UnicodeDecodeError):
+            m = None
+        prev = m.get("previous") if isinstance(m, dict) else None
+        if not isinstance(prev, dict):
+            continue
+        target = anchor_of(prev["path"]) if isinstance(prev.get("path"), str) else None
+        try:
+            target_m = jcs.loads(manifest_of(target).decode("utf-8")) if target is not None and manifest_of(target) else None
+        except (jcs.JcsError, UnicodeDecodeError):
+            target_m = None
+        if target is None:
+            problems.append(f"{a}, which index.jsonl does not list, links to {prev.get('path')!r}, which is not an anchor here")
+        elif not isinstance(target_m, dict) or target_m.get("root") != prev.get("root"):
+            problems.append(f"{a}, which index.jsonl does not list, links to {target} with root {prev.get('root')!r}, "
+                            f"which is not that anchor's root")
     data = {"lines": len(lines), "unlisted": unlisted}
     if problems:
         return Check("anchor_set.index", Status.FAIL, "index.jsonl and the anchors' links do not agree",

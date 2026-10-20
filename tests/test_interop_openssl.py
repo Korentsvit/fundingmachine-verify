@@ -229,3 +229,48 @@ def test_the_designed_differences_are_established_from_the_token(tmp_path):
         if not ours:
             row = next(c for c in verdict.checks if c.id == "rfc3161.signer_cert")
             assert "byte for byte" in row.reasons[0]
+
+
+def test_the_designed_differences_found_at_60000_rounds(tmp_path):
+    """Three more, found at 60,000 rounds a token: the hash parameters in SignedData's digestAlgorithms (a warning
+    here), bytes after the token and a SET written in primitive form (both refused here). Each is seen with
+    OpenSSL's own answer, and the run names it."""
+    import importlib.util
+    import json
+    import subprocess
+
+    from fmverify import pki, rfc3161
+
+    spec = importlib.util.spec_from_file_location("differential_openssl", ROOT / "tools" / "differential_openssl.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    def judge(name, changed):
+        case = ROOT / "fixtures" / "rfc3161" / name
+        exp = json.loads((case / "expected.json").read_text(encoding="utf-8"))
+        roots = [c for r in exp["roots"] for c in pki.load_certificates((case / r).read_bytes())]
+        chain = [c for r in exp.get("chain", []) for c in pki.load_certificates((case / r).read_bytes())]
+        path = tmp_path / "token.tsr"
+        path.write_bytes(changed)
+        args = [OPENSSL, "ts", "-verify", "-in", str(path), "-data", str(case / exp["file"]), "-attime", tool.AT]
+        args += [x for r in exp["roots"] for x in ("-CAfile", str(case / r))]
+        args += [x for c in exp.get("chain", []) for x in ("-untrusted", str(case / c))]
+        theirs = "Verification: OK" in subprocess.run(args, capture_output=True, text=True).stdout
+        verdict = rfc3161.verify(changed, file_bytes=(case / exp["file"]).read_bytes(), roots=roots, extra_certs=chain)
+        return verdict.outcome.value == "valid", theirs, verdict
+
+    oid = bytes.fromhex("06092a864886f70d010702")  # id-signedData, then [0] EXPLICIT, SignedData, its version
+    rsa = (ROOT / "fixtures" / "rfc3161" / "valid-rsa" / "token.tsr").read_bytes()
+    digest_set = rsa.index(oid) + len(oid) + 4 + 4 + 3
+    null = digest_set + 2 + 2 + 11  # SET, SEQUENCE, the sha256 OID, then its NULL
+    assert rsa[digest_set] == 0x31 and rsa[null:null + 2] == b"\x05\x00"
+    p256 = (ROOT / "fixtures" / "rfc3161" / "valid-p256-chain-supplied" / "token.tsr").read_bytes()
+    p256_set = p256.index(oid) + len(oid) + 4 + 4 + 3
+    assert p256[p256_set] == 0x31
+    for name, token, changed, ours_valid in (
+            ("valid-rsa", rsa, rsa[:null] + b"\x06" + rsa[null + 1:], True),
+            ("valid-p256-chain-supplied", p256, p256 + b"\x4c", False),
+            ("valid-p256-chain-supplied", p256, p256[:p256_set] + b"\x11" + p256[p256_set + 1:], False)):
+        ours, theirs, verdict = judge(name, changed)
+        assert ours is ours_valid and theirs is not ours_valid, (name, changed[-2:])
+        assert tool.by_design(token, changed, ours, theirs, verdict), (name, verdict.checks[0].summary)
