@@ -268,6 +268,21 @@ tar xf fm-verify-fixtures-VERSION.tar
 fm-verify conformance fm-verify-fixtures-VERSION
 ```
 
+From v0.3.0 a release also carries `fm-verify-scoreboard-VERSION.json`
+(`fm-verify-scoreboard/v0`, `tools/scoreboard.py`): the newest anchor
+verdict committed at the tag (anchors named, confirmed in Bitcoin, pending,
+failed), every certificate verdict committed there, and this suite's cases
+passing, run by the release's own wheel on its fixture archive. It holds no
+time of its own, so it rebuilds byte for byte:
+
+```sh
+python -m pip install fundingmachine_verify-VERSION-py3-none-any.whl
+python tools/scoreboard.py VERSION OUT --commit TAGGED_COMMIT --fixtures fm-verify-fixtures-VERSION   # from a checkout of the tag
+```
+
+The Provenance Ledger's own suite is not in it: that runs from a checkout of
+the Ledger's repository, which a release does not depend on.
+
 A release's version changes when a case's expected verdict changes (major),
 when cases are added (minor), or when bytes change without changing any
 verdict (patch).
