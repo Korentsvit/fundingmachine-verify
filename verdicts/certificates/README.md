@@ -18,6 +18,7 @@ and its verdict is committed here:
 | [2026-10-17 21:10](2026-10-17T2110Z) | `record-certificate/v0` | `urn:uuid:af6c889d-8204-45e8-bf9f-b4bff6279e1e`, block 971901 | valid |
 | [2026-10-17 23:05](2026-10-17T2305Z) | `record-certificate/v0` | `urn:uuid:ed65828a-9107-416d-924d-1b907e29702b`, block 971906 | valid |
 | [2026-10-20 00:05](2026-10-20T0005Z) | `ledger-certificate/v0` | `urn:uuid:4a16630e-1cc4-43fd-932e-96a890e26f6d`, not yet in an hourly root | valid |
+| [2026-10-20 12:46](2026-10-20T1246Z) | `ledger-certificate/v0` | `urn:uuid:3b86bed8-d609-4879-881a-23271bcb77a2`, not yet in an hourly root | valid |
 
 Each verdict is a directory named by the UTC time it was checked, holding:
 
