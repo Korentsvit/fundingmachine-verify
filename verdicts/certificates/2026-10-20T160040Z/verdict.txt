@@ -1,0 +1,29 @@
+VALID: did:key:z6MktejuBN555Bs4mm2rjsBDvujSMp1kVXWnMr1ptSLyzyVB signed this record of how document 9edf6777-bf47-477e-8800-48b88a7ad653 (exported SHA-256 754da3f10812c85a7cff44261acae3fa002de5ec1d1cf35a599e916f8d1132bb) was written in this environment, signed at event 41 (ee1950a13fbf587bd7c67106c08e32483bddc23a33626c9e7365a1a7aa34643d) on 2026-10-20T09:41:24.390Z. The sign event is not yet in a signed hourly root, and nothing anchors it: its time is the issuer's and the capture client's claim. No exported file was presented. The event chain itself was not checked.
+Subject: certificate urn:uuid:b5ddce1f-60f2-4ad7-830e-991a9d139785 for document 9edf6777-bf47-477e-8800-48b88a7ad653
+
+Checks:
+  [pass] certificate.contract: contract ledger-certificate/v0
+  [pass] certificate.proof: signed by did:key:z6MktejuBN555Bs4mm2rjsBDvujSMp1kVXWnMr1ptSLyzyVB (eddsa-jcs-2022), created 2026-10-20T09:41:33.043Z
+  [pass] certificate.scope_statement: the scope statement is present word for word
+      - as the certificate states it: This record shows how this document was written in this environment; it does not detect AI, certify originality, or prove what the author consulted elsewhere.
+  [pass] certificate.authorship_arithmetic: the authorship counts add up and every percentage follows from its counts (docs/AUTHORSHIP_MAP.md rounding)
+  [not_checked] certificate.file (optional): no exported file was presented
+      - the verdict is about the certificate, not about any file you hold
+  [not_checked] certificate.root_record (optional): step 4, the root record's signature, did not run: the certificate carries no hourly root yet
+      - ledger_root is null: the certificate was issued before its hour's root was signed
+  [not_checked] certificate.inclusion (optional): step 5, the sign event's inclusion, did not run: the certificate carries no hourly root yet
+      - ledger_root is null: the certificate was issued before its hour's root was signed
+  [not_checked] certificate.anchor (optional): step 6, the anchor, did not run: the certificate carries no hourly root yet
+      - ledger_root is null: the certificate was issued before its hour's root was signed
+  [not_checked] certificate.chain (optional): the event chain and the authorship map were not checked
+      - step 7 needs the document's events up to the sign event; pass them with --events
+
+Relied on:
+  - did:key:z6MktejuBN555Bs4mm2rjsBDvujSMp1kVXWnMr1ptSLyzyVB is the tenant's signing key: the certificate names it, nothing outside it vouches for it
+
+Does not establish:
+  - that the document was written by any particular person, or that it was not written with AI assistance elsewhere
+  - that the document's content is true, original, or what its author read elsewhere
+  - anything about writing outside this environment: the record shows how the document was written in it
+
+fm-verify 0.2.0, checked at 2026-10-20T16:00:40Z
