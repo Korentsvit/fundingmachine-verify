@@ -141,6 +141,12 @@ UNREAD = [
     ("batch.json", r"ots|rfc3161", "a batch's proof files are found by their suffix; the lists only name them"),
     ("index.json", r"statement|scope_statement", "the index's own sentences: no proof covers them and no check reads their words"),
     ("manifest.json", r"created", "the manifest's time of writing: the job's statement, compared with index.jsonl only when the set is verified"),
+    ("hour.json", r"rfc3161/\d+/authority", "a token's label in the hour's record: the verdict names the authority from the token's own "
+                                             "signer certificate, and no proof covers the label"),
+    ("hour.json", r"rfc3161/\d+/gen_time", "a token's stated time in the hour's record: the verdict reads the token's own time, compares "
+                                           "a stated one as an instant, and fails one that differs"),
+    ("hour.json", r"bitcoin", "the hour's Bitcoin summary: the verdict reads the proof itself, and a summary present that "
+                              "says otherwise is a warning"),
 ]
 
 
