@@ -1,7 +1,8 @@
 """The release's scoreboard: what this verifier has verified, as of the release's commit.
 
-    python tools/scoreboard.py VERSION OUT_DIR --commit SHA [--fixtures DIR]
+    python tools/scoreboard.py VERSION OUT_DIR --commit SHA [--fixtures DIR] [--run ID]
     python tools/scoreboard.py --line FILE
+    python tools/scoreboard.py --check-log LOG FILE
 
 Writes OUT_DIR/fm-verify-scoreboard-VERSION.json (contract fm-verify-scoreboard/v0), read from the commit's
 own files and recomputed, never typed in:
@@ -14,7 +15,12 @@ own files and recomputed, never typed in:
   imported, case by case, with the fixture manifest checked first. The release runs it with the wheel it
   publishes, on the archived fixtures.
 
-The same commit and fixtures give the same bytes: the file holds no time of its own. ``--line`` prints the
+``--run`` names the conformance run on main at the commit (.github/workflows/conformance.yml), whose log shows
+every figure: the passing count, the newest anchor verdict with its counts, and each certificate verdict filed
+(tools/verdict_summary.py). Each figure carries that run's id, so it traces to a run that existed before the
+release. ``--check-log`` checks that a run's log shows every figure of a scoreboard file.
+
+The same commit, fixtures and run give the same bytes: the file holds no time of its own. ``--line`` prints the
 scoreboard line the release notes carry.
 """
 
@@ -92,11 +98,40 @@ def conformance(fixtures: Path) -> dict:
             "failing": sorted(f"{r.kind}/{r.name}" for r in results if not r.ok)}
 
 
-def build(version: str, commit: str, fixtures: Path, repo: Path = ROOT) -> dict:
+RUNS = "https://github.com/Korentsvit/fundingmachine-verify/actions/runs/"
+
+
+def build(version: str, commit: str, fixtures: Path, repo: Path = ROOT, run: int | None = None) -> dict:
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ScoreboardError("give the version as X.Y.Z and the full commit")
-    return {"contract": CONTRACT, "release": f"v{version}", "commit": commit, "anchors": anchors(repo),
-            "certificates": certificates(repo), "conformance": conformance(fixtures), "not_included": NOT_INCLUDED}
+    board = {"contract": CONTRACT, "release": f"v{version}", "commit": commit, "anchors": anchors(repo),
+             "certificates": certificates(repo), "conformance": conformance(fixtures), "not_included": NOT_INCLUDED,
+             "trace": None}
+    if run is not None:
+        # The conformance run on main at the commit: its log shows each figure (checked with --check-log).
+        trace = {"run_id": run, "url": f"{RUNS}{run}", "workflow": "conformance", "event": "push to main", "commit": commit}
+        board["trace"] = trace
+        for section in ("anchors", "certificates", "conformance"):
+            board[section]["run_id"] = run
+        for c in board["certificates"]["verdicts"]:
+            c["run_id"] = run
+    return board
+
+
+def shown(board: dict) -> list[str]:
+    """The lines a run's log must hold for each figure, as tools/verdict_summary.py and fm-verify conformance print them."""
+    a, c, s = board["anchors"], board["certificates"], board["conformance"]
+    out = [f"{s['passing']} of {s['total']} cases conform",
+           f"Certificates verified: {c['verified']} ({c['valid']} valid)",
+           f"{a['verdict']}",
+           f"{a['verified']} of {a['committed']} anchors confirmed in Bitcoin, {a['pending']} pending, {a['failed']} failed"]
+    out += [f"| `{v['certificate']}` | `{v['contract']}` | {v['outcome']} (" for v in c["verdicts"]]
+    return out
+
+
+def check_log(log: str, board: dict) -> list[str]:
+    """The figures of a scoreboard the log does not show; empty when it shows them all."""
+    return [want for want in shown(board) if want not in log]
 
 
 def line(board: dict) -> str:
@@ -104,7 +139,8 @@ def line(board: dict) -> str:
     return (f"Scoreboard ({board['release']}): Ledger anchors verified {a['verified']} of {a['committed']}"
             + (f" ({a['pending']} pending)" if a["pending"] else "") + (f" ({a['failed']} failed)" if a["failed"] else "")
             + f", in {a['verdict']}; certificates verified {c['verified']} ({c['valid']} valid); "
-            f"conformance cases passing {s['passing']} of {s['total']} (this verifier's suite).")
+            f"conformance cases passing {s['passing']} of {s['total']} (this verifier's suite)"
+            + (f"; each figure shown by run {board['trace']['run_id']} ({board['trace']['url']})." if board.get("trace") else "."))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -113,15 +149,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("out", nargs="?", type=Path)
     ap.add_argument("--commit")
     ap.add_argument("--fixtures", type=Path, default=ROOT / "fixtures")
+    ap.add_argument("--run", type=int, metavar="ID", help="the conformance run on main at the commit, whose log shows every figure")
     ap.add_argument("--line", type=Path, metavar="FILE", help="print the scoreboard line of a scoreboard file, and stop")
+    ap.add_argument("--check-log", nargs=2, type=Path, metavar=("LOG", "FILE"),
+                    help="check that a run's log shows every figure of a scoreboard file, and stop")
     a = ap.parse_args(argv)
     if a.line:
         print(line(json.loads(a.line.read_text(encoding="utf-8"))))
         return 0
+    if a.check_log:
+        missing = check_log(a.check_log[0].read_text(encoding="utf-8", errors="replace"), json.loads(a.check_log[1].read_text(encoding="utf-8")))
+        for m in missing:
+            print(f"scoreboard: the run's log does not show: {m}", file=sys.stderr)
+        print("every figure is shown by the run's log" if not missing else f"{len(missing)} figures not shown")
+        return 1 if missing else 0
     if not (a.version and a.out and a.commit):
         ap.error("give VERSION, OUT_DIR and --commit")
     try:
-        board = build(a.version, a.commit, a.fixtures)
+        board = build(a.version, a.commit, a.fixtures, run=a.run)
     except ScoreboardError as exc:
         print(f"scoreboard: {exc}", file=sys.stderr)
         return 1

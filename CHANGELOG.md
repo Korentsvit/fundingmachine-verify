@@ -26,6 +26,12 @@ keeps its expected verdict; the suite only grows.
     microsecond's change, and its functions agree with every fixture on
     what they check. The hour's window is checked here beyond its
     `verifyAcceptance`.
+  * The Ledger's own acceptance test vector (its
+    `fixtures/ledger-acceptance/v0`) verifies end to end, every event of
+    its hour, with the hour's root record and the anchored root's tokens
+    and OpenTimestamps proof from its record certificate vector, anchored
+    in the same root (`tests/test_ledger_suite_acceptance.py`, reading its
+    checkout).
 * **Certificates `ledger-certificate/v0.1`** (the Ledger's
   `docs/CERTIFICATE.md`, Version 0.1). `certificate.meaning` checks the
   signature's meaning (required, one of authorship, review, approval,
