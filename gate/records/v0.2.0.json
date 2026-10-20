@@ -6,5 +6,11 @@
     "holder": "verifier",
     "passed": true,
     "evidence": "https://github.com/Korentsvit/fundingmachine-verify/actions/runs/39349074474"
+  },
+  "key2": {
+    "holder": "release-gate",
+    "verdict": "no issue",
+    "commit": "c29b66d85b0acf1dbbeb3ce7df87b06e61f2f8b3",
+    "report": "https://github.com/Korentsvit/fundingmachine-verify/pull/35#issuecomment-6280771586"
   }
 }
