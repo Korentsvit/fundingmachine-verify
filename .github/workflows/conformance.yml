@@ -45,6 +45,8 @@ jobs:
           python tools/fetch_headers.py "$RUNNER_TEMP/mirror/anchors" "$RUNNER_TEMP/headers.txt" | tee -a "$RUNNER_TEMP/live.txt"
           python tools/mirror_conformance.py "$RUNNER_TEMP/mirror/anchors" --headers "$RUNNER_TEMP/headers.txt" \
             --roots /etc/ssl/certs/ca-certificates.crt | tee -a "$RUNNER_TEMP/live.txt"
+      - name: The filed verdicts, each certificate committed with its verdict verified again (tools/verdict_summary.py)
+        run: python tools/verdict_summary.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Summary
         if: always()
         run: |
