@@ -29,10 +29,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CONTRACT = "fm-verify-scoreboard/v0"
-STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{4}Z")
+STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{4}(?:\d{2})?Z")  # to the minute, or to the second where two share a minute
 ANCHOR_ROW = re.compile(r"^\| (\d{4}/\d{2}/\d{2}/\d{6}Z)(?: \(new\))? \| [0-9a-f]+\.\.\. \| \d+ \| (valid|pending|invalid|indeterminate)")
 MIRROR_COMMIT = re.compile(r"\*\*The commit read\.\*\* `([0-9a-f]{40})`")
-CERT_ROW = re.compile(r"^\| \[[^\]]+\]\((\d{4}-\d{2}-\d{2}T\d{4}Z)\) \| `([a-z0-9./-]+)` \| `(urn:uuid:[0-9a-f-]{36})`[^|]* \| "
+CERT_ROW = re.compile(r"^\| \[[^\]]+\]\((\d{4}-\d{2}-\d{2}T\d{4}(?:\d{2})?Z)\) \| `([a-z0-9./-]+)` \| `(urn:uuid:[0-9a-f-]{36})`[^|]* \| "
                       r"(valid|invalid|indeterminate) \|$")
 NOT_INCLUDED = ["the Provenance Ledger's own suite (its validation-conformance/v0): it runs from a checkout of the Ledger's "
                 "repository, which a release does not depend on"]
