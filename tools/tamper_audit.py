@@ -140,6 +140,7 @@ UNREAD = [
     ("events.json", r"contract", "the fixture file's label: each event names its own contract"),
     ("batch.json", r"ots|rfc3161", "a batch's proof files are found by their suffix; the lists only name them"),
     ("index.json", r"statement|scope_statement", "the index's own sentences: no proof covers them and no check reads their words"),
+    ("manifest.json", r"created", "the manifest's time of writing: the job's statement, compared with index.jsonl only when the set is verified"),
 ]
 
 
@@ -153,6 +154,26 @@ def explain(case: Path, rel: str, original: bytes, mutated: bytes) -> str | None
         except (ValueError, UnicodeDecodeError, RecursionError):
             return None
         paths = changed_paths(a, b)
+        if name == "manifest.json" and isinstance(a, dict) and isinstance(b, dict) and "contract" in a and paths == ["contract"]:
+            from fmverify.ledger_anchors import _descriptors
+
+            if _descriptors(a) and sorted(map(json.dumps, _descriptors(a))) == sorted(map(json.dumps, _descriptors(b))):
+                return ("the contract removed: read as an unversioned manifest, whose descriptors, found by shape, are the same: "
+                        "the same anchor")
+        if name == "manifest.json" and paths and all(re.fullmatch(r"proofs/rfc3161/\d+/authority", p) for p in paths):
+            from fmverify.ledger_anchors import _norm
+
+            olds = [a["proofs"]["rfc3161"][int(p.split("/")[2])]["authority"] for p in paths]
+            news = [b["proofs"]["rfc3161"][int(p.split("/")[2])]["authority"] for p in paths]
+            if all(isinstance(x, str) and isinstance(y, str) and _norm(y) and _norm(x) == _norm(y) for x, y in zip(olds, news)):
+                return "an authority's name, compared with its certificate ignoring case and punctuation: the same name"
+        if name == "events.json" and isinstance(a, dict) and isinstance(b, dict) and a.get("events") == b.get("events") \
+                and paths and all("/" not in p and p != "events" for p in paths):
+            return "the fixture file's label: each event names its own contract, and the file's other keys are not read"
+        if name == "disclosure.json" and paths and all(re.fullmatch(r"steps/\d+/resync_text/[^/]+", p) for p in paths) \
+                and any(p.endswith("/removed") for p in paths):
+            return ("the resync's optional copy of the removed text, under another key: the replay derives that text and checks "
+                    "it against the chain's hashes")
         if name == "manifest.json" and isinstance(a, dict) and "contract" not in a:
             from fmverify.ledger_anchors import _descriptors
 
@@ -178,9 +199,11 @@ def explain(case: Path, rel: str, original: bytes, mutated: bytes) -> str | None
             mine = hashlib.sha256((case / "certificate.json").read_bytes()).hexdigest() if (case / "certificate.json").is_file() else None
             own = [i for i, e in enumerate(a["entries"]) if isinstance(e, dict) and e.get("certificate_sha256") == mine]
             others = [p for p in paths if re.fullmatch(r"entries/(\d+)(/.*)?", p) and int(p.split("/")[1]) not in own]
-            if paths and len(others) == len(paths) and [b["entries"][i] for i in own if i < len(b.get("entries", []))] == \
-                    [a["entries"][i] for i in own]:
-                return "an entry of the index for another certificate: the verdict is about this certificate's entry, unchanged"
+            sentences = [p for p in paths if re.fullmatch(r"statement|scope_statement", p)]
+            if paths and len(others) + len(sentences) == len(paths) and others and \
+                    [b["entries"][i] for i in own if i < len(b.get("entries", []))] == [a["entries"][i] for i in own]:
+                return "an entry of the index for another certificate: the verdict is about this certificate's entry, unchanged" + (
+                    "; the index's own sentences: no proof covers them and no check reads their words" if sentences else "")
         whys = []
         for p in paths:
             why = next((w for f, pat, w in UNREAD if f == name and re.fullmatch(pat, p)), None)
@@ -188,6 +211,27 @@ def explain(case: Path, rel: str, original: bytes, mutated: bytes) -> str | None
                 return None
             whys.append(why)
         return "; ".join(sorted(set(whys))) or None
+    if name.endswith(".jsonl"):
+        lines = lambda data: [x for x in data.splitlines() if x.strip()]  # noqa: E731
+        if lines(original) == lines(mutated):
+            return "index.jsonl's line endings: the same lines"
+        return None
+    if name.endswith(".tsr"):
+        # SignedData's version (ContentInfo's id-signedData, [0] EXPLICIT, the SignedData SEQUENCE, then its INTEGER).
+        oid = bytes.fromhex("06092a864886f70d010702")
+        at = original.find(oid)
+        if at >= 0:
+            v = at + len(oid) + 4 + 4
+            if original[v:v + 2] == b"\x02\x01" and len(mutated) == len(original) and \
+                    [i for i in range(len(original)) if original[i] != mutated[i]] == [v + 2]:
+                from fmverify import rfc3161
+
+                try:
+                    rfc3161.parse_token(mutated)
+                    return "SignedData's version: no signature covers it, and any integer is read, as OpenSSL reads it"
+                except rfc3161.TokenError:
+                    return None
+        return None
     if name.endswith(".pdf"):
         try:
             if pdf.extract(original) == pdf.extract(mutated):
