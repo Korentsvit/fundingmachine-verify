@@ -15,9 +15,15 @@ one of the two this verifier makes by design, established from the token:
   signed with. OpenSSL ignores it and verifies by the key's own algorithm;
   this verifier refuses an algorithm the token does not name, so a
   signature is never checked under an algorithm other than the stated one.
-* The signer's hash parameters are not NULL. No signature covers them and
-  SHA-2 takes none, so this verifier holds the token valid with a warning
-  (docs/SECURITY_NOTE.md); OpenSSL refuses parameters it cannot parse.
+* Hash parameters other than NULL, in SignedData's digestAlgorithms or the
+  signer's. No signature covers them and SHA-2 takes none, so this verifier
+  holds the token valid with a warning (docs/SECURITY_NOTE.md); OpenSSL
+  refuses parameters it cannot parse.
+* Bytes after the token. A token is one DER element, so this verifier
+  refuses them; OpenSSL reads the token and ignores what follows.
+* A constructed element written in primitive form (its tag's constructed
+  bit cleared). That is not DER, so this verifier refuses it; OpenSSL reads
+  it.
 * The signer identifier spells its issuer name otherwise than the
   certificate does (another string type, other spacing or case). This
   verifier compares the two byte for byte and does not find the signer, so
@@ -53,19 +59,28 @@ AT = str(int(_dt.datetime(2026, 10, 16, 6, 0, 0, tzinfo=_dt.timezone.utc).timest
 
 def by_design(original: bytes, changed: bytes, ours: bool, openssl: bool, verdict) -> str | None:
     """Which of the designed differences this is, from the tokens; None if neither."""
+    failing = [c.id for c in verdict.checks if c.status.value == "fail"]
+    said = " ".join(r for c in verdict.checks if c.id == "rfc3161.parse" for r in [c.summary, *c.reasons])
+    if not ours and openssl and failing == ["rfc3161.parse"]:
+        if len(changed) > len(original) and changed.startswith(original) and "after the end of the DER element" in said:
+            return "bytes after the token: refused here, where a token is one DER element; OpenSSL ignores them"
+        moved = [i for i in range(len(original)) if len(changed) == len(original) and original[i] != changed[i]]
+        if (len(moved) == 1 and original[moved[0]] & 0x20 and changed[moved[0]] == original[moved[0]] & ~0x20
+                and "is not constructed" in said):
+            return "a constructed element written in primitive form: refused here, as it is not DER; read by OpenSSL"
     try:
         a, b = rfc3161.parse_token(original), rfc3161.parse_token(changed)
     except rfc3161.TokenError:
         return None
     sa, sb = a.signers[0], b.signers[0]
-    failing = [c.id for c in verdict.checks if c.status.value == "fail"]
     if ours and not openssl and sb.digest_oid not in b.digest_algs and any(c.id == "rfc3161.digest_algorithms" for c in verdict.checks):
         return "digestAlgorithms omits the signer's hash: a warning here, refused by OpenSSL"
     if not ours and openssl and sb.sig_oid != sa.sig_oid and failing == ["rfc3161.signature"]:
         return "the signature algorithm is not the one signed with: refused here, ignored by OpenSSL"
     warned = {c.id for c in verdict.checks if c.status.value == "warn"}
-    if ours and not openssl and sa.digest_params_ok and not sb.digest_params_ok and "rfc3161.hash_parameters" in warned:
-        return "the signer's hash parameters are not NULL: a warning here, refused by OpenSSL where it cannot parse them"
+    if (ours and not openssl and "rfc3161.hash_parameters" in warned
+            and ((sa.digest_params_ok and not sb.digest_params_ok) or (not a.digest_alg_params and b.digest_alg_params))):
+        return "hash parameters other than NULL: a warning here, refused by OpenSSL where it cannot parse them"
     unchecked = [c.id for c in verdict.checks if c.status.value == "not_checked"]
     if (not ours and openssl and verdict.outcome.value == "indeterminate" and unchecked == ["rfc3161.signer_cert"]
             and sb.sid_serial == sa.sid_serial and sb.sid_issuer != sa.sid_issuer

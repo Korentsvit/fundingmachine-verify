@@ -56,7 +56,11 @@ verdict; the suite only grows.
   cannot parse are refused by OpenSSL and a warning here, as any non-NULL
   hash parameters are; and the signer is found by its issuer name compared
   byte for byte, so a name spelled otherwise is indeterminate here, with
-  that reason, where OpenSSL compares names as RFC 5280 does.
+  that reason, where OpenSSL compares names as RFC 5280 does. At 60,000
+  changed bytes per token, three more, all by design: non-NULL hash
+  parameters in SignedData's digestAlgorithms (a warning here), bytes after
+  the token and a SET written in primitive form (both refused here, as not
+  DER, and read by OpenSSL).
 * **PDF.** A certificate PDF whose attachment a cross-reference table or
   stream places at an offset where it cannot be read is refused, as one
   replaced by an incremental update is. In 0.1.0, one changed byte in an
