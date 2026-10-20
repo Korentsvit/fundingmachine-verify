@@ -188,3 +188,14 @@ def test_a_bitcoin_summary_that_misstates_the_proof_is_a_warning():
                                      header_sources=sources, network=REGTEST, roots=roots)
         assert _rows(v)["acceptance.hour.bitcoin"] is Status.WARN and v.outcome is Outcome.VALID, stated
         assert "no later than Bitcoin block 3" in v.statement
+
+
+def test_the_hours_start_is_read_only_as_the_ledger_writes_it():
+    """Found by the tamper audit at 800 changes per input: Python reads any character between the date and the time,
+    so a window_start written with another one passed as the same hour. The record names its hour as toISOString
+    writes it, or as the hour= query is written."""
+    proof, key, hour = _load(VALID, "acceptance.json"), did_key_ed25519(_exp(VALID)["key"]), _load(VALID, "hour.json")
+    for start, holds in [("2026-10-16T08:00:00.000Z", True), ("2026-10-16T08:00:00Z", True), ("2026-10-16X08:00:00.000Z", False),
+                         ("2026-10-16 08:00:00.000Z", False), ("2026-10-16T08:00:00.000+00:00", False), ("2026-10-16T08:00:00.0000Z", False)]:
+        rows = _rows(ledger_acceptance.verify(proof, public_key=key, hour={**hour, "window_start": start}))
+        assert (rows["acceptance.hour"] is Status.PASS) is holds, start
