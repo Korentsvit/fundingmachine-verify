@@ -12,6 +12,8 @@ import { chromium } from "playwright-core";
 
 const [site, mirror, commit, headersFile, chrome] = process.argv.slice(2);
 const policy = readFileSync(join(site, "csp.txt"), "utf8").trim();
+// A site built with a pin file (--release) must say which release it serves, and give the install line with its hash.
+const built = JSON.parse(readFileSync(join(site, "site.json"), "utf8"));
 const types = { ".html": "text/html", ".mjs": "text/javascript", ".js": "text/javascript", ".wasm": "application/wasm",
   ".json": "application/json", ".txt": "text/plain", ".zip": "application/zip", ".whl": "application/zip", ".pem": "text/plain" };
 const server = createServer((req, res) => {
@@ -86,6 +88,7 @@ async function run(name, { query = `?commit=${commit}`, alter = {}, expect, view
     widest: [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1)
       .filter((e) => !e.closest(".scroll")).slice(0, 3).map((e) => `${e.tagName.toLowerCase()}.${e.className}: ${e.textContent.slice(0, 40)}`),
     frame: !!document.querySelector("#result iframe[sandbox='']"),
+    build: document.getElementById("build-text").textContent,
   }));
   await browser.close();
   const problems = [...refused.map((r) => `policy: ${r}`), ...expect(verdict, shown, asked)];
@@ -104,6 +107,12 @@ failed += await run("the mirror at the commit, both explorers, the record compar
     ...(s.headerRows === heights.size ? [] : [`${s.headerRows} header rows shown, ${heights.size} expected`]),
     ...(s.frame ? [] : ["no sandboxed report frame"]),
     ...(["github", "record", "mempool.space", "blockstream.info"].every((h) => asked.has(h)) ? [] : [`asked only ${[...asked]}`]),
+    ...(!built.fmverify.release ? [] : [
+      ...(s.build.includes(`the release tagged ${built.fmverify.tag} (${built.fmverify.release}), commit ${built.fmverify.commit}`)
+        ? [] : [`the build does not name the release ${built.fmverify.tag}`]),
+      ...(s.build.includes(`this page hashed what it loaded: the same`) ? [] : ["the page did not find the pinned wheel's hash in what it loaded"]),
+      ...(s.text.includes(`pip install "${built.wheel.url}#sha256=${built.wheel.sha256}"`) ? [] : ["no install line with the release's address and hash"]),
+    ]),
     ...(console.log(`     ${anchors(v).length} anchors, ${confirmed(v).length} confirmed in Bitcoin, ${s.headerRows} headers`) || []),
   ],
 });

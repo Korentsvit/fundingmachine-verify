@@ -126,3 +126,10 @@ jobs:
           cd "$RUNNER_TEMP/node"
           node check.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/mirror" 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6 \
             "$GITHUB_WORKSPACE/verdicts/ledger-anchors/2026-10-17T1218Z/headers.txt"
+      - name: The page pinned to the release page/release.json names, its wheel from the release's own address
+        run: |
+          python tools/build_page.py "$RUNNER_TEMP/site-release" --pyodide "$RUNNER_TEMP/node/node_modules/pyodide" \
+            --release page/release.json
+          cd "$RUNNER_TEMP/node"
+          node check.mjs "$RUNNER_TEMP/site-release" "$RUNNER_TEMP/mirror" 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6 \
+            "$GITHUB_WORKSPACE/verdicts/ledger-anchors/2026-10-17T1218Z/headers.txt"
