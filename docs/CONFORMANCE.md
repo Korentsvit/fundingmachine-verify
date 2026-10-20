@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 52 of the 246 cases.
+command answering `valid` to everything conforms on 52 of the 248 cases.
 
 ## Layout
 
@@ -85,7 +85,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-246 cases, on 20 October 2026:
+248 cases, on 20 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -137,7 +137,7 @@ Check ids are this verifier's; another implementation is asked to match
   (indeterminate); and disclosures (valid, one word changed, the wrong key,
   one event given twice, text no hash covers, the signer's name changed);
   and nine rule pairs, `pair-FIRST-over-SECOND` (below).
-* The Provenance Ledger suite's rule pairs (86, `chain/ledger-pair/*`), its
+* The Provenance Ledger suite's rule pairs (88, `chain/ledger-pair/*`), its
   own fixture files, run as chain cases (below).
 * Hourly root records (6, `ledger-root/v0`): valid, an hour dropped, two
   swapped, one altered, another key, a later stretch alone.
@@ -161,13 +161,16 @@ pull request, on main and nightly (`.github/workflows/conformance.yml`):
   `tools/ledger_crosscheck/run.mts`).
 * **Its own pair fixtures (CS-22 as it writes it).** Since 18 October 2026 the
   suite's fixture files are licensed Apache-2.0 (copyright NW PharmaTech Ltd),
-  and its 86 pair files are under `fixtures/ledger-conformance/`, unchanged
-  from the Ledger's `docs/validation/conformance/fixtures/` at 0e5d016, with
+  and its 88 pair files are under `fixtures/ledger-conformance/`, unchanged
+  from the Ledger's `docs/validation/conformance/fixtures/` at e64f356, with
   their LICENSE and a README naming the source. `fm-verify conformance` runs
   each as the chain case `chain/ledger-pair/<name>`: invalid, only
   `chain.rules` failing, and the chain stopping at the file's `expect.index`
-  with its `expect.code`. All 86 conform. With `--implementation`, another
-  implementation is given each as a chain case directory.
+  with its `expect.code`. All 88 conform. With `--implementation`, another
+  implementation is given each as a chain case directory. The two pairs of
+  the Ledger's finding F-14 (`session_unknown` with `key_mismatch`, and with
+  `bad_signature`) were added on 20 October, when its contract stated that
+  order; this verifier always reported `session_unknown` first.
 * **Live anchors (its CS-42 and CS-43)**, on the Ledger's public mirror at
   its current head: `tools/mirror_conformance.py`. CS-42 requires every
   anchor to hold, with its proofs and the link to the one before it; an
