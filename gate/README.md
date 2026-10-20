@@ -13,7 +13,7 @@ Ordinary pull requests are not gated: sessions merge their own green pull reques
 
 | Path | What publishes | Where the gate sits |
 | --- | --- | --- |
-| `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive and the conformance fixture archive (nothing goes to a package index) | Job `gate` (`release-gate.yml`, release name = the tag) runs first; `build` needs `gate` and `publish` needs `build` |
+| `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive, the conformance fixture archive and the scoreboard (nothing goes to a package index) | Job `gate` (`release-gate.yml`, release name = the tag) runs first; `build` needs `gate` and `publish` needs `build` |
 
 The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag once, on the
 recorded commit, and only after the record has merged: a release tag is never moved or deleted. A tag pushed early
