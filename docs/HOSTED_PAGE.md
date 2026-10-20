@@ -425,3 +425,11 @@ way (section 11.6). On 19 October 2026 the release path passed the five
 cases of section 11.6 in Chromium from the Verifier session, with a wheel
 built from main given by `--wheel`. The same day the build refused
 v0.1.0's published wheel, which lacks `bitcoin_heights`.
+
+Since 20 October 2026 `page/release.json` pins v0.2.0 (commit c29b66d,
+wheel SHA-256 `c115240d...`), the first release the page can run. CI also
+builds the page with that pin, the wheel taken from the release's own
+address, and runs the five cases on it. For a pinned page the first case
+also requires the page to name the release by its tag, address and commit,
+to find the pinned hash in the wheel it loaded, and to give the install
+line with the release's address and hash.
