@@ -151,3 +151,23 @@ def test_cs12_an_rfc3161_token_for_another_digest():
     for check in ("proof", "scope_statement", "root_record", "inclusion", "anchor_inclusion"):
         assert s[f"certificate.{check}"] is Status.PASS, check
     assert v.outcome is Outcome.INVALID
+
+
+def test_the_ledgers_v0_1_certificate_with_its_chain():
+    """ledger-certificate/v0.1 (its docs/CERTIFICATE.md, Version 0.1): the Ledger's own fixture holds with its chain,
+    and a meaning the sign event does not record does not."""
+    path = LEDGER / "fixtures" / "certificate" / "v0.1" / "resync.certificate.json"
+    chain = LEDGER / "fixtures" / "ledger-event" / "v0.1" / "valid" / "resync.chain.json"
+    if not path.is_file() or not chain.is_file():
+        pytest.skip("this checkout has no ledger-certificate/v0.1 fixture")
+    events = json.loads(chain.read_text(encoding="utf-8"))
+    events = events["events"] if isinstance(events, dict) else events
+    v = certificate.verify(path.read_bytes(), events=events)
+    s = _status(v)
+    assert v.outcome is Outcome.VALID, v.to_text()
+    assert s["certificate.contract"] is Status.PASS and s["certificate.meaning"] is Status.PASS
+    assert s["certificate.chain_statements"] is Status.PASS
+    cert = json.loads(path.read_text(encoding="utf-8"))
+    cert["credentialSubject"]["signed"]["meaning"] = "approval"
+    s = _status(certificate.verify(json.dumps(cert).encode(), events=events))
+    assert s["certificate.chain_statements"] is Status.FAIL and s["certificate.proof"] is Status.FAIL

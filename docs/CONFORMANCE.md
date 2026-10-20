@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 51 of the 242 cases.
+command answering `valid` to everything conforms on 52 of the 246 cases.
 
 ## Layout
 
@@ -85,7 +85,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-242 cases, on 18 October 2026:
+246 cases, on 20 October 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -110,13 +110,15 @@ Check ids are this verifier's; another implementation is asked to match
   contract; proofs over another root; sets with `index.jsonl` (valid, a
   broken link, an anchor not listed); and the anchors naming one content
   hash (`prove_sha256`: the earliest that holds, a later one only, none).
-* Certificates (27, `ledger-certificate/v0`), over `ledger-event/v0` and v0.1
-  chains: valid, anchored or not (and issued before its hour has a root),
-  with and without the chain; in PDF form (classic, compressed, updated, no
-  attachment, two attachments); changed after signing; another key; the
-  wrong file; and an issuer signing falsehoods, from the scope statement to
-  the authorship totals and the anchor's times, or signing a position as a
-  string.
+* Certificates (31, `ledger-certificate/v0` and v0.1), over `ledger-event/v0`
+  and v0.1 chains: valid, anchored or not (and issued before its hour has a
+  root), with and without the chain; in PDF form (classic, compressed,
+  updated, no attachment, two attachments); changed after signing; another
+  key; the wrong file; and an issuer signing falsehoods, from the scope
+  statement to the authorship totals and the anchor's times, or signing a
+  position as a string. For v0.1, the signature's meaning and the printed
+  name's hash: as the chain records them, the meaning missing, the hash
+  malformed, and a meaning the sign event does not record.
 * Record certificates (20, `record-certificate/v0`): valid, in JSON with its
   signature and in PDF form, with and without the events; no Bitcoin source
   of the reader's own (indeterminate); changed after signing; not in RFC 8785

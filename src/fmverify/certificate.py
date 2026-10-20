@@ -1,4 +1,4 @@
-"""Provenance Ledger certificates, contract ledger-certificate/v0.
+"""Provenance Ledger certificates, contracts ledger-certificate/v0 and v0.1.
 
 Written from the Provenance Ledger session's published documents
 (fundingmachine-ledger: docs/CERTIFICATE.md, docs/ANCHORING.md,
@@ -23,12 +23,20 @@ it ran:
 Two checks are added: the authorship percentages must follow from the counts
 by the document's rounding rule, and fields this verifier does not
 understand are reported, never ignored silently.
+
+ledger-certificate/v0.1 (docs/CERTIFICATE.md, Version 0.1, read 19 October
+2026) adds to the signed block the signature's ``meaning`` (required, one of
+the four the event contract names) and ``signer_name_hash``, the keyed hash
+of the printed name, or null; ``certificate.meaning`` checks their form,
+and with the events given both are compared with the sign event. The
+printed name itself can be checked only with the document key.
 """
 
 from __future__ import annotations
 
 import base64
 import binascii
+import re
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -42,6 +50,9 @@ from .hashes import sha256
 from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict, summarize, whole_number
 
 CONTRACT = "ledger-certificate/v0"
+CONTRACT_V01 = "ledger-certificate/v0.1"
+CONTRACTS = (CONTRACT, CONTRACT_V01)
+MEANINGS = ("authorship", "review", "approval", "responsibility")  # docs/EVENT_CONTRACT.md, v0.1
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
                    "certify originality, or prove what the author consulted elsewhere.")
 ORIGINS = ["human_typed", "imported", "tool_generated", "tool_edited"]
@@ -55,6 +66,8 @@ KNOWN = {
     "ledger_root": {"record", "leaf_index", "audit_path", "anchor"},
     "record": {"contract", "tenant_id", "window", "size", "root", "prev_root", "key_id", "sig"},
     "anchor": {"contract", "root", "size", "leaf_index", "audit_path", "opentimestamps", "rfc3161"},
+    "signed": {"seq", "event_hash", "ts", "actor_id", "declaration_hash"},
+    "signed_v01": {"seq", "event_hash", "ts", "actor_id", "declaration_hash", "meaning", "signer_name_hash"},
 }
 
 LIMITS = [
@@ -98,6 +111,8 @@ def _unknown_fields(cred: dict) -> list[str]:
     extra(cred, KNOWN["credential"], "credential")
     subj = cred.get("credentialSubject", {})
     extra(subj, KNOWN["subject"], "credentialSubject")
+    if isinstance(subj, dict):
+        extra(subj.get("signed"), KNOWN["signed_v01" if subj.get("contract") == CONTRACT_V01 else "signed"], "signed")
     extra(cred.get("proof"), KNOWN["proof"], "proof")
     lr = subj.get("ledger_root") if isinstance(subj, dict) else None
     if isinstance(lr, dict):
@@ -105,6 +120,26 @@ def _unknown_fields(cred: dict) -> list[str]:
         extra(lr.get("record"), KNOWN["record"], "ledger_root.record")
         extra(lr.get("anchor"), KNOWN["anchor"], "ledger_root.anchor")
     return out
+
+
+def _check_meaning(subj: dict) -> Check:
+    """v0.1's signed block: the signature's meaning, required and one of the four, and the printed name's keyed hash,
+    64 hexadecimal characters or null (docs/CERTIFICATE.md, Version 0.1)."""
+    signed = subj.get("signed") if isinstance(subj.get("signed"), dict) else {}
+    meaning, name_hash = signed.get("meaning"), signed.get("signer_name_hash", "absent")
+    problems = []
+    if meaning not in MEANINGS:
+        problems.append(f"meaning {meaning!r}: a v0.1 certificate states one of {', '.join(MEANINGS)}")
+    if not (name_hash is None or (isinstance(name_hash, str) and re.fullmatch(r"[0-9a-f]{64}", name_hash))):
+        problems.append(f"signer_name_hash {name_hash!r}: 64 lowercase hexadecimal characters, or null")
+    if problems:
+        return Check("certificate.meaning", Status.FAIL, "the signed block's meaning or printed name hash is not as v0.1 requires",
+                     reasons=problems)
+    return Check("certificate.meaning", Status.PASS,
+                 f"the signature's stated meaning is {meaning}" + (", with the keyed hash of the printed name" if name_hash else
+                                                                    "; no printed name is bound"),
+                 reasons=["whoever holds the document key can hash the name printed on the PDF and compare it with "
+                          f"signer_name_hash {name_hash}; this verifier does not hold the key"] if name_hash else [])
 
 
 def _issuer_key(cred: dict) -> tuple[bytes | None, str]:
@@ -236,13 +271,13 @@ def verify(
     subj = cred["credentialSubject"]
     subject = subject or f"certificate {cred.get('id')} for document {subj.get('doc_id')}"
 
-    if subj.get("contract") != CONTRACT:
+    if subj.get("contract") not in CONTRACTS:
         checks.append(Check("certificate.contract", Status.NOT_CHECKED, f"contract {subj.get('contract')!r} is not one this verifier knows",
-                            reasons=[f"this version verifies {CONTRACT}; an unknown version is reported as not verified"]))
+                            reasons=[f"this version verifies {' and '.join(CONTRACTS)}; an unknown version is reported as not verified"]))
         return make_verdict("certificate", subject, checks,
                             {o: "The certificate is of a version this verifier does not know; it was not verified." for o in Outcome},
                             LIMITS, checked_at)
-    checks.append(Check("certificate.contract", Status.PASS, f"contract {CONTRACT}"))
+    checks.append(Check("certificate.contract", Status.PASS, f"contract {subj['contract']}"))
     unknown = _unknown_fields(cred)
     if unknown:
         checks.append(Check("certificate.unknown_fields", Status.WARN, "fields this verifier does not understand: they are signed, but not checked",
@@ -262,6 +297,8 @@ def verify(
 
     # Added: the authorship figures are internally consistent.
     checks.append(_check_authorship(subj))
+    if subj["contract"] == CONTRACT_V01:
+        checks.append(_check_meaning(subj))
 
     # 3. The exported file.
     doc = subj.get("document") or {}
@@ -431,6 +468,9 @@ def _check_chain(subj: dict, events: list) -> list[Check]:
         "signed.declaration_hash": sign["payload"]["declaration_hash"],
         "chain.events": seq,
     }
+    if subj.get("contract") == CONTRACT_V01:
+        want["signed.meaning"] = sign["payload"].get("meaning")
+        want["signed.signer_name_hash"] = sign["payload"].get("signer_name_hash")
     got = {
         "tenant_id": subj.get("tenant_id"), "doc_id": subj.get("doc_id"),
         "document.exported_sha256": doc.get("exported_sha256"), "document.media_type": doc.get("media_type"),
@@ -439,6 +479,7 @@ def _check_chain(subj: dict, events: list) -> list[Check]:
         "signed.ts": signed.get("ts"), "signed.actor_id": signed.get("actor_id"),
         "signed.declaration_hash": signed.get("declaration_hash"),
         "chain.events": (subj.get("chain") or {}).get("events"),
+        "signed.meaning": signed.get("meaning"), "signed.signer_name_hash": signed.get("signer_name_hash"),
     }
     mismatches = [f"{k}: certificate {got[k]!r}, chain {want[k]!r}" for k in want if got[k] != want[k]]
     if sign["type"] != "sign":
@@ -472,6 +513,11 @@ def _check_chain(subj: dict, events: list) -> list[Check]:
     else:
         checks.append(Check("certificate.chain_statements", Status.PASS,
                             "the certificate's document, sign event, sessions, tools and evidence are what the chain records"))
+    if subj.get("contract") == CONTRACT and "meaning" in sign["payload"]:
+        checks.append(Check("certificate.meaning", Status.INFO,
+                            f"the sign event records the meaning {sign['payload']['meaning']}, which this v0 certificate does not state",
+                            reasons=["a v0 certificate claims no meaning; since 19 October 2026 the ledger certifies a sign event "
+                                     "that carries one under ledger-certificate/v0.1"]))
     return checks
 
 

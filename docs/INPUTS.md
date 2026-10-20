@@ -51,8 +51,13 @@ Explicit path, accepted with a warning:
 Published by the Provenance Ledger session on 16 October 2026 in
 fundingmachine-ledger, and read by this verifier from those documents:
 
-* `ledger-certificate/v0` (`docs/CERTIFICATE.md`): `fm-verify certificate`,
-  all seven steps (step 7 with `--events`), JSON or PDF form.
+* `ledger-certificate/v0` and its addition v0.1 (`docs/CERTIFICATE.md`,
+  Version 0.1, on the Ledger's main from 19 October 2026): `fm-verify
+  certificate`, all seven steps (step 7 with `--events`), JSON or PDF form.
+  For v0.1, `certificate.meaning` checks the signature's meaning and the
+  printed name's keyed hash, and step 7 compares both with the sign event.
+  The printed name itself needs the document key, which the verifier does
+  not hold.
 * `ledger-event/v0` (`docs/EVENT_CONTRACT.md`): `fm-verify chain`, every chain
   rule in the contract's order with its code. Its addition `ledger-event/v0.1`
   (proposed 16 October 2026 on the Ledger's branch, not yet on its main) is
