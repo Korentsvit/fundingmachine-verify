@@ -192,3 +192,15 @@ def test_content_info_content_must_be_explicit_zero():
     assert data[at] == 0xA0
     v = rfc3161.verify(data[:at] + b"\xa1" + data[at + 1:], roots=_roots())
     assert v.outcome is Outcome.INVALID and "[0] EXPLICIT" in v.checks[0].reasons[0]
+
+
+def test_signature_parameters_other_than_null_are_a_warning():
+    """Found by tools/tamper_audit.py at 800 rounds: an RSA PKCS#1 v1.5 signature algorithm given with parameters
+    other than NULL was read in silence. No signature covers them; the signature is checked as the identifier names."""
+    data = (FIX / "valid-rsa" / "token.tsr").read_bytes()
+    alg = bytes.fromhex("300d06092a864886f70d01010b0500")  # sha256WithRSAEncryption, NULL
+    at = data.rindex(alg) + len(alg) - 2  # the signer's: the last
+    v = rfc3161.verify(data[:at] + b"\xc6" + data[at + 1:], file_bytes=(FIX / "valid-rsa" / "document.txt").read_bytes(), roots=_roots())
+    row = next(c for c in v.checks if c.id == "rfc3161.signature_parameters")
+    assert v.outcome is Outcome.VALID and row.status is Status.WARN
+    assert not any(c.id == "rfc3161.signature_parameters" for c in rfc3161.verify(data, roots=_roots()).checks)

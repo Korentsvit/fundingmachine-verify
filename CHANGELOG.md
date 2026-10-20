@@ -68,6 +68,15 @@ verdict; the suite only grows.
   first `certificate.json`, while pypdf, following the update's table, took
   the second. Found by the PDF differential at 20,000 changed copies per
   file.
+* **Ledger anchors, from the tamper audit at 800 changes per input.**
+  * A manifest's stated time (`created`, a token's `gen_time`) that is no
+    real instant is refused; before, a month 80 passed the form check and
+    the comparison with the token, unable to read it, said nothing.
+  * A token entry that names no authority is a warning.
+  * An anchor `index.jsonl` does not list is still linked: its `previous`
+    must name an anchor here, with that anchor's root.
+  * An RSA PKCS#1 v1.5 signature algorithm given with parameters other than
+    NULL is a warning, as non-NULL hash parameters are.
 * **CI.** Runners are pinned to ubuntu-24.04, and actions to their Node 24
   releases by commit.
 * **Reproducible release.** As in 0.1.0: the wheel, the source archive and

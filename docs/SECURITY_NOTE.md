@@ -196,7 +196,15 @@ before the fix:
   (`chain/disclosure-text-no-hash-covers`); a step's `type` must be its
   event's, and the text a journal gives for a delete, move or binding is
   compared with the replay.
-* **A manifest that names no descriptor** is a warning, not silence.
+* **A manifest that names no descriptor** is a warning, not silence. So is
+  a token entry that names no authority.
+* **A stated time must be an instant.** A manifest's `created` and each
+  token's `gen_time` must be a UTC time to the millisecond that exists; a
+  month 80 or a 30 February is refused, not passed over by a comparison
+  that cannot read it.
+* **An anchor `index.jsonl` does not list is still linked.** Its `previous`
+  must name an anchor in the directory, with that anchor's root, as a
+  listed anchor's must name the line before.
 * **A proof that holds with a warning** (a token whose hash list omits its
   own algorithm, an anchor whose OpenTimestamps proof is pending) is a
   warning row wherever it is summarised: in an anchor, a batch, a
@@ -206,7 +214,7 @@ before the fix:
   `digestAlgorithms`, which no signature covers, is now read: a list without
   the signer's algorithm is a warning, as RFC 5652 allows it and OpenSSL
   refuses it; hash parameters other than NULL are a warning wherever they
-  appear.
+  appear, and so are an RSA PKCS#1 v1.5 signature algorithm's.
 * **The signer is found by the issuer name and serial number the token
   names, compared byte for byte.** A token that spells the issuer name
   otherwise than the certificate does (another string type, other spacing

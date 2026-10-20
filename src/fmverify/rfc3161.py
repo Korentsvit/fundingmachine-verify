@@ -483,6 +483,10 @@ def _verify(
         checks.append(Check("rfc3161.hash_parameters", Status.WARN, "a hash algorithm is given with parameters other than NULL",
                             reasons=[f"in {', '.join(odd)}; RFC 5754 (section 2) allows only absent or NULL parameters for SHA-2",
                                      "the hash computed is the one the algorithm's identifier names, as OpenSSL does"], required=False))
+    if si.sig_oid in RSA_PKCS1 and si.sig_params is not None and not (si.sig_params.is_universal(der.NULL) and not si.sig_params.content):
+        checks.append(Check("rfc3161.signature_parameters", Status.WARN, "the signature algorithm is given with parameters other than NULL",
+                            reasons=["RSA PKCS#1 v1.5 takes none: absent or NULL (RFC 4055, section 5); no signature covers them",
+                                     "the signature is checked under the algorithm the identifier names"], required=False))
     if attr_problems:
         checks.append(Check("rfc3161.signed_attrs", Status.FAIL, "the signed attributes do not cover this TSTInfo", reasons=attr_problems))
     else:
