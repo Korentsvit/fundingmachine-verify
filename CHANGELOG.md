@@ -1,5 +1,27 @@
 # Change log
 
+## 0.3.1
+
+Adds the fleet's scoreboard manifest to every release. No case, verdict or
+check changes; the wheel differs from 0.3.0's only in its version.
+
+* **`scoreboard-manifest.json`** (contract `scoreboard-manifest` 1.0,
+  fundingmachine-core `docs/scoreboard-contract/1.0/`), the asset the
+  fleet's scoreboard reads: engine `Verifier`, with three figures (Ledger
+  anchors verified; Ledger certificates verified, its target the owner's
+  end state of 10; conformance cases passing), each read from
+  `fm-verify-figures.json`, the file the conformance run on main at the
+  tagged commit writes and keeps (artifact `scoreboard-figures`), naming
+  that run and the path read, and the file's own SHA-256 by the contract's
+  JCS rule. The release refuses to write it unless each figure is the one
+  it recomputed in `fm-verify-scoreboard-VERSION.json`.
+  `tools/scoreboard.py --figures` writes the run's file and `--manifest`
+  the asset; `made_at` is the one value a rebuild takes as given
+  (`--made-at`).
+* Checked against the contract's own schema (`$defs/asset`), its
+  `sha256.mjs` and its example, read from a checkout of fundingmachine-core
+  (`FM_CORE_REPO`), not copied.
+
 ## 0.3.0
 
 Adds the Provenance Ledger's acceptance proofs and its certificate contract

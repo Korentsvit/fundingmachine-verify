@@ -2,7 +2,9 @@ name: release
 
 # Publishes a tagged release of fm-verify (a tag v*): the wheel, the source archive and the
 # conformance fixture archive, each rebuilt byte for byte from the tag, the scoreboard recomputed
-# from it (tools/scoreboard.py), and their SHA-256 values.
+# from it (tools/scoreboard.py), the fleet's scoreboard-manifest.json (contract scoreboard-manifest
+# 1.0) with each figure read from the file the conformance run on the commit kept, and their
+# SHA-256 values.
 # Nothing is published unless the two-key gate passes for the tagged commit (gate/README.md), the
 # version matches the tag, and CHANGELOG.md has the version's section.
 
@@ -26,7 +28,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      actions: read  # to find the conformance run on this commit and read its log
+      actions: read  # to find the conformance run on this commit, read its log and download its figures
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, node24
@@ -64,6 +66,13 @@ jobs:
           python tools/scoreboard.py "$version" dist --commit "$GITHUB_SHA" --fixtures "$RUNNER_TEMP/suite/fm-verify-fixtures-$version" --run "$run_id"
           gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --log > "$RUNNER_TEMP/conformance.log"
           python tools/scoreboard.py --check-log "$RUNNER_TEMP/conformance.log" "dist/fm-verify-scoreboard-$version.json"
+      - name: The scoreboard manifest (scoreboard-manifest/1.0), each figure read from the file the same run kept and checked against the scoreboard above
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(python3 -c 'import json, sys; print(json.load(sys.stdin)["trace"]["run_id"])' < "dist/fm-verify-scoreboard-${GITHUB_REF_NAME#v}.json")
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name scoreboard-figures --dir "$RUNNER_TEMP/outputs/$run_id"
+          python tools/scoreboard.py --manifest dist --tag "$GITHUB_REF_NAME" --commit "$GITHUB_SHA" --run "$run_id" --outputs "$RUNNER_TEMP/outputs"
       - run: cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1, node24
         with:
@@ -91,5 +100,6 @@ jobs:
           awk -v h="## $version" '$0 == h {f = 1; next} /^## / {f = 0} f' CHANGELOG.md > notes.md
           { echo; python3 tools/scoreboard.py --line "dist/fm-verify-scoreboard-$version.json"
             echo; echo "SHA-256 of the files below (rebuild them from this tag with tools/build_release.py,"
-            echo "tools/fixture_archive.py and tools/scoreboard.py, and compare):"; echo; echo '```'; cat dist/SHA256SUMS; echo '```'; } >> notes.md
+            echo "tools/fixture_archive.py and tools/scoreboard.py, and compare; scoreboard-manifest.json with"
+            echo "its made_at given as --made-at):"; echo; echo '```'; cat dist/SHA256SUMS; echo '```'; } >> notes.md
           gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "fm-verify $version" --notes-file notes.md
