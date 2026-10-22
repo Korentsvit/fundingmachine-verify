@@ -1,0 +1,16 @@
+{
+  "release": "v0.3.0",
+  "path": "package",
+  "commit": "1d393fa99bb46bdc7bbaf69d6cc086303de70fa9",
+  "key1": {
+    "holder": "verifier",
+    "passed": true,
+    "evidence": "https://github.com/Korentsvit/fundingmachine-verify/actions/runs/39458396349"
+  },
+  "key2": {
+    "holder": "release-gate",
+    "verdict": "no issue",
+    "commit": "1d393fa99bb46bdc7bbaf69d6cc086303de70fa9",
+    "report": "https://github.com/Korentsvit/fundingmachine-verify/pull/52#issuecomment-6296213359"
+  }
+}
