@@ -288,6 +288,22 @@ newest anchor verdict with its counts, and each certificate verdict filed
 and refuses to publish unless the run's log shows every figure
 (`tools/scoreboard.py --check-log LOG FILE`).
 
+From v0.3.1 a release also carries `scoreboard-manifest.json`, the asset
+the fleet's scoreboard reads (contract `scoreboard-manifest` 1.0, published
+by fundingmachine-core under `docs/scoreboard-contract/1.0/`). Its three
+figures (`tools/scoreboard-spec.json`) are read from `fm-verify-figures.json`,
+which the same conformance run writes for its commit and keeps as its
+artifact `scoreboard-figures`; each names that run and the path read, and
+the release refuses to write the file unless each figure equals the one in
+`fm-verify-scoreboard-VERSION.json`. Its `sha256` is the contract's: SHA-256
+over the JCS (RFC 8785) form of the object without it. Given its `made_at`,
+it rebuilds byte for byte, with the release's scoreboard in `OUT`:
+
+```sh
+gh run download RUN_ID --repo Korentsvit/fundingmachine-verify --name scoreboard-figures --dir outputs/RUN_ID
+python tools/scoreboard.py --manifest OUT --tag vVERSION --commit TAGGED_COMMIT --run RUN_ID --outputs outputs --made-at MADE_AT
+```
+
 The Provenance Ledger's own suite is not in it: that runs from a checkout of
 the Ledger's repository, which a release does not depend on.
 

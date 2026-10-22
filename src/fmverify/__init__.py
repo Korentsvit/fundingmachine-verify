@@ -4,4 +4,4 @@ The library makes no network call unless a caller passes an explorer URL
 explicitly, and reads only what it is given.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

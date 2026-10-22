@@ -1,0 +1,5 @@
+[
+ {"name": "Ledger anchors verified", "unit": "anchors", "target": null, "file": "fm-verify-figures.json", "path": "anchors.verified"},
+ {"name": "Ledger certificates verified", "unit": "certificates", "target": 10, "file": "fm-verify-figures.json", "path": "certificates.verified"},
+ {"name": "conformance cases passing", "unit": "cases", "target": null, "file": "fm-verify-figures.json", "path": "conformance.passing"}
+]

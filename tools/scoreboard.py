@@ -3,6 +3,8 @@
     python tools/scoreboard.py VERSION OUT_DIR --commit SHA [--fixtures DIR] [--run ID]
     python tools/scoreboard.py --line FILE
     python tools/scoreboard.py --check-log LOG FILE
+    python tools/scoreboard.py --figures OUT_DIR --commit SHA [--fixtures DIR]
+    python tools/scoreboard.py --manifest OUT_DIR --tag vVERSION --commit SHA --run ID --outputs DIR [--made-at TIME]
 
 Writes OUT_DIR/fm-verify-scoreboard-VERSION.json (contract fm-verify-scoreboard/v0), read from the commit's
 own files and recomputed, never typed in:
@@ -22,11 +24,21 @@ release. ``--check-log`` checks that a run's log shows every figure of a scorebo
 
 The same commit, fixtures and run give the same bytes: the file holds no time of its own. ``--line`` prints the
 scoreboard line the release notes carry.
+
+The fleet's scoreboard reads one other asset, ``scoreboard-manifest.json`` (contract ``scoreboard-manifest`` 1.0,
+fundingmachine-core ``docs/scoreboard-contract/1.0/``), whose figures are read from a file a workflow run wrote.
+``--figures`` writes that file, OUT_DIR/fm-verify-figures.json, in the conformance run (the same three sections, for
+the commit). ``--manifest`` writes OUT_DIR/scoreboard-manifest.json at the release: each figure of
+tools/scoreboard-spec.json read from that file as the run kept it (OUTPUTS/<run id>/fm-verify-figures.json), and
+refused unless it is the figure the release recomputed in OUT_DIR/fm-verify-scoreboard-VERSION.json. Its ``made_at`` is
+the one value not read from the commit; ``--made-at`` gives it, to rebuild a published file byte for byte.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import json
 import re
 import sys
@@ -40,6 +52,12 @@ ANCHOR_ROW = re.compile(r"^\| (\d{4}/\d{2}/\d{2}/\d{6}Z)(?: \(new\))? \| [0-9a-f
 MIRROR_COMMIT = re.compile(r"\*\*The commit read\.\*\* `([0-9a-f]{40})`")
 CERT_ROW = re.compile(r"^\| \[[^\]]+\]\((\d{4}-\d{2}-\d{2}T\d{4}(?:\d{2})?Z)\) \| `([a-z0-9./-]+)` \| `(urn:uuid:[0-9a-f-]{36})`[^|]* \| "
                       r"(valid|invalid|indeterminate) \|$")
+FIGURES = "fm-verify-figures.json"
+MANIFEST = "scoreboard-manifest.json"
+MANIFEST_FORMAT = "scoreboard-manifest/1.0"
+ENGINE, REPOSITORY = "Verifier", "fundingmachine-verify"
+SPEC = ROOT / "tools" / "scoreboard-spec.json"
+UTC_SECOND = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z")
 NOT_INCLUDED = ["the Provenance Ledger's own suite (its validation-conformance/v0): it runs from a checkout of the Ledger's "
                 "repository, which a release does not depend on"]
 
@@ -101,11 +119,17 @@ def conformance(fixtures: Path) -> dict:
 RUNS = "https://github.com/Korentsvit/fundingmachine-verify/actions/runs/"
 
 
+def figures(commit: str, fixtures: Path, repo: Path = ROOT) -> dict:
+    """The file a conformance run writes for the scoreboard manifest: the board's three sections, for the commit."""
+    if not re.fullmatch(r"[0-9a-f]{40}", commit):
+        raise ScoreboardError("give the full commit")
+    return {"commit": commit, "anchors": anchors(repo), "certificates": certificates(repo), "conformance": conformance(fixtures)}
+
+
 def build(version: str, commit: str, fixtures: Path, repo: Path = ROOT, run: int | None = None) -> dict:
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ScoreboardError("give the version as X.Y.Z and the full commit")
-    board = {"contract": CONTRACT, "release": f"v{version}", "commit": commit, "anchors": anchors(repo),
-             "certificates": certificates(repo), "conformance": conformance(fixtures), "not_included": NOT_INCLUDED,
+    board = {"contract": CONTRACT, "release": f"v{version}", **figures(commit, fixtures, repo), "not_included": NOT_INCLUDED,
              "trace": None}
     if run is not None:
         # The conformance run on main at the commit: its log shows each figure (checked with --check-log).
@@ -143,6 +167,52 @@ def line(board: dict) -> str:
             + (f"; each figure shown by run {board['trace']['run_id']} ({board['trace']['url']})." if board.get("trace") else "."))
 
 
+def read_path(doc: dict, path: str):
+    """One value of a JSON file: keys separated by dots (the contract's form, without list items, which no figure here
+    needs)."""
+    cur = doc
+    for key in path.split("."):
+        if not isinstance(cur, dict) or key not in cur:
+            raise ScoreboardError(f"{path}: no {key}")
+        cur = cur[key]
+    if cur is None or isinstance(cur, (dict, list)):
+        raise ScoreboardError(f"{path}: not a single value")
+    return cur
+
+
+def digest(doc: dict) -> str:
+    """The contract's hash: SHA-256 of the RFC 8785 (JCS) form of the object without its own sha256, lower-case hex."""
+    from fmverify import jcs
+
+    return hashlib.sha256(jcs.dumps({k: v for k, v in doc.items() if k != "sha256"})).hexdigest()
+
+
+def manifest(tag: str, commit: str, run: int, outputs: Path, board: dict, made_at: str, spec: list[dict]) -> dict:
+    """scoreboard-manifest/1.0: each figure of the spec read from the file the run wrote, and checked against the
+    release's own board, which names the same run and commit."""
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", tag) or not UTC_SECOND.fullmatch(made_at):
+        raise ScoreboardError("give the tag as vX.Y.Z and made_at as UTC to the second")
+    if board.get("release") != tag or board.get("commit") != commit or (board.get("trace") or {}).get("run_id") != run:
+        raise ScoreboardError(f"the release's scoreboard is not {tag} at {commit} traced to run {run}")
+    out = []
+    for s in spec:
+        f = outputs / str(run) / s["file"]
+        if not f.is_file():
+            raise ScoreboardError(f"{s['name']}: run {run} wrote no {s['file']}")
+        written = json.loads(f.read_text(encoding="utf-8"))
+        if written.get("commit") != commit:
+            raise ScoreboardError(f"{s['name']}: run {run} wrote {s['file']} for {written.get('commit')}, not {commit}")
+        value, recomputed = read_path(written, s["path"]), read_path(board, s["path"])
+        if value != recomputed:
+            raise ScoreboardError(f"{s['name']}: run {run} wrote {value}, the release recomputed {recomputed}")
+        out.append({"name": s["name"], "value": value, "unit": s["unit"], "target": s["target"], "run_id": run,
+                    "source": {"file": s["file"], "path": s["path"]}})
+    doc = {"format": MANIFEST_FORMAT, "engine": ENGINE, "repository": REPOSITORY, "tag": tag, "commit": commit,
+           "made_at": made_at, "figures": out, "run_ids": sorted({f["run_id"] for f in out})}
+    doc["sha256"] = digest(doc)
+    return doc
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("version", nargs="?")
@@ -153,6 +223,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--line", type=Path, metavar="FILE", help="print the scoreboard line of a scoreboard file, and stop")
     ap.add_argument("--check-log", nargs=2, type=Path, metavar=("LOG", "FILE"),
                     help="check that a run's log shows every figure of a scoreboard file, and stop")
+    ap.add_argument("--figures", type=Path, metavar="OUT_DIR", help=f"write OUT_DIR/{FIGURES} for --commit, and stop")
+    ap.add_argument("--manifest", type=Path, metavar="OUT_DIR",
+                    help=f"write OUT_DIR/{MANIFEST} from the run's file and the release's scoreboard there, and stop")
+    ap.add_argument("--tag")
+    ap.add_argument("--outputs", type=Path, metavar="DIR", help="the run's files, under DIR/<run id>/")
+    ap.add_argument("--made-at", metavar="TIME", help="UTC to the second (default: now)")
     a = ap.parse_args(argv)
     if a.line:
         print(line(json.loads(a.line.read_text(encoding="utf-8"))))
@@ -163,6 +239,31 @@ def main(argv: list[str] | None = None) -> int:
             print(f"scoreboard: the run's log does not show: {m}", file=sys.stderr)
         print("every figure is shown by the run's log" if not missing else f"{len(missing)} figures not shown")
         return 1 if missing else 0
+    if a.figures:
+        try:
+            written = figures(a.commit or "", a.fixtures)
+        except ScoreboardError as exc:
+            print(f"scoreboard: {exc}", file=sys.stderr)
+            return 1
+        a.figures.mkdir(parents=True, exist_ok=True)
+        (a.figures / FIGURES).write_text(json.dumps(written, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        an, c, s = written["anchors"], written["certificates"], written["conformance"]
+        print(f"{FIGURES}: anchors verified {an['verified']} of {an['committed']}, certificates verified {c['verified']}, "
+              f"cases passing {s['passing']} of {s['total']}, at {written['commit']}")
+        return 0 if not s["failing"] else 1
+    if a.manifest:
+        if not (a.tag and a.commit and a.run and a.outputs):
+            ap.error("give --tag, --commit, --run and --outputs with --manifest")
+        made_at = a.made_at or dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            board = json.loads((a.manifest / f"fm-verify-scoreboard-{a.tag[1:]}.json").read_text(encoding="utf-8"))
+            doc = manifest(a.tag, a.commit, a.run, a.outputs, board, made_at, json.loads(SPEC.read_text(encoding="utf-8")))
+        except (OSError, ScoreboardError) as exc:
+            print(f"scoreboard: {exc}", file=sys.stderr)
+            return 1
+        (a.manifest / MANIFEST).write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"{MANIFEST}: " + "; ".join(f"{f['name']} {f['value']}" for f in doc["figures"]) + f"; from run {a.run}; sha256 {doc['sha256']}")
+        return 0
     if not (a.version and a.out and a.commit):
         ap.error("give VERSION, OUT_DIR and --commit")
     try:
