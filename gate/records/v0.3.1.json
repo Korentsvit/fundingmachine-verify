@@ -1,0 +1,10 @@
+{
+  "release": "v0.3.1",
+  "path": "package",
+  "commit": "c5180a2b726061a7cae1765b0084cb0aa2cdd8fa",
+  "key1": {
+    "holder": "verifier",
+    "passed": true,
+    "evidence": "https://github.com/Korentsvit/fundingmachine-verify/actions/runs/39733241872"
+  }
+}
