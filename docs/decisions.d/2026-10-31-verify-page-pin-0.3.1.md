@@ -1,0 +1,1 @@
+| 2026-10-31 | verify | The anchors page pins v0.3.1, not v0.3.0: both were tagged on 31 October; v0.3.1 is the newest release, and its wheel differs from v0.3.0's only in its version | The page follows the newest published release whose files were checked against its pre-release build (docs/HOSTED_PAGE.md, section on pinning) (`delegated-decisions`) | this pull request |
