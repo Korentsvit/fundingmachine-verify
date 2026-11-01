@@ -710,7 +710,7 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
 
     from fmverify import jcs, ledger_events, merkle
     from fmverify.base58 import b58encode, ed25519_did_key
-    from fmverify.certificate import ORIGINS, SCOPE_STATEMENT, percentages
+    from fmverify.certificate import EIDAS_STATEMENT, ORIGINS, SCOPE_STATEMENT, SIGNATURE_MEANING, percentages
 
     out = FIX / "certificate"
     if fresh and out.exists():
@@ -878,6 +878,38 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
         case("cert-v0.1-meaning-misstated", issue({**subject01, "signed": {**signed01, "meaning": "approval"}}),
              {"description": "The issuer signed a meaning the sign event does not record; only the chain shows it", "outcome": "invalid",
               "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
+        # ledger-certificate/v0.2 (Version 0.2): ruling 17's two sentences, and the sign event's meaning and name hash.
+        subject02m = {**subject01, "contract": "ledger-certificate/v0.2", "signature_meaning": SIGNATURE_MEANING,
+                      "eidas_statement": EIDAS_STATEMENT}
+        case("cert-v0.2-valid-with-chain", issue(subject02m),
+             {"description": "A ledger-certificate/v0.2 certificate over a sign event that records a meaning: ruling 17's two sentences, "
+                             "and the sign event's meaning and name hash", "outcome": "valid"}, events_doc=chain_events)
+        case("cert-v0.2-meaning-without-hash", issue({**subject02m, "signed": {k: v for k, v in signed01.items() if k != "signer_name_hash"}}),
+             {"description": "A v0.2 certificate stating the signer's meaning without the printed name's hash: v0.2 carries both or neither",
+              "outcome": "invalid", "failing": ["certificate.meaning"]})
+        case("cert-v0.2-meaning-omitted", issue({**subject02m, "signed": subject["signed"]}),
+             {"description": "A v0.2 certificate leaving out the meaning the sign event records; only the chain shows it",
+              "outcome": "invalid", "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
+    else:
+        subject02 = {**subject, "contract": "ledger-certificate/v0.2", "signature_meaning": SIGNATURE_MEANING,
+                     "eidas_statement": EIDAS_STATEMENT}
+        case("cert-v0.2-valid-with-chain", issue(subject02),
+             {"description": "A ledger-certificate/v0.2 certificate over a sign event without a meaning: ruling 17's two sentences "
+                             "word for word, no meaning and no name hash in the signed block", "outcome": "valid"}, events_doc=chain_events)
+        case("cert-v0.2-signature-meaning-altered",
+             issue({**subject02, "signature_meaning": "the signer approves this document."}),
+             {"description": "The issuer signed another meaning for its own signature than ruling 17's", "outcome": "invalid",
+              "failing": ["certificate.signature_statement"]})
+        case("cert-v0.2-eidas-statement-missing", issue({k: v for k, v in subject02.items() if k != "eidas_statement"}),
+             {"description": "A v0.2 certificate without the eIDAS statement", "outcome": "invalid",
+              "failing": ["certificate.signature_statement"]})
+        case("cert-v0.2-name-hash-without-meaning", issue({**subject02, "signed": {**subject["signed"], "signer_name_hash": None}}),
+             {"description": "A v0.2 certificate with a printed name hash and no meaning: v0.2 carries both or neither",
+              "outcome": "invalid", "failing": ["certificate.meaning"]})
+        case("cert-v0.2-meaning-not-recorded", issue({**subject02, "signed": {**subject["signed"], "meaning": "authorship",
+                                                                                "signer_name_hash": None}}),
+             {"description": "A v0.2 certificate stating a meaning the sign event does not record; only the chain shows it",
+              "outcome": "invalid", "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
     if core_only:
         return
     case("tools-omitted", issue(variant(tools=[])),
@@ -971,7 +1003,7 @@ def build_record_certificates(writer) -> None:
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
     from fmverify import jcs, merkle
-    from fmverify.record_certificate import SCOPE_STATEMENT, fold, inclusion_steps
+    from fmverify.record_certificate import EIDAS_STATEMENT, SCOPE_STATEMENT, SIGNATURE_MEANING, fold, inclusion_steps
 
     out = FIX / "record-certificate"
     if out.exists():
@@ -1063,13 +1095,14 @@ def build_record_certificates(writer) -> None:
         return body, signer.sign(body)
 
     def case(name: str, c: dict, expected: dict, body_sig: tuple[bytes, bytes] | None = None, pdf: bool = False,
-             common_inputs: dict = common, events_doc: list | None = None, index: list | None = None) -> None:
+             common_inputs: dict = common, events_doc: list | None = None, index: list | None = None,
+             index_contract: str = "submission-index/v0") -> None:
         d = out / name
         d.mkdir()
         body, sig = body_sig or signed(c)
         exp = {**common_inputs, **expected}
         if index is not None:
-            doc = {"contract": "submission-index/v0", "statement": "Record certificates issued, hashes only.",
+            doc = {"contract": index_contract, "statement": "Record certificates issued, hashes only.",
                    "scope_statement": SCOPE_STATEMENT, "entries": index}
             (d / "index.json").write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
             exp["index"] = "index.json"
@@ -1138,7 +1171,7 @@ def build_record_certificates(writer) -> None:
     case("another-blocks-header", changed(anchor__bitcoin__header=headers[2].hex(), anchor__bitcoin__block_hash=parse_header(headers[2]).hash_hex),
          {"description": "The header of block 2 in place of block 3's", "outcome": "invalid",
           "failing": ["record_certificate.block_header", "record_certificate.bitcoin_block"]})
-    case("unknown-contract", changed(contract="record-certificate/v0.1"),
+    case("unknown-contract", changed(contract="record-certificate/v9"),
          {"description": "A contract version this verifier does not read: not verified", "outcome": "indeterminate"})
     plain = [dict(x, gen_time="2026-10-16T09:05:00Z") for x in cert["anchor"]["rfc3161"]]
     case("token-time-written-otherwise", changed(anchor__rfc3161=plain),
@@ -1168,6 +1201,27 @@ def build_record_certificates(writer) -> None:
          index=others + [entry(cert, body, events=21)])
     case("index-not-listing", cert, {"description": "An index read before the certificate was issued: not listed, a warning",
                                      "outcome": "valid", "warning": ["record_certificate.index"]}, index=others)
+
+    # record-certificate/v0.1 (docs/RECORD_CERTIFICATE.md, Version 0.1): ruling 17's two sentences, and the index that
+    # lists either version (submission-index/v0.1).
+    cert01 = {**changed(contract="record-certificate/v0.1", certificate_id="urn:uuid:5e1f0c2a-0000-4000-8000-00000000c0e1"),
+              "signature_meaning": SIGNATURE_MEANING, "eidas_statement": EIDAS_STATEMENT}
+    case("v0.1-valid", cert01, {"description": "A record-certificate/v0.1 certificate: v0's record with ruling 17's two sentences "
+                                               "word for word", "outcome": "valid"})
+    case("v0.1-eidas-statement-altered", {**cert01, "eidas_statement": "This certificate is a qualified electronic signature under eIDAS."},
+         {"description": "The issuer signed another eIDAS statement than ruling 17's", "outcome": "invalid",
+          "failing": ["record_certificate.signature_statement"]})
+    case("v0.1-signature-meaning-missing", {k: v for k, v in cert01.items() if k != "signature_meaning"},
+         {"description": "A v0.1 certificate without the meaning of its signature: not record-certificate/v0.1", "outcome": "invalid",
+          "failing": ["record_certificate.schema"]})
+    case("v0-carrying-statements", {**cert, "signature_meaning": SIGNATURE_MEANING, "eidas_statement": EIDAS_STATEMENT},
+         {"description": "A v0 certificate carrying v0.1's sentences: not record-certificate/v0", "outcome": "invalid",
+          "failing": ["record_certificate.schema"]})
+    body01 = signed(cert01)[0]
+    case("v0.1-index-entry-matches", cert01, {"description": "A v0.1 certificate's entry in the public submission index, "
+                                                            "submission-index/v0.1, which lists certificates of either version",
+                                              "outcome": "valid"},
+         index=others + [entry(cert, body), entry(cert01, body01)], index_contract="submission-index/v0.1")
 
 
 def main() -> None:

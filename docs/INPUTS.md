@@ -57,7 +57,16 @@ fundingmachine-ledger, and read by this verifier from those documents:
   For v0.1, `certificate.meaning` checks the signature's meaning and the
   printed name's keyed hash, and step 7 compares both with the sign event.
   The printed name itself needs the document key, which the verifier does
-  not hold.
+  not hold. Its addition v0.2 (`docs/CERTIFICATE.md`, Version 0.2, read from
+  the Ledger's pull request 128 on 1 November 2026) carries ruling 17's two
+  sentences, `signature_meaning` and `eidas_statement`, checked word for word
+  by `certificate.signature_statement`; its signed block carries the meaning
+  and the name hash together or not at all.
+* `record-certificate/v0` and its addition v0.1 (`docs/RECORD_CERTIFICATE.md`,
+  Version 0.1, from the same pull request): `fm-verify record-certificate`.
+  v0.1 carries the same two sentences, checked by
+  `record_certificate.signature_statement`; the public submission index is
+  read as `submission-index/v0` or v0.1.
 * `ledger-event/v0` (`docs/EVENT_CONTRACT.md`): `fm-verify chain`, every chain
   rule in the contract's order with its code. Its addition `ledger-event/v0.1`
   (proposed 16 October 2026 on the Ledger's branch, not yet on its main) is
