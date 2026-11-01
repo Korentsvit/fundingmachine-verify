@@ -1,5 +1,34 @@
 # Change log
 
+## 0.4.0
+
+Reads the Provenance Ledger's certificates that carry ruling 17 of
+31 October 2026 in their signed JSON: `ledger-certificate/v0.2` and
+`record-certificate/v0.1`, with `submission-index/v0.1`. Every case of
+0.3.1 keeps its expected verdict; the suite only grows.
+
+* **Ruling 17's two sentences**, checked word for word:
+  `signature_meaning` ("the signer confirms this record existed at this
+  time.") and `eidas_statement` ("This certificate is integrity evidence,
+  not a qualified electronic signature under eIDAS."), as
+  `certificate.signature_statement` and
+  `record_certificate.signature_statement`. A v0 or v0.1 ledger certificate
+  carrying either fails that check; a record v0 carrying them fails its
+  schema.
+* **`ledger-certificate/v0.2`** (the Ledger's `docs/CERTIFICATE.md`,
+  Version 0.2): the signed block carries the sign event's meaning and the
+  printed name's hash together or not at all (`certificate.meaning`); with
+  the events, both are compared with the sign event.
+* **`record-certificate/v0.1`** (`docs/RECORD_CERTIFICATE.md`, Version 0.1),
+  and the public submission index as `submission-index/v0` or v0.1.
+* Read from the Ledger's pull request 128 before it merged, as Filipp's
+  answer of 1 November asks: its fixtures verify as published, its 14
+  invalid certificates are each not valid here, and its schemas,
+  `verifyCredential` and `verifyRecordCertificate` agree with every new case.
+* **Conformance.** 277 cases (262 in 0.3.1): 15 added. The record case
+  `unknown-contract` names `record-certificate/v9`, since v0.1 now exists;
+  its expected verdict is unchanged.
+
 ## 0.3.1
 
 Adds the fleet's scoreboard manifest to every release. No case, verdict or
