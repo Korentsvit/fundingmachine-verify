@@ -9,7 +9,14 @@ a test-time tool only). Both must accept the same proofs (the reference
 leaves trailing bytes unread; this verifier refuses them, as the format
 ends where the proof ends), and where both accept, they must find the same
 file digest and the same Bitcoin attestations, each with the same
-commitment. Any other difference fails the run.
+commitment. Any other difference fails the run, except the one this verifier
+makes by design:
+
+* Keccak-256 (tag 0x67) as the file's hash. The format lists it with SHA-1,
+  RIPEMD-160 and SHA-256 as the hashes a detached proof may name for its file,
+  and python-opentimestamps read it so until 0.4.5; 0.5.0 registers it as an
+  operation inside a timestamp only, so it refuses a proof naming it for the
+  file. This verifier reads it and hashes the file with it, as before.
 """
 
 from __future__ import annotations
@@ -25,6 +32,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from fmverify import ots  # noqa: E402
 from tamper_audit import mutate_bytes  # noqa: E402
+
+
+KECCAK_FILE_HASH = ("Keccak-256 (tag 0x67) as the file's hash: read here, as the format lists it and "
+                    "python-opentimestamps read it until 0.4.5; 0.5.0 refuses it there")
 
 
 def run(rounds: int) -> dict:
@@ -52,6 +63,7 @@ def run(rounds: int) -> dict:
     proofs = sorted({p.read_bytes(): p for p in [*fix.glob("ots/*/proof.ots"), *fix.glob("anchors/*/root.ots"),
                                                    *fix.glob("ledger-anchors/**/root.preimage.ots")]}.items(), key=lambda x: str(x[1]))
     totals: Counter = Counter()
+    designed: Counter = Counter()
     other: list[str] = []
     for data, path in proofs:
         name = str(path.relative_to(fix))
@@ -72,19 +84,24 @@ def run(rounds: int) -> dict:
                 theirs = None  # bytes after the proof: refused here by design
             if theirs is None and ours is None:
                 totals["refused by both"] += 1
+            elif theirs is None and ours is not None and ots.parse(changed).file_hash.tag == 0x67:
+                totals["differ"] += 1
+                designed[KECCAK_FILE_HASH] += 1
             elif theirs is not None and ours is not None and theirs == ours:
                 totals["read alike"] += 1
             else:
                 totals["differ"] += 1
                 other.append(f"{name}: {where}: reference {'refused' if theirs is None else 'read'}, "
                              f"this verifier {'refused' if ours is None else 'read'}" + (" differently" if theirs and ours else ""))
-    return {"totals": dict(totals), "other": other}
+    return {"totals": dict(totals), "by_design": dict(designed), "other": other}
 
 
 def main(argv: list[str]) -> int:
     result = run(int(argv[0]) if argv else 500)
     for what, n in sorted(result["totals"].items(), key=lambda x: -x[1]):
         print(f"{n:6}  {what}")
+    for why, n in result["by_design"].items():
+        print(f"  by design ({n}): {why}")
     for o in result["other"]:
         print(f"DIFFERENT {o}")
     return 1 if result["other"] else 0
