@@ -34,7 +34,9 @@ printed name itself can be checked only with the document key.
 ledger-certificate/v0.2 (docs/CERTIFICATE.md, Version 0.2, read from the
 Ledger's pull request 128 on 1 November 2026) adds to credentialSubject two
 sentences fixed to ruling 17 of 31 October 2026, ``signature_meaning`` and
-``eidas_statement``, checked word for word as ``certificate.signature_statement``.
+``eidas_statement``, checked word for word as ``certificate.signature_statement``;
+a v0 or v0.1 certificate carrying either fails that check, as the Ledger's own
+fixture of a v0.1 certificate with the statements expects.
 Its signed block carries ``meaning`` and ``signer_name_hash`` together or not
 at all, exactly when the sign event does.
 """
@@ -121,8 +123,9 @@ def _unknown_fields(cred: dict) -> list[str]:
 
     extra(cred, KNOWN["credential"], "credential")
     subj = cred.get("credentialSubject", {})
-    v02 = isinstance(subj, dict) and subj.get("contract") == CONTRACT_V02
-    extra(subj, KNOWN["subject"] | ({"signature_meaning", "eidas_statement"} if v02 else set()), "credentialSubject")
+    # Ruling 17's two members are known in every version: v0.2 requires them, and certificate.signature_statement fails
+    # an earlier version that carries them.
+    extra(subj, KNOWN["subject"] | {"signature_meaning", "eidas_statement"}, "credentialSubject")
     if isinstance(subj, dict):
         extra(subj.get("signed"), KNOWN["signed_v01" if subj.get("contract") in (CONTRACT_V01, CONTRACT_V02) else "signed"], "signed")
     extra(cred.get("proof"), KNOWN["proof"], "proof")
@@ -135,7 +138,14 @@ def _unknown_fields(cred: dict) -> list[str]:
 
 
 def _check_signature_statement(subj: dict) -> Check:
-    """v0.2's two sentences of ruling 17, word for word (docs/CERTIFICATE.md, Version 0.2)."""
+    """v0.2's two sentences of ruling 17, word for word (docs/CERTIFICATE.md, Version 0.2); an earlier version carries
+    neither."""
+    if subj.get("contract") != CONTRACT_V02:
+        return Check("certificate.signature_statement", Status.FAIL,
+                     f"a {subj.get('contract')} certificate carries ruling 17's sentences, which only ledger-certificate/v0.2 states",
+                     reasons=[f"{name} is present" for name in ("signature_meaning", "eidas_statement") if name in subj]
+                     + ["the Ledger's schemas give no version another version's members; its fixture of a v0.1 certificate with the "
+                        "statements is not valid"])
     problems = [f"{name}: expected {want!r}, found {subj.get(name, 'nothing')!r}"
                 for name, want in (("signature_meaning", SIGNATURE_MEANING), ("eidas_statement", EIDAS_STATEMENT)) if subj.get(name) != want]
     if problems:
@@ -326,7 +336,7 @@ def verify(
 
     # Added: the authorship figures are internally consistent.
     checks.append(_check_authorship(subj))
-    if subj["contract"] == CONTRACT_V02:
+    if subj["contract"] == CONTRACT_V02 or "signature_meaning" in subj or "eidas_statement" in subj:
         checks.append(_check_signature_statement(subj))
     if subj["contract"] in (CONTRACT_V01, CONTRACT_V02):
         checks.append(_check_meaning(subj))

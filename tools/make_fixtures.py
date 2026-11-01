@@ -890,6 +890,9 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
         case("cert-v0.2-meaning-omitted", issue({**subject02m, "signed": subject["signed"]}),
              {"description": "A v0.2 certificate leaving out the meaning the sign event records; only the chain shows it",
               "outcome": "invalid", "failing": ["certificate.chain_statements"]}, events_doc=chain_events)
+        case("cert-v0.1-carrying-statements", issue({**subject01, "signature_meaning": SIGNATURE_MEANING, "eidas_statement": EIDAS_STATEMENT}),
+             {"description": "A v0.1 certificate carrying v0.2's sentences: only v0.2 states them", "outcome": "invalid",
+              "failing": ["certificate.signature_statement"]})
     else:
         subject02 = {**subject, "contract": "ledger-certificate/v0.2", "signature_meaning": SIGNATURE_MEANING,
                      "eidas_statement": EIDAS_STATEMENT}
@@ -906,6 +909,9 @@ def build_certificates(writer, prefix: str = "", headers_name: str = "certificat
         case("cert-v0.2-name-hash-without-meaning", issue({**subject02, "signed": {**subject["signed"], "signer_name_hash": None}}),
              {"description": "A v0.2 certificate with a printed name hash and no meaning: v0.2 carries both or neither",
               "outcome": "invalid", "failing": ["certificate.meaning"]})
+        case("cert-v0-carrying-statements", issue({**subject, "signature_meaning": SIGNATURE_MEANING, "eidas_statement": EIDAS_STATEMENT}),
+             {"description": "A v0 certificate carrying v0.2's sentences: only v0.2 states them", "outcome": "invalid",
+              "failing": ["certificate.signature_statement"]})
         case("cert-v0.2-meaning-not-recorded", issue({**subject02, "signed": {**subject["signed"], "meaning": "authorship",
                                                                                 "signer_name_hash": None}}),
              {"description": "A v0.2 certificate stating a meaning the sign event does not record; only the chain shows it",

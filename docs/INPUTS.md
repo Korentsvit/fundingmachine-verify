@@ -60,8 +60,9 @@ fundingmachine-ledger, and read by this verifier from those documents:
   not hold. Its addition v0.2 (`docs/CERTIFICATE.md`, Version 0.2, read from
   the Ledger's pull request 128 on 1 November 2026) carries ruling 17's two
   sentences, `signature_meaning` and `eidas_statement`, checked word for word
-  by `certificate.signature_statement`; its signed block carries the meaning
-  and the name hash together or not at all.
+  by `certificate.signature_statement`, which also fails a v0 or v0.1
+  certificate carrying them; its signed block carries the meaning and the
+  name hash together or not at all.
 * `record-certificate/v0` and its addition v0.1 (`docs/RECORD_CERTIFICATE.md`,
   Version 0.1, from the same pull request): `fm-verify record-certificate`.
   v0.1 carries the same two sentences, checked by

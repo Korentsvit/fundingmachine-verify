@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 59 of the 275 cases.
+command answering `valid` to everything conforms on 59 of the 277 cases.
 
 ## Layout
 
@@ -88,7 +88,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-275 cases, on 1 November 2026:
+277 cases, on 1 November 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -113,7 +113,7 @@ Check ids are this verifier's; another implementation is asked to match
   contract; proofs over another root; sets with `index.jsonl` (valid, a
   broken link, an anchor not listed); and the anchors naming one content
   hash (`prove_sha256`: the earliest that holds, a later one only, none).
-* Certificates (39, `ledger-certificate/v0`, v0.1 and v0.2), over `ledger-event/v0`
+* Certificates (41, `ledger-certificate/v0`, v0.1 and v0.2), over `ledger-event/v0`
   and v0.1 chains: valid, anchored or not (and issued before its hour has a
   root), with and without the chain; in PDF form (classic, compressed,
   updated, no attachment, two attachments); changed after signing; another
@@ -124,8 +124,9 @@ Check ids are this verifier's; another implementation is asked to match
   malformed, and a meaning the sign event does not record. For v0.2, ruling
   17's two sentences: word for word, over sign events with and without a
   meaning; the signature's meaning altered; the eIDAS statement missing; a
-  meaning without its name hash and a name hash without a meaning; and a
-  meaning stated or left out against the sign event.
+  meaning without its name hash and a name hash without a meaning; a
+  meaning stated or left out against the sign event; and a v0 and a v0.1
+  certificate carrying the sentences.
 * Record certificates (25, `record-certificate/v0` and v0.1): valid, in JSON with its
   signature and in PDF form, with and without the events; no Bitcoin source
   of the reader's own (indeterminate); changed after signing; not in RFC 8785
