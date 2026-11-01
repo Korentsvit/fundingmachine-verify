@@ -36,7 +36,7 @@ directly.
 `fm-verify conformance-case KIND CASE_DIR` is the reference for this
 contract: this verifier, one case at a time, printing its verdict as JSON.
 Run as an outside program, it conforms on every case with `--check-ids`; a
-command answering `valid` to everything conforms on 55 of the 262 cases.
+command answering `valid` to everything conforms on 59 of the 277 cases.
 
 ## Layout
 
@@ -88,7 +88,7 @@ Check ids are this verifier's; another implementation is asked to match
 
 ## What the cases cover
 
-262 cases, on 20 October 2026:
+277 cases, on 1 November 2026:
 
 * OpenTimestamps (12): a real mainnet proof (sparse headers, a header chain,
   no headers, the wrong file, a forged header) and regtest proofs (valid,
@@ -113,7 +113,7 @@ Check ids are this verifier's; another implementation is asked to match
   contract; proofs over another root; sets with `index.jsonl` (valid, a
   broken link, an anchor not listed); and the anchors naming one content
   hash (`prove_sha256`: the earliest that holds, a later one only, none).
-* Certificates (31, `ledger-certificate/v0` and v0.1), over `ledger-event/v0`
+* Certificates (41, `ledger-certificate/v0`, v0.1 and v0.2), over `ledger-event/v0`
   and v0.1 chains: valid, anchored or not (and issued before its hour has a
   root), with and without the chain; in PDF form (classic, compressed,
   updated, no attachment, two attachments); changed after signing; another
@@ -121,8 +121,13 @@ Check ids are this verifier's; another implementation is asked to match
   statement to the authorship totals and the anchor's times, or signing a
   position as a string. For v0.1, the signature's meaning and the printed
   name's hash: as the chain records them, the meaning missing, the hash
-  malformed, and a meaning the sign event does not record.
-* Record certificates (20, `record-certificate/v0`): valid, in JSON with its
+  malformed, and a meaning the sign event does not record. For v0.2, ruling
+  17's two sentences: word for word, over sign events with and without a
+  meaning; the signature's meaning altered; the eIDAS statement missing; a
+  meaning without its name hash and a name hash without a meaning; a
+  meaning stated or left out against the sign event; and a v0 and a v0.1
+  certificate carrying the sentences.
+* Record certificates (25, `record-certificate/v0` and v0.1): valid, in JSON with its
   signature and in PDF form, with and without the events; no Bitcoin source
   of the reader's own (indeterminate); changed after signing; not in RFC 8785
   form; signed by another key; the scope statement altered; the head's steps
@@ -131,7 +136,11 @@ Check ids are this verifier's; another implementation is asked to match
   a block time misstated; another block's header; an unknown version; the
   tokens' times written as the same instants otherwise (valid); a proof path
   with an operation the steps cannot write; and the certificate's entry in
-  the public submission index (matching, misstating, not listed).
+  the public submission index (matching, misstating, not listed). For v0.1,
+  ruling 17's two sentences: word for word, the eIDAS statement altered, the
+  signature's meaning missing, and a v0 certificate carrying them; and a
+  v0.1 certificate's entry in `submission-index/v0.1`. The unknown version
+  is `record-certificate/v9`, since v0.1 now exists.
 * Event chains (32, `ledger-event/v0` and v0.1): valid, tampered, back-dated
   (one event, and the whole chain consistently, which the chain alone cannot
   detect), re-ordered (plainly, and re-signed), dropped, after close, wrong
@@ -236,6 +245,7 @@ the contract's own list. This verifier reports them as these check ids:
 | --- | --- |
 | form and signature | `record_certificate.form`, `record_certificate.schema`, `record_certificate.signature` |
 | scope | `record_certificate.scope_statement` |
+| signature statement (v0.1) | `record_certificate.signature_statement` (a v0 certificate carrying the sentences is `record_certificate.schema`) |
 | inclusion | `record_certificate.head_to_root`, `record_certificate.record_to_anchor` |
 | root record | `record_certificate.root_record` |
 | rfc3161 | `record_certificate.rfc3161.N`, one per token |

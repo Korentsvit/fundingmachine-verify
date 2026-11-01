@@ -1,0 +1,18 @@
+{
+ "network": "regtest",
+ "headers_chain": [
+  {
+   "path": "../../bitcoin/regtest/certificate-headers-0-5.bin",
+   "start": 0
+  }
+ ],
+ "roots": [
+  "../../rfc3161/pki/root.pem"
+ ],
+ "description": "A v0 certificate carrying v0.2's sentences: only v0.2 states them",
+ "outcome": "invalid",
+ "failing": [
+  "certificate.signature_statement"
+ ],
+ "file": "exported.txt"
+}

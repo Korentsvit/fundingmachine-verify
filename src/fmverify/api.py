@@ -241,11 +241,12 @@ def _run(req: dict):
 
 def _index(value: Any) -> list:
     """The public submission index as GET /api/submission-index answers it, or a list of its entries."""
-    if isinstance(value, dict) and value.get("contract") == "submission-index/v0" and isinstance(value.get("entries"), list):
+    if isinstance(value, dict) and value.get("contract") in ("submission-index/v0", "submission-index/v0.1") \
+            and isinstance(value.get("entries"), list):
         return value["entries"]
     if isinstance(value, list):
         return value
-    raise RequestError("index must be the submission index (submission-index/v0) or a list of its entries")
+    raise RequestError("index must be the submission index (submission-index/v0 or v0.1) or a list of its entries")
 
 
 def _certificate_json(value: Any) -> dict | None:

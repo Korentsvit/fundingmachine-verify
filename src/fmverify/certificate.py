@@ -1,4 +1,4 @@
-"""Provenance Ledger certificates, contracts ledger-certificate/v0 and v0.1.
+"""Provenance Ledger certificates, contracts ledger-certificate/v0, v0.1 and v0.2.
 
 Written from the Provenance Ledger session's published documents
 (fundingmachine-ledger: docs/CERTIFICATE.md, docs/ANCHORING.md,
@@ -30,6 +30,15 @@ the four the event contract names) and ``signer_name_hash``, the keyed hash
 of the printed name, or null; ``certificate.meaning`` checks their form,
 and with the events given both are compared with the sign event. The
 printed name itself can be checked only with the document key.
+
+ledger-certificate/v0.2 (docs/CERTIFICATE.md, Version 0.2, read from the
+Ledger's pull request 128 on 1 November 2026) adds to credentialSubject two
+sentences fixed to ruling 17 of 31 October 2026, ``signature_meaning`` and
+``eidas_statement``, checked word for word as ``certificate.signature_statement``;
+a v0 or v0.1 certificate carrying either fails that check, as the Ledger's own
+fixture of a v0.1 certificate with the statements expects.
+Its signed block carries ``meaning`` and ``signer_name_hash`` together or not
+at all, exactly when the sign event does.
 """
 
 from __future__ import annotations
@@ -51,10 +60,14 @@ from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict, sum
 
 CONTRACT = "ledger-certificate/v0"
 CONTRACT_V01 = "ledger-certificate/v0.1"
-CONTRACTS = (CONTRACT, CONTRACT_V01)
+CONTRACT_V02 = "ledger-certificate/v0.2"
+CONTRACTS = (CONTRACT, CONTRACT_V01, CONTRACT_V02)
 MEANINGS = ("authorship", "review", "approval", "responsibility")  # docs/EVENT_CONTRACT.md, v0.1
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
                    "certify originality, or prove what the author consulted elsewhere.")
+# Ruling 17 of 31 October 2026, word for word in v0.2 (docs/CERTIFICATE.md, Version 0.2).
+SIGNATURE_MEANING = "the signer confirms this record existed at this time."
+EIDAS_STATEMENT = "This certificate is integrity evidence, not a qualified electronic signature under eIDAS."
 ORIGINS = ["human_typed", "imported", "tool_generated", "tool_edited"]
 FIDELITIES = ["live", "snapshot_diff", "tool_report", "reconstructed", "declared"]
 
@@ -110,9 +123,11 @@ def _unknown_fields(cred: dict) -> list[str]:
 
     extra(cred, KNOWN["credential"], "credential")
     subj = cred.get("credentialSubject", {})
-    extra(subj, KNOWN["subject"], "credentialSubject")
+    # Ruling 17's two members are known in every version: v0.2 requires them, and certificate.signature_statement fails
+    # an earlier version that carries them.
+    extra(subj, KNOWN["subject"] | {"signature_meaning", "eidas_statement"}, "credentialSubject")
     if isinstance(subj, dict):
-        extra(subj.get("signed"), KNOWN["signed_v01" if subj.get("contract") == CONTRACT_V01 else "signed"], "signed")
+        extra(subj.get("signed"), KNOWN["signed_v01" if subj.get("contract") in (CONTRACT_V01, CONTRACT_V02) else "signed"], "signed")
     extra(cred.get("proof"), KNOWN["proof"], "proof")
     lr = subj.get("ledger_root") if isinstance(subj, dict) else None
     if isinstance(lr, dict):
@@ -122,18 +137,42 @@ def _unknown_fields(cred: dict) -> list[str]:
     return out
 
 
+def _check_signature_statement(subj: dict) -> Check:
+    """v0.2's two sentences of ruling 17, word for word (docs/CERTIFICATE.md, Version 0.2); an earlier version carries
+    neither."""
+    if subj.get("contract") != CONTRACT_V02:
+        return Check("certificate.signature_statement", Status.FAIL,
+                     f"a {subj.get('contract')} certificate carries ruling 17's sentences, which only ledger-certificate/v0.2 states",
+                     reasons=[f"{name} is present" for name in ("signature_meaning", "eidas_statement") if name in subj]
+                     + ["the Ledger's schemas give no version another version's members; its fixture of a v0.1 certificate with the "
+                        "statements is not valid"])
+    problems = [f"{name}: expected {want!r}, found {subj.get(name, 'nothing')!r}"
+                for name, want in (("signature_meaning", SIGNATURE_MEANING), ("eidas_statement", EIDAS_STATEMENT)) if subj.get(name) != want]
+    if problems:
+        return Check("certificate.signature_statement", Status.FAIL,
+                     "the meaning of the certificate's signature or its eIDAS statement is missing or altered", reasons=problems)
+    return Check("certificate.signature_statement", Status.PASS,
+                 "the certificate states the meaning of its own signature and that it is not a qualified electronic signature, word for word",
+                 reasons=[f"signature_meaning: {SIGNATURE_MEANING}", f"eidas_statement: {EIDAS_STATEMENT}"])
+
+
 def _check_meaning(subj: dict) -> Check:
     """v0.1's signed block: the signature's meaning, required and one of the four, and the printed name's keyed hash,
-    64 hexadecimal characters or null (docs/CERTIFICATE.md, Version 0.1)."""
+    64 hexadecimal characters or null (docs/CERTIFICATE.md, Version 0.1). v0.2's: both or neither (Version 0.2)."""
     signed = subj.get("signed") if isinstance(subj.get("signed"), dict) else {}
+    if subj.get("contract") == CONTRACT_V02 and "meaning" not in signed and "signer_name_hash" not in signed:
+        return Check("certificate.meaning", Status.PASS, "the signed block states no signer's meaning and binds no printed name",
+                     reasons=["a v0.2 certificate carries both exactly when the sign event records a meaning"])
     meaning, name_hash = signed.get("meaning"), signed.get("signer_name_hash", "absent")
     problems = []
     if meaning not in MEANINGS:
-        problems.append(f"meaning {meaning!r}: a v0.1 certificate states one of {', '.join(MEANINGS)}")
+        problems.append(f"meaning {meaning!r}: a v0.2 certificate with a printed name hash states one of {', '.join(MEANINGS)}"
+                        if subj.get("contract") == CONTRACT_V02 else f"meaning {meaning!r}: a v0.1 certificate states one of {', '.join(MEANINGS)}")
     if not (name_hash is None or (isinstance(name_hash, str) and re.fullmatch(r"[0-9a-f]{64}", name_hash))):
         problems.append(f"signer_name_hash {name_hash!r}: 64 lowercase hexadecimal characters, or null")
     if problems:
-        return Check("certificate.meaning", Status.FAIL, "the signed block's meaning or printed name hash is not as v0.1 requires",
+        return Check("certificate.meaning", Status.FAIL,
+                     f"the signed block's meaning or printed name hash is not as {'v0.2' if subj.get('contract') == CONTRACT_V02 else 'v0.1'} requires",
                      reasons=problems)
     return Check("certificate.meaning", Status.PASS,
                  f"the signature's stated meaning is {meaning}" + (", with the keyed hash of the printed name" if name_hash else
@@ -297,7 +336,9 @@ def verify(
 
     # Added: the authorship figures are internally consistent.
     checks.append(_check_authorship(subj))
-    if subj["contract"] == CONTRACT_V01:
+    if subj["contract"] == CONTRACT_V02 or "signature_meaning" in subj or "eidas_statement" in subj:
+        checks.append(_check_signature_statement(subj))
+    if subj["contract"] in (CONTRACT_V01, CONTRACT_V02):
         checks.append(_check_meaning(subj))
 
     # 3. The exported file.
@@ -468,7 +509,7 @@ def _check_chain(subj: dict, events: list) -> list[Check]:
         "signed.declaration_hash": sign["payload"]["declaration_hash"],
         "chain.events": seq,
     }
-    if subj.get("contract") == CONTRACT_V01:
+    if subj.get("contract") in (CONTRACT_V01, CONTRACT_V02):
         want["signed.meaning"] = sign["payload"].get("meaning")
         want["signed.signer_name_hash"] = sign["payload"].get("signer_name_hash")
     got = {

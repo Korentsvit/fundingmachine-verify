@@ -1,4 +1,4 @@
-"""Provenance Ledger record certificates (``record-certificate/v0``).
+"""Provenance Ledger record certificates (``record-certificate/v0`` and ``v0.1``).
 
 Taken from the Ledger's ``docs/RECORD_CERTIFICATE.md`` and its JSON Schema
 (``schemas/record-certificate-v0.schema.json``), published on 17 October 2026.
@@ -20,6 +20,13 @@ block; the block header; and the block at that height from a source of the
 reader's own. With the document's events, the record's own statements
 (record id, counts, head) are checked against the chain too. The printed
 shell commands (``procedure``, ``verify.sh``) are not run here.
+
+``record-certificate/v0.1`` (docs/RECORD_CERTIFICATE.md, Version 0.1, read from
+the Ledger's pull request 128 on 1 November 2026) adds two members fixed to
+ruling 17 of 31 October 2026, ``signature_meaning`` and ``eidas_statement``,
+checked word for word as ``record_certificate.signature_statement``. The public
+submission index of either version (``submission-index/v0`` and ``v0.1``) is
+read.
 """
 
 from __future__ import annotations
@@ -39,6 +46,12 @@ from .hashes import sha256
 from .verdict import Check, Outcome, Status, Verdict, guarded, make_verdict
 
 CONTRACT = "record-certificate/v0"
+CONTRACT_V01 = "record-certificate/v0.1"
+CONTRACTS = (CONTRACT, CONTRACT_V01)
+INDEX_CONTRACTS = ("submission-index/v0", "submission-index/v0.1")
+# Ruling 17 of 31 October 2026, word for word in v0.1 (docs/RECORD_CERTIFICATE.md, Version 0.1).
+SIGNATURE_MEANING = "the signer confirms this record existed at this time."
+EIDAS_STATEMENT = "This certificate is integrity evidence, not a qualified electronic signature under eIDAS."
 SCOPE_STATEMENT = ("This record shows how this document was written in this environment; it does not detect AI, "
                    "certify originality, or prove what the author consulted elsewhere.")
 LIMITS = [
@@ -53,7 +66,8 @@ STAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z")
 B64 = re.compile(r"[A-Za-z0-9+/]+={0,2}")
 STEP_HEX = re.compile(r"(?:[0-9a-f]{2})*")
 
-# The fields of record-certificate/v0, as its schema lists them: every one required, no other allowed.
+# The fields of record-certificate/v0, as its schema lists them: every one required, no other allowed. v0.1 adds two at
+# the top (STATEMENT_FIELDS).
 FIELDS = {
     "": {"contract", "certificate_id", "issued_at", "scope_statement", "issuer", "record", "hour", "anchor", "procedure"},
     "issuer": {"name", "public_key", "key_id"},
@@ -64,6 +78,7 @@ FIELDS = {
     "anchor": {"root", "size", "leaf_index", "record_to_anchor", "rfc3161", "opentimestamps_b64", "bitcoin"},
     "anchor.bitcoin": {"height", "block_hash", "time", "header", "merkle_root", "anchor_to_merkle_root"},
 }
+STATEMENT_FIELDS = {"signature_meaning", "eidas_statement"}
 ROOT_FIELDS = {"contract", "tenant_id", "window", "size", "root", "prev_root", "key_id", "sig"}
 
 
@@ -82,11 +97,13 @@ def _events(n: object) -> str:
 
 
 def shape_problems(c: Any) -> list[str]:
-    """Where the certificate departs from the schema of record-certificate/v0."""
+    """Where the certificate departs from the schema of its version, record-certificate/v0 or v0.1."""
     if not isinstance(c, dict):
         return ["the certificate is not a JSON object"]
     problems = []
     for path, want in FIELDS.items():
+        if path == "" and c.get("contract") == CONTRACT_V01:
+            want = want | STATEMENT_FIELDS
         try:
             obj = _at(c, path)
         except (KeyError, TypeError):
@@ -255,24 +272,24 @@ INDEX_FIELDS = {"record_id", "tenant", "certificate_id", "certificate_sha256", "
 
 
 def read_index(data: bytes) -> list:
-    """The entries of the public submission index: the JSON GET /api/submission-index answers (submission-index/v0),
-    or certificates/index.jsonl, one entry per line."""
+    """The entries of the public submission index: the JSON GET /api/submission-index answers (submission-index/v0 or
+    v0.1), or certificates/index.jsonl, one entry per line."""
     text = data.decode("utf-8")
     try:
         doc = jcs.loads(text)
     except jcs.JcsError:
         return [jcs.loads(line) for line in text.splitlines() if line.strip()]
     if isinstance(doc, dict) and ("entries" in doc or "contract" in doc):
-        if doc.get("contract") != "submission-index/v0":
-            raise ValueError(f"the index's contract is {doc.get('contract')!r}, not submission-index/v0")
+        if doc.get("contract") not in INDEX_CONTRACTS:
+            raise ValueError(f"the index's contract is {doc.get('contract')!r}, not {' or '.join(INDEX_CONTRACTS)}")
         if set(doc) != {"contract", "statement", "scope_statement", "entries"} or not isinstance(doc["entries"], list) \
                 or not all(isinstance(doc[k], str) for k in ("statement", "scope_statement")):
-            raise ValueError("the index is not a submission-index/v0 object: contract, statement and scope_statement (text) and entries")
+            raise ValueError(f"the index is not a {doc['contract']} object: contract, statement and scope_statement (text) and entries")
         return doc["entries"]
     if isinstance(doc, dict):
         return [doc]
     if not isinstance(doc, list):
-        raise ValueError("the index is neither a submission-index/v0 object nor a list of its entries")
+        raise ValueError("the index is neither a submission index object nor a list of its entries")
     return doc
 
 
@@ -288,7 +305,7 @@ def index_check(entries: list, digest: str, c: dict) -> Check:
     e, r, h, a = mine[0], c["record"], c["hour"], c["anchor"]
     reasons = []
     if set(e) != INDEX_FIELDS:
-        reasons.append("the entry's fields are not those of submission-index/v0: "
+        reasons.append("the entry's fields are not those of the submission index: "
                        + "; ".join(([f"missing {', '.join(sorted(INDEX_FIELDS - set(e)))}"] if INDEX_FIELDS - set(e) else [])
                                    + ([f"not in the contract: {', '.join(sorted(set(e) - INDEX_FIELDS))}"] if set(e) - INDEX_FIELDS else [])))
     want = {"record_id": r["record_id"], "tenant": r["tenant"], "certificate_id": c["certificate_id"], "certificate_contract": c["contract"],
@@ -345,18 +362,18 @@ def verify(
                         "certificate.json is not the RFC 8785 form of its own content, so its bytes are not the ones the contract signs",
                         data={"sha256": sha256(raw).hex(), "from": where}))
     contract = c.get("contract") if isinstance(c, dict) else None
-    if contract != CONTRACT:
+    if contract not in CONTRACTS:
         if isinstance(contract, str) and re.fullmatch(r"record-certificate/v\d+(\.\d+)?", contract):
             checks.append(Check("record_certificate.contract", Status.NOT_CHECKED, f"contract {contract}: a version this verifier does not read",
                                 reasons=["contracts change by versioned addition: a later verifier may read it; it is not verified here"]))
         else:
-            checks.append(Check("record_certificate.contract", Status.FAIL, f"contract {contract!r} is not {CONTRACT}"))
+            checks.append(Check("record_certificate.contract", Status.FAIL, f"contract {contract!r} is not {' or '.join(CONTRACTS)}"))
         return done()
     problems = shape_problems(c)
     if problems:
-        checks.append(Check("record_certificate.schema", Status.FAIL, "the certificate does not follow record-certificate/v0", reasons=problems))
+        checks.append(Check("record_certificate.schema", Status.FAIL, f"the certificate does not follow {contract}", reasons=problems))
         return done()
-    checks.append(Check("record_certificate.schema", Status.PASS, "the certificate follows record-certificate/v0"))
+    checks.append(Check("record_certificate.schema", Status.PASS, f"the certificate follows {contract}"))
     i, r, h, a, b = c["issuer"], c["record"], c["hour"], c["anchor"], c["anchor"]["bitcoin"]
     pub = bytes.fromhex(i["public_key"])
 
@@ -397,6 +414,14 @@ def verify(
                         f"as the certificate states it: {SCOPE_STATEMENT}" if ok else
                         "the scope statement is not the sentence the contract requires, word for word",
                         reasons=[] if ok else [f"it says: {c['scope_statement']}"]))
+    if contract == CONTRACT_V01:
+        # Ruling 17's two sentences, word for word (docs/RECORD_CERTIFICATE.md, Version 0.1).
+        wrong = [f"{name}: expected {want!r}, found {c[name]!r}"
+                 for name, want in (("signature_meaning", SIGNATURE_MEANING), ("eidas_statement", EIDAS_STATEMENT)) if c[name] != want]
+        checks.append(Check("record_certificate.signature_statement", Status.FAIL if wrong else Status.PASS,
+                            "the meaning of the certificate's signature or its eIDAS statement is not the contract's, word for word" if wrong else
+                            "the certificate states the meaning of its own signature and that it is not a qualified electronic signature, "
+                            "word for word", reasons=wrong or [f"signature_meaning: {SIGNATURE_MEANING}", f"eidas_statement: {EIDAS_STATEMENT}"]))
 
     # 2. The head in the hour's root.
     head = bytes.fromhex(r["head"]["event_hash"])
