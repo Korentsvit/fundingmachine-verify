@@ -395,8 +395,15 @@ files, in 26 seconds and with no policy violation.
 
 ### 11.7 Release
 
-The page stays in this repository until the owner releases it. Nothing here
-deploys it.
+The page stays in this repository until the owner releases it. On
+3 November 2026 the owner asked for it at verify.fundingmachine.ai. Only the
+workflow `.github/workflows/deploy-page.yml` deploys it: run by hand from
+main, it builds the site with the pin below, runs the five cases of
+section 11.6 on that build, deploys exactly those files to the page's own
+project on the owner's host (not the website's), with `_headers`' headers on
+every path (`tools/vercel_config.py`), and then checks that the address
+serves every file byte for byte as built, with the policy header
+(`tools/check_served_page.py`). Any failure stops it.
 
 A released page serves a tagged release's own wheel, not a build of a
 checkout:
