@@ -1,0 +1,72 @@
+name: deploy-page
+
+# The owner's release of the anchors page (docs/HOSTED_PAGE.md, section 11.7) to verify.fundingmachine.ai. Run by
+# hand, from main only. It builds the site pinned to page/release.json, its wheel taken from the release's own address
+# and kept only at the pinned SHA-256; runs the five browser cases on that build under its own policy (section 11.6);
+# deploys exactly those files, with _headers' headers on every path (tools/vercel_config.py); then checks that the
+# address serves each file byte for byte as built, with the policy header (tools/check_served_page.py).
+#
+# Needs, set by the owner: the secret VERCEL_TOKEN, and the variables VERCEL_ORG_ID (the team) and VERCEL_PROJECT_ID
+# (the page's own project, not the website's).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-page
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: verify.fundingmachine.ai
+      url: https://verify.fundingmachine.ai
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0, node24
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, node24
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[dev]"
+      - name: Build the page pinned to page/release.json
+        run: |
+          mkdir -p "$RUNNER_TEMP/node" && cd "$RUNNER_TEMP/node"
+          npm init -y > /dev/null
+          npm install --silent pyodide@0.27.7 playwright-core@1.56.1
+          npm install --silent --ignore-scripts vercel@64.7.0
+          cd "$GITHUB_WORKSPACE"
+          python tools/build_page.py "$RUNNER_TEMP/site" --pyodide "$RUNNER_TEMP/node/node_modules/pyodide" \
+            --release page/release.json
+          (cd "$RUNNER_TEMP/site" && sha256sum -c --quiet SHA256SUMS)
+      - name: The five cases, in Chrome, under the site's own policy
+        run: |
+          git clone --quiet https://github.com/Korentsvit/fundingmachine-anchors "$RUNNER_TEMP/mirror"
+          git -C "$RUNNER_TEMP/mirror" checkout --quiet 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6
+          cp tools/pyodide/page/check.mjs "$RUNNER_TEMP/node/"
+          cd "$RUNNER_TEMP/node"
+          node check.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/mirror" 98e2443bacfafb4dc46c9d4f7f28053867c4f9f6 \
+            "$GITHUB_WORKSPACE/verdicts/ledger-anchors/2026-10-17T1218Z/headers.txt"
+      - name: Deploy those files
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+        run: |
+          test -n "$VERCEL_TOKEN" && test -n "$VERCEL_ORG_ID" && test -n "$VERCEL_PROJECT_ID"
+          python tools/vercel_config.py "$RUNNER_TEMP/site"
+          "$RUNNER_TEMP/node/node_modules/.bin/vercel" deploy "$RUNNER_TEMP/site" --prod --yes --token "$VERCEL_TOKEN"
+      - name: The address serves the build as built
+        run: python tools/check_served_page.py https://verify.fundingmachine.ai "$RUNNER_TEMP/site"
