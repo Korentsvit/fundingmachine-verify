@@ -12,11 +12,15 @@ file digest and the same Bitcoin attestations, each with the same
 commitment. Any other difference fails the run, except the one this verifier
 makes by design:
 
-* Keccak-256 (tag 0x67) as the file's hash. The format lists it with SHA-1,
-  RIPEMD-160 and SHA-256 as the hashes a detached proof may name for its file,
-  and python-opentimestamps read it so until 0.4.5; 0.5.0 registers it as an
-  operation inside a timestamp only, so it refuses a proof naming it for the
-  file. This verifier reads it and hashes the file with it, as before.
+* Keccak-256 (tag 0x67) as the file's hash. A detached proof's file hash is
+  read from the tags in ``CryptOp``'s table (``DetachedTimestampFile.deserialize``
+  in ``opentimestamps/core/timestamp.py``). python-opentimestamps 0.4.5 enters
+  Keccak-256 there with SHA-1, RIPEMD-160 and SHA-256 (``@CryptOp._register_op``
+  in ``opentimestamps/core/op.py``); 0.5.0 enters it only among the operations
+  inside a timestamp (``@UnaryOp._register_op``), so it refuses a proof naming
+  it for the file. Sources: https://pypi.org/project/opentimestamps/0.4.5/ and
+  https://pypi.org/project/opentimestamps/0.5.0/, read 2026-11-01. This
+  verifier reads it and hashes the file with it, as before.
 """
 
 from __future__ import annotations
@@ -34,8 +38,8 @@ from fmverify import ots  # noqa: E402
 from tamper_audit import mutate_bytes  # noqa: E402
 
 
-KECCAK_FILE_HASH = ("Keccak-256 (tag 0x67) as the file's hash: read here, as the format lists it and "
-                    "python-opentimestamps read it until 0.4.5; 0.5.0 refuses it there")
+KECCAK_FILE_HASH = ("Keccak-256 (tag 0x67) as the file's hash: read here, as python-opentimestamps 0.4.5 "
+                    "read it; 0.5.0 refuses it there")
 
 
 def run(rounds: int) -> dict:
