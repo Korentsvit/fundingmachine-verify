@@ -434,10 +434,11 @@ built from main given by `--wheel`. The same day the build refused
 v0.1.0's published wheel, which lacks `bitcoin_heights`.
 
 From 20 October 2026 `page/release.json` pinned v0.2.0 (commit c29b66d,
-wheel SHA-256 `c115240d...`), the first release the page can run. Since
-31 October 2026 it pins v0.3.1 (commit c5180a2, wheel SHA-256
-`af5aee77...`), the newest release, after its published files matched the
-ones its pre-release checks built. CI also builds the page with the pin, the wheel taken from the release's own
+wheel SHA-256 `c115240d...`), the first release the page can run. From
+31 October 2026 it pinned v0.3.1 (commit c5180a2, wheel SHA-256
+`af5aee77...`). Since 4 November 2026 it pins v0.4.0 (commit ff49ada,
+wheel SHA-256 `1c78ab93...`), the newest release, after its published files
+matched the ones its pre-release checks built. CI also builds the page with the pin, the wheel taken from the release's own
 address, and runs the five cases on it. For a pinned page the first case
 also requires the page to name the release by its tag, address and commit,
 to find the pinned hash in the wheel it loaded, and to give the install
