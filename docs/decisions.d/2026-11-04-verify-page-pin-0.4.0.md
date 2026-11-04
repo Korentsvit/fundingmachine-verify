@@ -1,0 +1,1 @@
+| 2026-11-04 | verify | The anchors page pins v0.4.0 | The page follows the newest published release whose files were checked against its pre-release build (docs/HOSTED_PAGE.md, section 11.7); v0.4.0's were, on 4 November (`delegated-decisions`) | this pull request |
