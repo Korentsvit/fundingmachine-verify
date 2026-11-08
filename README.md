@@ -56,6 +56,13 @@ verdict out, no disk or network access; it runs in a browser under Pyodide
   (`pip install ./fundingmachine_verify-VERSION-py3-none-any.whl`); with
   `--require-hashes`, pip asks for the hash of every dependency too
   (`cryptography` and what it needs), not only the verifier's.
+* **The public release location.** Each release is also published, read
+  only, to the Vercel Blob store `capital-graph-public` under
+  `verify-vX.Y.Z/`: the release's files byte for byte, `LICENSE`,
+  `ATTRIBUTION.txt`, a `manifest.json` naming the tag, the commit and both
+  gate keys, and `SHA256SUMS`. The release workflow does it only after the
+  two-key gate, and checks that the store serves every file as assembled
+  (`tools/blob_release.py`).
 * **Verdicts are published with their evidence.** [`verdicts/`](verdicts)
   holds dated verdicts on the Provenance Ledger's anchors and on the
   certificates it issues. Each one carries the listing it read and the

@@ -7,10 +7,22 @@ name: release
 # SHA-256 values.
 # Nothing is published unless the two-key gate passes for the tagged commit (gate/README.md), the
 # version matches the tag, and CHANGELOG.md has the version's section.
+#
+# Then the same files go to the public release location (Filipp, 8 November 2026): the Vercel Blob store
+# capital-graph-public, under verify-vX.Y.Z/, with LICENSE, ATTRIBUTION.txt, manifest.json and SHA256SUMS
+# (tools/blob_release.py). The blob job downloads the published release, checks every file against its SHA256SUMS
+# and the gate record on main against the commit, uploads with the store's token (secret CAPITAL_GRAPH_BLOB_TOKEN,
+# used in that one job), and checks that the store serves every file as assembled. Run by hand with upload_tag, it
+# does the same for a release already published, after the gate passes for that tag's commit.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      upload_tag:
+        description: "A published release tag to copy to the public release location, such as v0.4.0"
+        required: true
 
 permissions:
   contents: read
@@ -19,11 +31,12 @@ jobs:
   gate:
     uses: ./.github/workflows/release-gate.yml
     with:
-      release: ${{ github.ref_name }}
-      commit: ${{ github.sha }}
+      release: ${{ inputs.upload_tag || github.ref_name }}
+      commit: ${{ inputs.upload_tag == '' && github.sha || '' }}
 
   build:
     needs: gate
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -103,3 +116,64 @@ jobs:
             echo "tools/fixture_archive.py and tools/scoreboard.py, and compare; scoreboard-manifest.json with"
             echo "its made_at given as --made-at):"; echo; echo '```'; cat dist/SHA256SUMS; echo '```'; } >> notes.md
           gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "fm-verify $version" --notes-file notes.md
+
+  blob:
+    # after the GitHub release on a tag push; alone after the gate when run by hand with upload_tag
+    needs: [gate, publish]
+    if: >-
+      always() && needs.gate.result == 'success' &&
+      (needs.publish.result == 'success' || (needs.publish.result == 'skipped' && github.event_name == 'workflow_dispatch'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ inputs.upload_tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
+        with:
+          fetch-depth: 0
+          # a tag push publishes with the tagged commit's code, the code both keys reviewed; upload_tag runs main's,
+          # which serves tags older than this job
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref || 'main' }}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0, node24
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0, node24
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: The published release, every file checked, assembled for its prefix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail  # a failed check must stop the job, not vanish into tee
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "$TAG is not a release tag" >&2; exit 1; }
+          git fetch --quiet origin "refs/tags/$TAG:refs/tags/$TAG" main
+          git merge-base --is-ancestor "$TAG" origin/main || { echo "$TAG does not point at a commit on main" >&2; exit 1; }
+          commit=$(git rev-parse "$TAG^{commit}")
+          git show "origin/main:gate/records/$TAG.json" > "$RUNNER_TEMP/gate.json"
+          git show "$TAG:LICENSE" > "$RUNNER_TEMP/LICENSE"
+          gh release download "$TAG" --dir "$RUNNER_TEMP/release"
+          python tools/blob_release.py assemble --release "$RUNNER_TEMP/release" --tag "$TAG" --commit "$commit" \
+            --gate "$RUNNER_TEMP/gate.json" --licence "$RUNNER_TEMP/LICENSE" --out pub | tee -a "$GITHUB_STEP_SUMMARY"
+          (cd tools/blob && npm ci --ignore-scripts --no-audit --no-fund)  # @vercel/blob pinned by package-lock.json
+          node tools/blob/publish.mjs --dir pub --prefix "verify-$TAG" --dry-run
+      - name: Upload to the public release location
+        id: upload
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.CAPITAL_GRAPH_BLOB_TOKEN }}
+        run: |
+          set -o pipefail
+          test -n "$BLOB_READ_WRITE_TOKEN" || { echo "the secret CAPITAL_GRAPH_BLOB_TOKEN is not set" >&2; exit 1; }
+          node tools/blob/publish.mjs --dir pub --prefix "verify-$TAG" | tee "$RUNNER_TEMP/blob.jsonl"
+          url=$(tail -n 1 "$RUNNER_TEMP/blob.jsonl" | python3 -c "import json,sys; print(json.load(sys.stdin)['manifest_url'])")
+          [[ "$url" == https://*/"verify-$TAG"/manifest.json ]] || { echo "unexpected manifest URL" >&2; exit 1; }
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: The store serves every file as assembled
+        env:
+          URL: ${{ steps.upload.outputs.url }}
+        run: |
+          set -o pipefail
+          python tools/blob_release.py check --base "${URL%/manifest.json}" --dir pub | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Manifest URL: $URL" >> "$GITHUB_STEP_SUMMARY"
