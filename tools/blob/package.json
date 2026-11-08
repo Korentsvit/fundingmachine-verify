@@ -1,0 +1,9 @@
+{
+  "name": "fm-verify-blob-publish",
+  "private": true,
+  "description": "The one dependency of tools/blob/publish.mjs, pinned with its lock file",
+  "type": "module",
+  "dependencies": {
+    "@vercel/blob": "2.8.2"
+  }
+}
