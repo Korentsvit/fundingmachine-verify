@@ -13,7 +13,7 @@ Ordinary pull requests are not gated: sessions merge their own green pull reques
 
 | Path | What publishes | Where the gate sits |
 | --- | --- | --- |
-| `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive, the conformance fixture archive, the scoreboard and the scoreboard manifest (nothing goes to a package index) | Job `gate` (`release-gate.yml`, release name = the tag) runs first; `build` needs `gate` and `publish` needs `build` |
+| `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive, the conformance fixture archive, the scoreboard and the scoreboard manifest (nothing goes to a package index), then its job `blob` copies the same files, with `LICENSE`, `ATTRIBUTION.txt`, `manifest.json` and `SHA256SUMS`, to `verify-<tag>/` in the Blob store `capital-graph-public`. Run by hand with `upload_tag`, only the `blob` job runs, for a release already published | Job `gate` (`release-gate.yml`, release name = the tag, or `upload_tag`) runs first; `build` needs `gate`, `publish` needs `build`, and `blob` needs `gate` and `publish` and runs only when `needs.gate.result == 'success'` |
 
 The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag once, on the
 recorded commit, and only after the record has merged: a release tag is never moved or deleted. A tag pushed early
@@ -46,17 +46,18 @@ edited after its release; a new release gets a new record.
 ## The public release location
 
 The owner set it on 8 November 2026: releasable assets go to the public Vercel Blob store `capital-graph-public`,
-one prefix per release named like the release (for example `v0.4.1/`), each with `manifest.json`, `SHA256SUMS`,
-the licence notice and the attribution lines, published by the tag workflow only after both keys. A GitHub release
-is not that location.
+one prefix per release (here `verify-<tag>/`, for example `verify-v0.4.1/`), each with `manifest.json`,
+`SHA256SUMS`, the licence notice and the attribution lines, published by the tag workflow only after both keys. A
+GitHub release is not that location.
 
 For the gate this means:
 
 * The job that writes to the Blob store `needs` the job that calls `release-gate.yml`, like every other publishing
   job.
-* It takes the prefix and the commit from the gate, `needs.gate.outputs.release` and `needs.gate.outputs.commit`,
-  never from its own inputs, so a run cannot write one release's files under another release's prefix or from
-  another commit.
+* It takes the prefix and the commit from what the gate passed (`needs.gate.outputs.release` and
+  `needs.gate.outputs.commit`, or the very expression the gate job was given), never from an input of its own, so a
+  run cannot write one release's files under another release's prefix or from another commit. Here the `blob` job's
+  `TAG` is the same expression as the gate's `release`, and it checks the record on main against the tag's commit.
 * A release path that adds a Blob upload changes its row in the table above and needs a new record for its new
   commit; a record keyed before the upload existed does not cover it.
 
