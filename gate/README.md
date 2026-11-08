@@ -43,6 +43,23 @@ fails its `gate` job and publishes nothing; re-running that run after the record
 The file name is the release name. Both links point into Korentsvit. The two holders differ. A record is never
 edited after its release; a new release gets a new record.
 
+## The public release location
+
+The owner set it on 8 November 2026: releasable assets go to the public Vercel Blob store `capital-graph-public`,
+one prefix per release named like the release (for example `v0.4.1/`), each with `manifest.json`, `SHA256SUMS`,
+the licence notice and the attribution lines, published by the tag workflow only after both keys. A GitHub release
+is not that location.
+
+For the gate this means:
+
+* The job that writes to the Blob store `needs` the job that calls `release-gate.yml`, like every other publishing
+  job.
+* It takes the prefix and the commit from the gate, `needs.gate.outputs.release` and `needs.gate.outputs.commit`,
+  never from its own inputs, so a run cannot write one release's files under another release's prefix or from
+  another commit.
+* A release path that adds a Blob upload changes its row in the table above and needs a new record for its new
+  commit; a record keyed before the upload existed does not cover it.
+
 ## Checks and rulesets
 
 * **Required checks on main** are this repository's own CI only, from `.github/workflows/tests.yml`:
@@ -50,4 +67,11 @@ edited after its release; a new release gets a new record.
   "main"; the Verifier session names the set). No Vercel deployment check is required.
 * **Proposed for the owner to apply:** a tag ruleset on `v*`, `atlas-*`, `awards-*` and `R*` that blocks deletion
   and updates, so a released tag cannot move.
-* `release-gate.yml` runs the gate's self-test on any pull request that touches `gate/`. It is not a required check.
+* `release-gate.yml` runs on any pull request that touches `gate/` or a workflow: the gate's self-test, every record,
+  and `node gate/check.mjs workflows`, which reads every job under `.github/workflows/` and fails when a job that
+  publishes (a GitHub release, a Vercel deploy, a Blob write, a tag push, a package upload) does not wait for a job
+  calling `release-gate.yml`, or can run after that job failed (`always()`, `!cancelled()` without `!failure()`). It
+  finds publishing by command, so a write made inside a program stays covered by the table above and the review, and a
+  job that runs when the gate is skipped must publish only under the gate's own condition, which the review checks. A
+  path the owner has not yet decided to gate is listed, with the reason, in `gate/ungated.json`. It is not a required
+  check.

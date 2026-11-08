@@ -2,8 +2,10 @@ name: release-gate
 
 # The two-key release gate (gate/README.md). A release path calls this workflow before it publishes: it reads
 # gate/records/<release>.json from main and fails unless both keys are recorded for the exact commit the
-# release publishes. On a pull request that touches gate/ it runs the gate's self-test and checks every record.
-# Reads no secret, writes nothing, about one minute.
+# release publishes, and hands the publishing job the release name and commit it passed (outputs release and
+# commit): a Blob upload writes under <release>/ and nothing else. On a pull request that touches gate/ or a
+# workflow it runs the gate's self-test, checks every record and checks that every job that publishes runs only
+# after this gate (node gate/check.mjs workflows). Reads no secret, writes nothing, about one minute.
 
 on:
   workflow_call:
@@ -17,10 +19,17 @@ on:
         required: false
         type: string
         default: ""
+    outputs:
+      release:
+        description: "The release name the gate passed; a Blob upload writes under <release>/ only"
+        value: ${{ jobs.gate.outputs.release }}
+      commit:
+        description: "The full SHA the gate passed; the only commit the release may publish"
+        value: ${{ jobs.gate.outputs.commit }}
   pull_request:
     paths:
       - "gate/**"
-      - ".github/workflows/release-gate.yml"
+      - ".github/workflows/**"
 
 permissions:
   contents: read
@@ -29,12 +38,16 @@ jobs:
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    outputs:
+      release: ${{ steps.keys.outputs.release }}
+      commit: ${{ steps.keys.outputs.commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
         with:
           ref: ${{ inputs.release != '' && 'main' || '' }}
           fetch-depth: 0
       - name: Two keys
+        id: keys
         env:
           RELEASE: ${{ inputs.release }}
           COMMIT: ${{ inputs.commit }}
@@ -44,4 +57,5 @@ jobs:
           else
             node gate/check.mjs self-test
             node gate/check.mjs records
+            node gate/check.mjs workflows
           fi

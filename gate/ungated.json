@@ -1,0 +1,7 @@
+[
+  {
+    "workflow": "deploy-page.yml",
+    "job": "deploy",
+    "why": "Not gated: whether to gate it is the owner's call (asked 4 November 2026), and his rule of 8 November 2026 says no engine builds its own website or view; it has never run"
+  }
+]
