@@ -1,5 +1,31 @@
 # Change log
 
+## 0.4.1
+
+The first release with a public copy. After both keys, the release workflow
+also publishes its files to the public release location, the Vercel Blob
+store `capital-graph-public`, under `verify-v0.4.1/`. The verifier is
+unchanged: every case of 0.4.0 keeps its expected verdict, and the
+conformance suite is the same 277 cases.
+
+* **The public release location** (Filipp, 8 November): the release's files
+  byte for byte, with `LICENSE`, `ATTRIBUTION.txt`, a `manifest.json`
+  (`fm-verify-release/1`: the tag, the commit, both gate keys, every file
+  with its SHA-256 and size) and `SHA256SUMS`, assembled by
+  `tools/blob_release.py` and uploaded by `tools/blob/publish.mjs`
+  (`@vercel/blob` 2.8.2, pinned by its lock file). Nothing is written over
+  another file, and the store is then checked to serve every file as
+  assembled. The copy always runs the tagged commit's own code; a tag
+  without it, such as v0.4.0, is refused.
+* **The anchors page's deploy workflow** and its two checks
+  (`tools/vercel_config.py`, `tools/check_served_page.py`) are in the source
+  archive. The page is not deployed.
+* **The OpenTimestamps differential** cites python-opentimestamps' own code
+  at 0.4.5 and 0.5.0 for its Keccak-256 class.
+* **The page build** tries a pinned download again on a server error, up to
+  five times over half a minute; the SHA-256 check is unchanged.
+* **The scoreboard** reads the anchor verdicts committed since 31 October.
+
 ## 0.4.0
 
 Reads the Provenance Ledger's certificates that carry ruling 17 of
