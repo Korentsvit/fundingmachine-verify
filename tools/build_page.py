@@ -120,10 +120,11 @@ def newest_verdict_commit() -> str | None:
     return None
 
 
-def fetch_pinned(url: str, sha256: str, tries: int = 3, wait: float = 2.0) -> bytes:
+def fetch_pinned(url: str, sha256: str, tries: int = 5, wait: float = 2.0) -> bytes:
     """The bytes at url, refused unless their SHA-256 is the pinned one. A server error (5xx) or a broken connection
-    is tried again, up to `tries` times in all, waiting `wait`, then twice as long, between tries; any other answer
-    stops at once. Retrying never loosens the check: whatever arrives must still have the pinned SHA-256."""
+    is tried again, up to `tries` times in all, waiting `wait` and twice as long each time after (2, 4, 8 and 16
+    seconds by default, half a minute in all); any other answer stops at once. Retrying never loosens the check:
+    whatever arrives must still have the pinned SHA-256."""
     for attempt in range(1, tries + 1):
         try:
             with urllib.request.urlopen(url, timeout=60) as resp:

@@ -49,14 +49,14 @@ def test_a_server_error_is_tried_again():
     assert seen == [504, 502, 200]
 
 
-def test_three_server_errors_stop_the_build():
-    server, url, seen = _serve([504, 504, 504])
+def test_five_server_errors_stop_the_build():
+    server, url, seen = _serve([504] * 5)
     try:
         with pytest.raises(urllib.error.HTTPError):
             build_page.fetch_pinned(url, PINNED, wait=0)
     finally:
         server.shutdown()
-    assert seen == [504, 504, 504]
+    assert seen == [504] * 5
 
 
 def test_any_other_answer_stops_at_once():
