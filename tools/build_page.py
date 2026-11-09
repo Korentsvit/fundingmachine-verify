@@ -37,6 +37,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -118,10 +120,24 @@ def newest_verdict_commit() -> str | None:
     return None
 
 
-def fetch_pinned(url: str, sha256: str) -> bytes:
-    """The bytes at url, refused unless their SHA-256 is the pinned one."""
-    with urllib.request.urlopen(url, timeout=60) as resp:
-        data = resp.read()
+def fetch_pinned(url: str, sha256: str, tries: int = 5, wait: float = 2.0) -> bytes:
+    """The bytes at url, refused unless their SHA-256 is the pinned one. A server error (5xx) or a broken connection
+    is tried again, up to `tries` times in all, waiting `wait` and twice as long each time after (2, 4, 8 and 16
+    seconds by default, half a minute in all); any other answer stops at once. Retrying never loosens the check:
+    whatever arrives must still have the pinned SHA-256."""
+    for attempt in range(1, tries + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=60) as resp:
+                data = resp.read()
+            break
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == tries:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == tries:
+                raise
+        print(f"{url}: try {attempt} of {tries} failed; trying again", file=sys.stderr)
+        time.sleep(wait * 2 ** (attempt - 1))
     if hashlib.sha256(data).hexdigest() != sha256:
         raise SystemExit(f"{url}: SHA-256 is not the pinned {sha256}")
     return data
