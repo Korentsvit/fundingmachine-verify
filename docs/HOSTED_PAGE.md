@@ -397,8 +397,13 @@ files, in 26 seconds and with no policy violation.
 
 The page stays in this repository until the owner releases it. On
 3 November 2026 the owner asked for it at verify.fundingmachine.ai. Only the
-workflow `.github/workflows/deploy-page.yml` deploys it: run by hand from
-main, it builds the site with the pin below, runs the five cases of
+workflow `.github/workflows/deploy-page.yml` deploys it, through the
+two-key gate (`gate/README.md`, path `page`): run by hand from main with
+a gate record's name and the commit it keys, it stops unless both keys
+are recorded for that commit, checks that commit out, and refuses it
+unless it is on main and the record is named
+`page-<pinned tag>-<first 7 characters of the commit>`. It then builds
+the site with the pin below, runs the five cases of
 section 11.6 on that build, deploys exactly those files to the page's own
 project on the owner's host (not the website's), with `_headers`' headers on
 every path (`tools/vercel_config.py`), and then checks that the address

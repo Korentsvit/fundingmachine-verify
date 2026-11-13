@@ -1,16 +1,27 @@
 name: deploy-page
 
-# The owner's release of the anchors page (docs/HOSTED_PAGE.md, section 11.7) to verify.fundingmachine.ai. Run by
-# hand, from main only. It builds the site pinned to page/release.json, its wheel taken from the release's own address
-# and kept only at the pinned SHA-256; runs the five browser cases on that build under its own policy (section 11.6);
-# deploys exactly those files, with _headers' headers on every path (tools/vercel_config.py); then checks that the
-# address serves each file byte for byte as built, with the policy header (tools/check_served_page.py).
+# The owner's release of the anchors page (docs/HOSTED_PAGE.md, section 11.7) to verify.fundingmachine.ai, through the
+# two-key gate (gate/README.md, path `page`). Run by hand from main with the name of a gate record and the commit it
+# keys: the job `gate` reads gate/records/<release>.json from main and stops unless both keys are recorded for that
+# exact commit. The deploy then checks out the commit the gate passed, refuses it unless it is on main and the record's
+# name is page-<the tag its page/release.json pins>-<its first 7 characters>, and builds the site pinned to
+# page/release.json, its wheel taken from the release's own address and kept only at the pinned SHA-256; runs the
+# five browser cases on that build under its own policy (section 11.6); deploys exactly those files, with _headers'
+# headers on every path (tools/vercel_config.py); then checks that the address serves each file byte for byte as
+# built, with the policy header (tools/check_served_page.py).
 #
 # Needs, set by the owner: the secret VERCEL_TOKEN, and the variables VERCEL_ORG_ID (the team) and VERCEL_PROJECT_ID
-# (the page's own project, not the website's).
+# (the page's own project, fundingmachine-verify-page, not the website's).
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "The gate record's name: page-<pinned tag>-<first 7 of the commit>, such as page-v0.4.0-1234abc"
+        required: true
+      commit:
+        description: "The full SHA on main that the record keys"
+        required: true
 
 permissions:
   contents: read
@@ -24,8 +35,15 @@ defaults:
     shell: bash
 
 jobs:
-  deploy:
+  gate:
     if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-gate.yml
+    with:
+      release: ${{ inputs.release }}
+      commit: ${{ inputs.commit }}
+
+  deploy:
+    needs: gate
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment:
@@ -33,6 +51,20 @@ jobs:
       url: https://verify.fundingmachine.ai
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1, node24
+        with:
+          ref: ${{ needs.gate.outputs.commit }}  # the commit both keys reviewed, never the branch head
+          fetch-depth: 0
+      - name: The commit the gate passed is on main, and the record is named for its pin
+        env:
+          RELEASE: ${{ needs.gate.outputs.release }}
+          COMMIT: ${{ needs.gate.outputs.commit }}
+        run: |
+          [ "$(git rev-parse HEAD)" = "$COMMIT" ] || { echo "the checkout is not $COMMIT" >&2; exit 1; }
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$COMMIT" origin/main || { echo "$COMMIT is not on main" >&2; exit 1; }
+          tag=$(python3 -c 'import json; print(json.load(open("page/release.json"))["tag"])')
+          [ "$RELEASE" = "page-$tag-${COMMIT:0:7}" ] \
+            || { echo "the record $RELEASE is not page-$tag-${COMMIT:0:7}, the name for this commit's pin" >&2; exit 1; }
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0, node24
         with:
           node-version: "22"
