@@ -43,16 +43,38 @@ class HeaderFetchError(Exception):
     pass
 
 
-def get(url: str, tries: int = 3) -> str:
-    for attempt in range(tries):
+RETRY_AFTER_MAX = 60.0
+
+
+def get(url: str, tries: int = 5, wait: float = 2.0, sleep=time.sleep) -> str:
+    """The text at url. A rate limit (429), a server error (5xx), a timeout (408 or local) or a broken connection
+    is tried again, up to `tries` times in all, waiting `wait` and twice as long each time after (2, 4, 8 and 16
+    seconds by default), or as long as a 429 or 503 asks in its Retry-After seconds, at most a minute; any other
+    answer stops at once."""
+    for attempt in range(1, tries + 1):
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
                 return r.read().decode("ascii").strip()
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
-            if attempt == tries - 1:
+        except urllib.error.HTTPError as e:
+            if not (e.code in (408, 429) or e.code >= 500) or attempt == tries:
                 raise
-            time.sleep(2 * 2 ** attempt)
+            delay = retry_after(e) if e.code in (429, 503) else None
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt == tries:
+                raise
+            delay = None
+        sleep(delay if delay is not None else wait * 2 ** (attempt - 1))
     raise AssertionError("unreachable")
+
+
+def retry_after(e: urllib.error.HTTPError) -> float | None:
+    """The seconds a Retry-After header asks for, at most RETRY_AFTER_MAX; None when it is absent or not a number."""
+    value = e.headers.get("Retry-After") if e.headers is not None else None
+    try:
+        seconds = float(value.strip())
+    except (AttributeError, ValueError):
+        return None
+    return min(max(seconds, 0.0), RETRY_AFTER_MAX)
 
 
 def heights(directory: Path) -> list[int]:
