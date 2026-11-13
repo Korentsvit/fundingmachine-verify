@@ -14,10 +14,15 @@ Ordinary pull requests are not gated: sessions merge their own green pull reques
 | Path | What publishes | Where the gate sits |
 | --- | --- | --- |
 | `package` | A tag `v*` runs `.github/workflows/release.yml`, which publishes a GitHub release with the wheel, the source archive, the conformance fixture archive, the scoreboard and the scoreboard manifest (nothing goes to a package index), then its job `blob` copies the same files, with `LICENSE`, `ATTRIBUTION.txt`, `manifest.json` and `SHA256SUMS`, to `verify-<tag>/` in the Blob store `capital-graph-public`. Run by hand with `upload_tag`, only the `blob` job runs, for a release already published | Job `gate` (`release-gate.yml`, release name = the tag, or `upload_tag`) runs first; `build` needs `gate`, `publish` needs `build`, and `blob` needs `gate` and `publish` and runs only when `needs.gate.result == 'success'` |
+| `page` | `.github/workflows/deploy-page.yml`, run by hand from main with `release` and `commit`, deploys the anchors page pinned to `page/release.json` to verify.fundingmachine.ai (the Vercel project `fundingmachine-verify-page`, Git disconnected) | Job `gate` (`release-gate.yml`, release name and commit as given) runs first; `deploy` needs `gate`, checks out the commit the gate passed (`needs.gate.outputs.commit`), and stops unless that commit is on main and the release name is `page-<the tag its page/release.json pins>-<its first 7 characters>` |
 
 The record for a tag `v0.1.0` is `gate/records/v0.1.0.json` with `path` set to `package`. Push the tag once, on the
 recorded commit, and only after the record has merged: a release tag is never moved or deleted. A tag pushed early
 fails its `gate` job and publishes nothing; re-running that run after the record merges reads main again.
+
+The record for a page deploy is `gate/records/page-<pinned tag>-<short commit>.json`, for example
+`page-v0.4.0-1234abc.json`, with `path` set to `page` and `commit` the full SHA on main the deploy checks out.
+Each deploy of another commit gets its own record.
 
 ## How a release goes
 
@@ -64,8 +69,9 @@ For the gate this means:
 ## Checks and rulesets
 
 * **Required checks on main** are this repository's own CI only, from `.github/workflows/tests.yml`:
-  `test (3.10)`, `test (3.13)`, `interop`, `release-build` and `pyodide`, with the branch up to date (ruleset
-  "main"; the Verifier session names the set). No Vercel deployment check is required.
+  `test (3.10)`, `test (3.13)`, `interop`, `release-build` and `pyodide`, and `suite` from
+  `.github/workflows/conformance.yml` (added by the owner on 13 November 2026), with the branch up to date
+  (ruleset "main"; the Verifier session names the set). No Vercel deployment check is required.
 * **Proposed for the owner to apply:** a tag ruleset on `v*`, `atlas-*`, `awards-*` and `R*` that blocks deletion
   and updates, so a released tag cannot move.
 * `release-gate.yml` runs on any pull request that touches `gate/` or a workflow: the gate's self-test, every record,
