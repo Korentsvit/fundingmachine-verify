@@ -121,7 +121,7 @@ def test_notice_names_every_third_party_file_with_its_licence(tmp_path):
                          "release": "https://github.com/Korentsvit/fundingmachine-verify/releases/tag/v0.2.0"},
             "wheel": {"file": fm.name},
             "roots": [{"name": r["name"], "authority": r["authority"], "url": r["url"], "sha256": r["sha256"],
-                       "retrieved": "2026-10-19"} for r in build_page.ROOTS]}
+                       "pinned": r["pinned"]} for r in build_page.ROOTS]}
     text = build_page.notice(tmp_path, info, build_page.LICENCE_TEXTS)
     assert "the release tagged v0.2.0 (commit " + "a" * 40 in text
     assert "Licence: Apache-2.0; its licence file is inside the wheel (fundingmachine_verify-0.2.0.dist-info/licenses/LICENSE)" in text

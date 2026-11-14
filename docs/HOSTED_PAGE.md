@@ -408,7 +408,11 @@ section 11.6 on that build, deploys exactly those files to the page's own
 project on the owner's host (not the website's), with `_headers`' headers on
 every path (`tools/vercel_config.py`), and then checks that the address
 serves every file byte for byte as built, with the policy header
-(`tools/check_served_page.py`). Any failure stops it.
+(`tools/check_served_page.py`), looking again for about two minutes while
+the address still answers from before the deploy. Any failure stops it.
+The build reads no clock: the same commit builds the same bytes on any
+day, so the `SHA256SUMS` a review keys is the one that deploys. The two
+roots name the date their SHA-256 was pinned, 17 October 2026.
 
 A released page serves a tagged release's own wheel, not a build of a
 checkout:

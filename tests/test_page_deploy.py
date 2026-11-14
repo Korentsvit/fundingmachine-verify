@@ -103,3 +103,38 @@ def test_a_host_serving_other_bytes_or_without_the_policy(tmp_path):
     assert any(p.startswith("/site.json: ") and "not the site.json" in p for p in problems)
     assert any(p.startswith("/pyodide.asm.wasm: not served") for p in problems)
     assert any(p.startswith("/: Content-Security-Policy is None") for p in problems)
+
+
+def test_the_check_waits_for_the_address_to_serve_the_build(tmp_path):
+    """Right after a deploy the address may not serve the build yet: the check looks again until it does."""
+    site = _site(tmp_path)
+    served = tmp_path / "served"
+    served.mkdir()
+    server, url = _serve(served, GOOD)  # nothing served yet
+    waits = []
+
+    def sleep(seconds):
+        waits.append(seconds)
+        if len(waits) == 2:  # the deploy reaches the address after the second wait
+            for p in site.iterdir():
+                (served / p.name).write_bytes(p.read_bytes())
+
+    try:
+        assert check_served_page.check_until(url, site, sleep=sleep) == []
+    finally:
+        server.shutdown()
+    assert waits == [5, 10]
+
+
+def test_the_check_fails_when_the_address_never_serves_the_build(tmp_path):
+    site = _site(tmp_path)
+    served = tmp_path / "served"
+    served.mkdir()
+    server, url = _serve(served, GOOD)
+    waits = []
+    try:
+        problems = check_served_page.check_until(url, site, sleep=waits.append)
+    finally:
+        server.shutdown()
+    assert waits == list(check_served_page.WAITS)
+    assert any(p.startswith("/index.html: not served") for p in problems)

@@ -6,13 +6,19 @@ URL is where the page is served (https://verify.fundingmachine.ai); SITE is the 
 and for every file SITE/SHA256SUMS names, and SHA256SUMS itself, the served bytes must have the SHA-256 SHA256SUMS
 gives (index.html's for `/`), and every response must carry each header of SITE/_headers with exactly its value
 (docs/HOSTED_PAGE.md, section 3: the policy on every response). Scripts must be served as JavaScript and the
-WebAssembly module as application/wasm, or the browser refuses them. Each difference is printed; any fails the run.
+WebAssembly module as application/wasm, or the browser refuses them.
+
+Run right after a deploy, the address may still answer from before it: a path not yet served, or the previous
+deployment's bytes. So when anything differs, the whole check runs again after 5, 10, 20, 30 and 45 seconds, about
+two minutes in all, and only the last result counts. Each difference of that last check is printed; any fails the
+run.
 """
 
 from __future__ import annotations
 
 import hashlib
 import sys
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -58,12 +64,27 @@ def check(base: str, site: Path) -> list[str]:
     return problems
 
 
+WAITS = (5, 10, 20, 30, 45)
+
+
+def check_until(base: str, site: Path, waits=WAITS, sleep=time.sleep) -> list[str]:
+    """check(), again after each of `waits` seconds while anything differs; the problems of the last check."""
+    problems = check(base, site)
+    for wait in waits:
+        if not problems:
+            break
+        print(f"{base}: {len(problems)} differences; checking again in {wait} s", file=sys.stderr)
+        sleep(wait)
+        problems = check(base, site)
+    return problems
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__.strip().splitlines()[2].strip(), file=sys.stderr)
         return 2
     base, site = argv[0], Path(argv[1])
-    problems = check(base, site)
+    problems = check_until(base, site)
     for p in problems:
         print(p)
     n = len((site / "SHA256SUMS").read_text(encoding="utf-8").splitlines()) + 2
