@@ -1,0 +1,32 @@
+VALID: The 1587 files and entries the manifest lists are the leaves of root d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df. The sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed no later than Bitcoin block 975278 (00000000000000000001d951592f7a06f0d24697e4f9c362ae173fced55583e3), whose header gives the time 2026-11-10T08:17:46Z. The time-stamping authority CN=DigiCert SHA256 RSA4096 Timestamp Responder 2026 1,O=DigiCert\, Inc.,C=US (whose certificate chains to CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US, a root you trust) signed that the sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed at 2026-11-10T08:03:32Z (no accuracy stated), under policy 2.16.840.1.114412.7.1. The time-stamping authority CN=Sectigo Public Time Stamping Signer R37,O=Sectigo Limited,ST=Greater London,C=GB (whose certificate chains to CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US, a root you trust) signed that the sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed at 2026-11-10T08:03:32Z (no accuracy stated), under policy 1.3.6.1.4.1.6449.2.1.1.
+Subject: Provenance Ledger anchor 2026/11/10/080331Z
+
+Checks:
+  [pass] ledger_anchor.preimage: root.preimage has the shape of a root node; its SHA-256 is d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df
+  [pass] ledger_anchor.manifest_schema: the manifest follows anchor-manifest/v0
+  [pass] ledger_anchor.leaves: the 1587 leaves, each the RFC 8785 JSON of its descriptor, give the anchored root, and root.preimage is their root node
+  [info] ledger_anchor.sources (optional): all 5 sources were read; 6 configured paths were absent
+  [info] ledger_anchor.previous (optional): the manifest links to the anchor before it, 2026/11/10/070321Z (root 147f41ff682954740c1facf355e3c1fc57087a28eb4aca5f6fadbdd92e814891); the link is checked when the whole set is verified (--all)
+  [pass] ledger_anchor.ots: The sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed no later than Bitcoin block 975278 (00000000000000000001d951592f7a06f0d24697e4f9c362ae173fced55583e3), whose header gives the time 2026-11-10T08:17:46Z.
+  [pass] ledger_anchor.rfc3161.root.preimage.digicert.tsr: The time-stamping authority CN=DigiCert SHA256 RSA4096 Timestamp Responder 2026 1,O=DigiCert\, Inc.,C=US (whose certificate chains to CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US, a root you trust) signed that the sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed at 2026-11-10T08:03:32Z (no accuracy stated), under policy 2.16.840.1.114412.7.1.
+  [pass] ledger_anchor.rfc3161.root.preimage.sectigo.tsr: The time-stamping authority CN=Sectigo Public Time Stamping Signer R37,O=Sectigo Limited,ST=Greater London,C=GB (whose certificate chains to CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US, a root you trust) signed that the sha256 digest d4bf7f2f75436710d25eb2d0673b7960af7196d68bc8a93d8d9618d2b3f6b8df existed at 2026-11-10T08:03:32Z (no accuracy stated), under policy 1.3.6.1.4.1.6449.2.1.1.
+  [pass] ledger_anchor.statements: the manifest's genTime, serial and policy for each of its 2 RFC 3161 tokens are the tokens' own
+  [pass] ledger_anchor.authorities: each of the 2 tokens was signed by a certificate naming the authority the manifest gives
+  [pass] ledger_anchor.independence: the 2 tokens come from different organisations under different roots
+      - root.preimage.digicert.tsr: DigiCert, Inc., root 552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988
+      - root.preimage.sectigo.tsr: Sectigo Limited, root e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2
+
+Relied on:
+  - the header at height 975278 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000001d951592f7a06f0d24697e4f9c362ae173fced55583e3 with any independent source
+  - SHA-256 (and any other hash on the path) is second-preimage resistant
+  - the header at height 975282 in headers.txt is the block at that height on Bitcoin's most-work chain: its proof of work was checked, its place in the chain was not; compare block 00000000000000000000f0b6b969a88d79d7b6e7ed970f30011ea263f5bd1c65 with any independent source
+  - CN=DigiCert Trusted Root G4,OU=www.digicert.com,O=DigiCert Inc,C=US (SHA-256 552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+  - the authority's certificates were not revoked for key compromise
+  - CN=USERTrust RSA Certification Authority,O=The USERTRUST Network,L=Jersey City,ST=New Jersey,C=US (SHA-256 e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2) is the time-stamping authority's root: compare the fingerprint with the authority's own publication
+
+Does not establish:
+  - who wrote the content, or how it was written
+  - that the content is true, original, or free of AI assistance
+  - that the content did not exist earlier than the anchor (an anchor bounds existence from above only)
+
+fm-verify 0.4.1, checked at 2026-11-14T06:06:03Z
