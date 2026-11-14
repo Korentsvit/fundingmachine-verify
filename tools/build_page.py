@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import argparse
 import base64
-import datetime as dt
 import hashlib
 import json
 import re
@@ -53,10 +52,10 @@ PYODIDE_FILES = ("pyodide.mjs", "pyodide.asm.js", "pyodide.asm.wasm", "python_st
 ROOTS = [
     {"name": "DigiCert Trusted Root G4", "authority": "DigiCert",
      "url": "https://cacerts.digicert.com/DigiCertTrustedRootG4.crt",
-     "sha256": "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988"},
+     "sha256": "552f7bdcf1a7af9e6ce672017f4f12abf77240c78e761ac203d1d9d20ac89988", "pinned": "2026-10-17"},
     {"name": "USERTrust RSA Certification Authority", "authority": "Sectigo",
      "url": "http://crt.usertrust.com/USERTrustRSACertificationAuthority.crt",
-     "sha256": "e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2"},
+     "sha256": "e793c9b02fd8aa13e21c31228accb08119643b749c898964b1746d46c3d4cbd2", "pinned": "2026-10-17"},
 ]
 
 # The Pyodide distribution the licence texts below are pinned for (pyodide-lock.json's own statements).
@@ -226,7 +225,8 @@ def notice(site: Path, info: dict, licence_texts: list[dict]) -> str:
     lines += ["roots.pem"]
     for r in info["roots"]:
         lines += [f"  {r['name']}, the root {r['authority']}'s time-stamping certificates chain to, from {r['url']}",
-                  f"  (retrieved {r['retrieved']}, SHA-256 of the certificate as published {r['sha256']}), converted from DER to PEM."]
+                  f"  (SHA-256 of the certificate as published {r['sha256']}, pinned {r['pinned']}; every build fetches it",
+                  "  again and refuses other bytes), converted from DER to PEM."]
     lines += ["  No licence text accompanies either certificate at its publisher's address. They are served as the",
               "  trust anchors for the authorities' tokens, by the owner's decision of 19 October 2026.", ""]
     lines += ["Licence texts, each from its project's own repository at the version served:"]
@@ -241,7 +241,7 @@ def fetch_roots(site: Path) -> list[dict]:
         b64 = base64.b64encode(der).decode("ascii")
         pems.append("-----BEGIN CERTIFICATE-----\n" + "\n".join(b64[i:i + 64] for i in range(0, len(b64), 64))
                     + "\n-----END CERTIFICATE-----\n")
-        out.append({**r, "retrieved": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")})
+        out.append(dict(r))  # no clock: the same commit builds the same bytes on any day
     (site / "roots.pem").write_text("".join(pems), encoding="ascii")
     return out
 

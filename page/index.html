@@ -196,7 +196,7 @@ function showBuild() {
   t.append(el("h3", { text: "The roots this page ships" }), el("p", { text: "Chosen by this page, not by you; you can use PEM files of your own instead." }));
   const ul = el("ul");
   for (const r of site.roots) ul.append(el("li", {}, el("span", { text: `${r.name}: from ` }), el("code", { text: r.url }),
-    el("span", { text: `, retrieved ${r.retrieved}, SHA-256 ` }), el("code", { text: r.sha256 })));
+    el("span", { text: `, SHA-256 (pinned ${r.pinned}) ` }), el("code", { text: r.sha256 })));
   t.append(ul);
 }
 showBuild();
