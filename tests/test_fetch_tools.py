@@ -5,6 +5,9 @@ network: they keep what matches and refuse, writing nothing, what does not."""
 import hashlib
 import importlib.util
 import json
+import threading
+import time
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -124,6 +127,50 @@ def test_headers_are_refused_when_explorers_disagree_or_a_header_is_not_its_bloc
     _serve(monkeypatch, hd, _explorers(hdr, (good, other)))
     with pytest.raises(hd.HeaderFetchError, match="does not hash"):
         hd.fetch_headers([840000], ("https://a.example/api", "https://b.example/api"))
+
+
+def test_the_explorers_are_asked_at_the_same_time(monkeypatch):
+    """Each explorer's first request waits until the other has made one too: asked one after the other, the first
+    would wait in vain and the fetch would fail."""
+    hd = _tool("fetch_headers")
+    routes = _explorers(_header_840000())
+    meet, seen = threading.Barrier(2, timeout=5), []
+
+    def urlopen(url, timeout=None):
+        seen.append(url)
+        if url.endswith("/block-height/840000"):
+            meet.wait()
+        return _Response(*routes[url])
+
+    monkeypatch.setattr(hd.urllib.request, "urlopen", urlopen)
+    got = hd.fetch_headers([840000], ("https://a.example/api", "https://b.example/api"))
+    assert got[840000][1] == _header_840000()
+    assert len(seen) == 4
+
+
+def test_one_explorers_failure_stops_the_other_and_is_the_one_reported(monkeypatch):
+    hd = _tool("fetch_headers")
+    hdr = _header_840000()
+    bh = hashlib.sha256(hashlib.sha256(hdr).digest()).digest()[::-1].hex()
+    wanted = list(range(840000, 840020))
+    asked_b = []
+
+    def urlopen(url, timeout=None):
+        if url.startswith("https://a.example/"):
+            raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+        asked_b.append(url)
+        time.sleep(0.05)
+        return _Response((hdr.hex() if url.endswith("/header") else bh).encode(), {})
+
+    monkeypatch.setattr(hd.urllib.request, "urlopen", urlopen)
+    with pytest.raises(urllib.error.HTTPError) as e:
+        hd.fetch_headers(wanted, ("https://a.example/api", "https://b.example/api"))
+    assert e.value.code == 404  # the failure itself, not the other explorer's having stopped
+    assert len(asked_b) < 2 * len(wanted)
+    stop = threading.Event()
+    stop.set()
+    with pytest.raises(hd.Stopped):
+        hd.explorer_headers("https://b.example/api", wanted, stop)
 
 
 def test_a_certificates_heights_from_its_json_or_its_pdf():
