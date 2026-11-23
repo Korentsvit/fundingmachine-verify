@@ -22,10 +22,12 @@ from __future__ import annotations
 
 import base64
 import binascii
+import concurrent.futures
 import datetime as _dt
 import hashlib
 import json
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -43,6 +45,10 @@ class HeaderFetchError(Exception):
     pass
 
 
+class Stopped(HeaderFetchError):
+    """An explorer left off because another one failed first; that failure is the one reported."""
+
+
 RETRY_AFTER_MAX = 60.0
 
 
@@ -50,7 +56,7 @@ def get(url: str, tries: int = 5, wait: float = 2.0, sleep=time.sleep) -> str:
     """The text at url. A rate limit (429), a server error (5xx), a timeout (408 or local) or a broken connection
     is tried again, up to `tries` times in all, waiting `wait` and twice as long each time after (2, 4, 8 and 16
     seconds by default), or as long as a 429 or 503 asks in its Retry-After seconds, at most a minute; any other
-    answer stops at once."""
+    answer stops at once. Each retry is told on stderr, so a slow run shows why it is slow."""
     for attempt in range(1, tries + 1):
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
@@ -58,12 +64,14 @@ def get(url: str, tries: int = 5, wait: float = 2.0, sleep=time.sleep) -> str:
         except urllib.error.HTTPError as e:
             if not (e.code in (408, 429) or e.code >= 500) or attempt == tries:
                 raise
-            delay = retry_after(e) if e.code in (429, 503) else None
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            delay, why = retry_after(e) if e.code in (429, 503) else None, f"HTTP {e.code}"
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             if attempt == tries:
                 raise
-            delay = None
-        sleep(delay if delay is not None else wait * 2 ** (attempt - 1))
+            delay, why = None, type(e).__name__
+        delay = delay if delay is not None else wait * 2 ** (attempt - 1)
+        print(f"{url}: {why}; try {attempt + 1} of {tries} in {delay:g} s", file=sys.stderr, flush=True)
+        sleep(delay)
     raise AssertionError("unreachable")
 
 
@@ -109,19 +117,47 @@ def block_hash(header: bytes) -> str:
 
 
 def fetch_headers(wanted: list[int], explorers: tuple[str, ...] = EXPLORERS) -> dict[int, tuple[str, bytes]]:
+    """Every explorer's block hash and header at each wanted height, kept only where all of them agree. The
+    explorers are asked at the same time, each in its own thread and one request at a time as before, so the run
+    takes as long as the slower explorer rather than both together, and no explorer is asked faster than before.
+    The first failure stops the other explorers at their next height."""
+    stop = threading.Event()
+
+    def one(base: str) -> list[tuple[str, bytes]]:
+        try:
+            return explorer_headers(base, wanted, stop)
+        except Exception:
+            stop.set()
+            raise
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(explorers)) as pool:
+        futures = [pool.submit(one, base) for base in explorers]
+        concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_EXCEPTION)
+        failed = [f.exception() for f in futures if f.done() and f.exception() is not None]
+        if failed:  # a failure is raised before any agreement is looked at, the first one rather than a Stopped
+            raise next((e for e in failed if not isinstance(e, Stopped)), failed[0])
+        per_explorer = [f.result() for f in futures]
     out: dict[int, tuple[str, bytes]] = {}
-    for h in wanted:
-        answers = []
-        for base in explorers:
-            bh = get(f"{base.rstrip('/')}/block-height/{h}")
-            raw = bytes.fromhex(get(f"{base.rstrip('/')}/block/{bh}/header"))
-            if len(raw) != 80 or block_hash(raw) != bh:
-                raise HeaderFetchError(f"{base} gave height {h} the block {bh}, but a header that does not hash to it")
-            answers.append((bh, raw))
+    for i, h in enumerate(wanted):
+        answers = [got[i] for got in per_explorer]
         if len(set(answers)) != 1:
             raise HeaderFetchError(f"the explorers disagree on height {h}: " + ", ".join(f"{e} {a[0]}" for e, a in zip(explorers, answers)))
         out[h] = answers[0]
     return out
+
+
+def explorer_headers(base: str, wanted: list[int], stop: threading.Event | None = None) -> list[tuple[str, bytes]]:
+    """One explorer's (block hash, header) at each wanted height, in order; each header must hash to its block."""
+    got = []
+    for h in wanted:
+        if stop is not None and stop.is_set():
+            raise Stopped(f"{base}: stopped at height {h}, another explorer failed")
+        bh = get(f"{base.rstrip('/')}/block-height/{h}")
+        raw = bytes.fromhex(get(f"{base.rstrip('/')}/block/{bh}/header"))
+        if len(raw) != 80 or block_hash(raw) != bh:
+            raise HeaderFetchError(f"{base} gave height {h} the block {bh}, but a header that does not hash to it")
+        got.append((bh, raw))
+    return got
 
 
 def render(headers: dict[int, tuple[str, bytes]], explorers: tuple[str, ...], at: str) -> str:
