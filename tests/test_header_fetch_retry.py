@@ -95,3 +95,10 @@ def test_any_other_answer_stops_at_once():
     finally:
         server.shutdown()
     assert seen == [404]
+
+
+def test_each_retry_is_told_on_stderr(capsys):
+    got, seen, waits = _get([(429, {"Retry-After": "7"}), (502, {})])
+    assert got == BODY
+    err = capsys.readouterr().err.splitlines()
+    assert [line.split(": ", 1)[1] for line in err] == ["HTTP 429; try 2 of 5 in 7 s", "HTTP 502; try 3 of 5 in 4 s"]
