@@ -7,9 +7,11 @@ two explorers, and keep them only if the explorers agree.
 Reads every ``*.ots`` file under DIR, or the OpenTimestamps proof inside a
 Provenance Ledger certificate (``ledger-certificate/v0`` or
 ``record-certificate/v0``, its JSON or its PDF form), collects the heights of their Bitcoin attestations, and asks each explorer (default https://mempool.space/api and
-https://blockstream.info/api, both Esplora) for the block hash at each height
-and that block's header. A header is kept only if every explorer gives the
-same bytes and they hash to the block hash given. OUT receives the headers as
+https://blockstream.info/api, both Esplora) for its list of blocks from each
+height down (``/blocks/HEIGHT``, ten blocks an answer, so heights close
+together share a request). Each header is rebuilt from its block's fields and
+must hash to the block's id; it is kept only if every explorer gives the same
+bytes. OUT receives the headers as
 ``HEIGHT HEX`` lines, the sparse form ``fm-verify --headers`` reads, under
 comments naming the explorers, the time and each block's hash. Any
 disagreement stops it with exit 1 and nothing is written.
@@ -26,6 +28,7 @@ import concurrent.futures
 import datetime as _dt
 import hashlib
 import json
+import struct
 import sys
 import threading
 import time
@@ -147,17 +150,48 @@ def fetch_headers(wanted: list[int], explorers: tuple[str, ...] = EXPLORERS) -> 
 
 
 def explorer_headers(base: str, wanted: list[int], stop: threading.Event | None = None) -> list[tuple[str, bytes]]:
-    """One explorer's (block hash, header) at each wanted height, in order; each header must hash to its block."""
-    got = []
-    for h in wanted:
+    """One explorer's (block hash, header) at each wanted height, in order. It is asked for its blocks from the
+    highest height not yet given down (``/blocks/HEIGHT``: that block and the nine below it on Esplora), so one
+    answer covers every wanted height among them. Each block's header is rebuilt from its fields and must hash to
+    the block's id, and the block asked for must be among them. Progress is told on stderr every 25 requests."""
+    given: dict[int, tuple[str, bytes]] = {}
+    asked, started = 0, time.monotonic()
+    for h in sorted(set(wanted), reverse=True):
+        if h in given:
+            continue
         if stop is not None and stop.is_set():
             raise Stopped(f"{base}: stopped at height {h}, another explorer failed")
-        bh = get(f"{base.rstrip('/')}/block-height/{h}")
-        raw = bytes.fromhex(get(f"{base.rstrip('/')}/block/{bh}/header"))
-        if len(raw) != 80 or block_hash(raw) != bh:
-            raise HeaderFetchError(f"{base} gave height {h} the block {bh}, but a header that does not hash to it")
-        got.append((bh, raw))
-    return got
+        answer = get(f"{base.rstrip('/')}/blocks/{h}")
+        asked += 1
+        try:
+            blocks = [(int(b["height"]), str(b["id"]), header_from_fields(b)) for b in json.loads(answer)]
+        except (KeyError, TypeError, ValueError, struct.error) as exc:
+            raise HeaderFetchError(f"{base} answered height {h} with something other than a list of blocks ({exc})") from None
+        for height, bh, raw in blocks:
+            if block_hash(raw) != bh:
+                raise HeaderFetchError(f"{base} gave height {height} the block {bh}, but a header that does not hash to it")
+            if given.get(height, (bh, raw)) != (bh, raw):
+                raise HeaderFetchError(f"{base} gave height {height} two different blocks")
+            given[height] = (bh, raw)
+        if h not in given:
+            raise HeaderFetchError(f"{base} gave no block at height {h}")
+        if asked % 25 == 0:
+            done = sum(x in given for x in set(wanted))
+            print(f"{base}: {done} of {len(set(wanted))} heights in {asked} requests, {time.monotonic() - started:.0f} s",
+                  file=sys.stderr, flush=True)
+    return [given[h] for h in wanted]
+
+
+def header_from_fields(block: dict) -> bytes:
+    """The 80-byte header an Esplora block describes: its version, previous block, Merkle root, time, bits and
+    nonce, in the order and byte order Bitcoin hashes them."""
+    prev = block["previousblockhash"] or "00" * 32  # none for the first block
+    raw = (struct.pack("<I", int(block["version"]) & 0xFFFFFFFF) + bytes.fromhex(prev)[::-1]
+           + bytes.fromhex(block["merkle_root"])[::-1]
+           + struct.pack("<III", int(block["timestamp"]), int(block["bits"]), int(block["nonce"])))
+    if len(raw) != 80:
+        raise ValueError(f"a header of {len(raw)} bytes")
+    return raw
 
 
 def render(headers: dict[int, tuple[str, bytes]], explorers: tuple[str, ...], at: str) -> str:
